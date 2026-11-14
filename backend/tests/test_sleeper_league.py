@@ -103,3 +103,14 @@ def test_a_kept_pickup_costs_his_faab_bid_and_a_free_agent_add_the_minimum():
     assert cost[13] == (20, 24)       # bought at auction, traded later: the auction price stands
     assert cost[14] == (7, 8)         # bought for 30, dropped, claimed back for 7: the claim is his price
     assert cost[15] == (None, None)   # no trace of him last season
+
+
+def test_top3_share_is_of_what_he_spent_at_the_auction_not_of_the_budget():
+    """A manager who spent $150 of $200 at auction (the rest went on keepers): 100 on his top three is 67 %, not 50 %."""
+    from app.core.services.sleeper_league import tendencies
+
+    pick = lambda uid, amount: {"picked_by": uid, "metadata": {"amount": str(amount), "first_name": "P", "last_name": str(amount)}}   # noqa: E731
+    season_doc = {"league": {"season": "2025"}, "draft": {"type": "auction", "status": "complete", "settings": {"budget": 200}},
+                  "picks": [pick("a", x) for x in (40, 30, 20, 30, 30)] + [pick("b", x) for x in (50, 50, 50, 25, 25)]}
+    t = tendencies({"seasons": [season_doc]})
+    assert t["a"]["top3_share"] == 0.67 and t["b"]["top3_share"] == 0.75

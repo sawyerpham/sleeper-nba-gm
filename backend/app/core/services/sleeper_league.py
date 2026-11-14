@@ -125,7 +125,9 @@ def last_auction(details: dict | None) -> dict | None:
 
 
 def tendencies(details: dict | None) -> dict[str, dict]:
-    """Per Sleeper user id, how they spent in the last completed auction."""
+    """Per Sleeper user id, how they spent in the last completed auction. top3_share = his three biggest buys as a
+    share of what he spent there (not of the budget: a manager who kept players had less to spend at auction, and
+    against the full budget he would read as spreading his money)."""
     season = last_auction(details)
     if season is None:
         return {}
@@ -137,7 +139,8 @@ def tendencies(details: dict | None) -> dict[str, dict]:
     shares = {}
     for uid, buys in by_user.items():
         buys.sort(reverse=True)
-        shares[uid] = sum(a for a, _ in buys[:3]) / budget if budget else 0.0
+        spent = sum(a for a, _ in buys) or budget
+        shares[uid] = sum(a for a, _ in buys[:3]) / spent if spent else 0.0
     median = sorted(shares.values())[len(shares) // 2] if shares else 0.0
     out = {}
     for uid, buys in by_user.items():
