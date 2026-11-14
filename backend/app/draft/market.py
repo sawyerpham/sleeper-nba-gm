@@ -13,13 +13,16 @@ per position (PG SG SF PF C):
   tier     = best tier left there, how many of it are left (names) and the value drop to the next tier's best
   chasers  = rivals with an open spot there whose cap reaches the fair value of the best player left there
 room trend:
-  sales    = every sale, newest first (keepers skipped), vs his Worth at the moment of the sale, replayed from the picks
+  sales    = every sale, newest first (keepers skipped), vs his Worth at the moment of the sale, replayed from the picks;
+             recent_diff = the median of price − Worth over the last 10 (one runaway bid doesn't move it)
 sold tracker: sales so far, roster spots still open in the room, available players still worth GOOD_WORTH+
 
 ponytail: flex slots (G/F/UTIL) are not split across positions; count them per position if a league uses them.
 """
 
 from __future__ import annotations
+
+from statistics import median
 
 from ..core.engine import roster
 from ..core.engine.bidding import market_rate
@@ -117,4 +120,4 @@ def market_board(session, manager_id: str) -> dict:
     spots_left = sum(session.engine.budget(m.manager_id).open_mandatory for m in session.managers)
     return {"positions": positions, "sales": sales[::-1], "sold": len(sales), "spots_left": spots_left,
             "starters_left": room_starters, "good_left": good_left, "good_worth": GOOD_WORTH,
-            "recent_diff": round(sum(s["diff"] for s in window) / len(window), 1) if window else None}
+            "recent_diff": round(median(s["diff"] for s in window), 1) if window else None}

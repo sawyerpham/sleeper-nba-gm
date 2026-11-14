@@ -57,7 +57,7 @@ export default function MarketPanel({ leagueId, live, refreshKey, onSelect }) {
       <div className="trend-head">
         <span className="bid-label"><Term k="room_trend" /></span>
         {m.recent_diff != null && (
-          <span className={`small ${m.recent_diff > 2 ? "warn-text" : m.recent_diff < -2 ? "ok" : "muted"}`} data-tip="Average over the last 10 sales.">
+          <span className={`small ${m.recent_diff > 2 ? "warn-text" : m.recent_diff < -2 ? "ok" : "muted"}`} data-tip="The typical (median) sale against Worth over the last 10 sales; one runaway bid doesn't move it.">
             {m.recent_diff > 0 ? "+" : m.recent_diff < 0 ? "−" : ""}${Math.abs(m.recent_diff)} vs worth lately
           </span>
         )}
