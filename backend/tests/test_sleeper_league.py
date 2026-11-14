@@ -76,3 +76,30 @@ def test_mock_draft_picks_are_matched_by_seat():
                          "nominating_slot": "4", "timer_end_at": "2026-10-14T11:44:09Z"}
     live = sync_picks(platform, session, "D")["live"]
     assert live["player_id"] == 12 and live["high_bid"] == 39 and live["leader"] == "six" and live["nominated_by"] == "me"
+
+
+def test_a_kept_pickup_costs_his_faab_bid_and_a_free_agent_add_the_minimum():
+    """A keeper who wasn't bought at last year's auction: the escalation rule on his winning FAAB bid; a free-agent
+    add has no bid, so it escalates from nothing (the minimum). A later pickup replaces an auction price; a trade doesn't."""
+    from types import SimpleNamespace
+
+    from app.core.services.sleeper_league import current_keepers, pickup_prices
+    from nba_fantasy_shared.models.league import KeeperEscalation, Manager
+
+    tx = lambda kind, sid, when, bid=None, status="complete": {   # noqa: E731
+        "type": kind, "status": status, "status_updated": when, "adds": {sid: 1}, "settings": {"waiver_bid": bid} if bid is not None else None}
+    pickups = pickup_prices([tx("waiver", "10", 1, 3), tx("waiver", "10", 5, 12), tx("free_agent", "11", 2),
+                             tx("waiver", "12", 3, 40, status="failed"), tx("trade", "13", 4), tx("waiver", "14", 6, 7)])
+    assert pickups == {"10": 12, "11": 0, "14": 7}             # latest claim wins; failed claims and trades don't price him
+
+    prev = {"draft": {"type": "auction", "status": "complete"}, "pickups": pickups,
+            "picks": [{"player_id": "13", "metadata": {"amount": "20"}}, {"player_id": "14", "metadata": {"amount": "30"}}]}
+    now = {"rosters": [{"roster_id": 1, "owner_id": "u", "keepers": ["10", "11", "13", "14", "15"]}]}
+    players = {i: SimpleNamespace(player_id=i, sleeper_id=str(i), full_name=f"P{i}") for i in range(10, 16)}
+    kept = current_keepers({"seasons": [now, prev]}, [Manager(manager_id="m1", name="Me", sleeper_roster_id=1)], players, KeeperEscalation())
+    cost = {k["player_id"]: (k["last_price"], k["cost"]) for k in kept}
+    assert cost[10] == (12, 14)       # FAAB bid 12 -> +$1 per full $5
+    assert cost[11] == (0, 1)         # free-agent add: the minimum
+    assert cost[13] == (20, 24)       # bought at auction, traded later: the auction price stands
+    assert cost[14] == (7, 8)         # bought for 30, dropped, claimed back for 7: the claim is his price
+    assert cost[15] == (None, None)   # no trace of him last season
