@@ -1,0 +1,407 @@
+% NBA Fantasy Tool: the calculations the app performs and shows, in equation form.
+% Build: pdflatex calculations.tex   (run twice for the table of contents)
+\documentclass[10pt]{article}
+\usepackage[margin=0.9in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage[colorlinks=true,linkcolor=blue!50!black]{hyperref}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+\setlist{nosep,leftmargin=1.4em}
+\allowdisplaybreaks
+
+% Sleeper API names as the API sends them
+\newcommand{\api}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\E}{\mathbb{E}}
+\renewcommand{\Pr}{\mathbb{P}}
+\DeclareMathOperator{\Var}{Var}
+\DeclareMathOperator{\clamp}{clamp}
+\newcommand{\sleeper}[1]{\par\textbf{Sleeper inputs.} #1}
+
+\title{NBA Fantasy Tool: Calculations in Equation Form}
+\author{}
+\date{As of 14 November 2026}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+\section*{Notation}
+$\Phi$ is the standard normal CDF and $\varphi$ its density. $X\sim\mathcal N(\mu,\sigma)$ means mean $\mu$ and standard
+deviation $\sigma$. Values the app computes are shown to the user unless marked \emph{internal}. Anything Sleeper sends
+is named in \api{typewriter} exactly as the API spells it. Constants come from the code; the ones fitted to data
+(by \api{backtest_week.py} on the first three weeks of 2026--27, and \api{backtest_live.py}) are marked \textbf{fitted}.
+
+% =====================================================================
+\part{Season (Lock-In)}
+% =====================================================================
+
+\section{Points}
+\begin{align}
+\mathrm{FP} &= \sum_{s} w_s\,x_s \;+\; \sum_{b} B_b\cdot\mathbf 1[\text{line meets rule } b] \\
+\mathrm{FP}_{\text{proj}} &= \sum_{s} w_s\,\mathrm{proj}_s \;+\; \overline{\mathrm{bonus}}_{\text{last season}} \\
+\mathrm{FP/G}_{\text{season}} &= \frac{1}{n}\sum_{g\ \text{finished}} \mathrm{FP}_g
+\end{align}
+Bonuses stack (52 points earns both the 40+ and 50+ bonus). A triple-double counts once.
+\sleeper{\api{scoring_settings} (\api{pts reb ast stl blk to fgm fga ftm tpm td bonus_pt_40p bonus_pt_50p bonus_ast_15p
+bonus_reb_20p}); box score \api{stats} (\api{pts reb ast stl blk to fgm fga ftm fta pf sp}, with \api{sp} the seconds
+played); \api{projections/nba/{year}/{week}} stats.}
+
+\section{One game's distribution}
+\subsection{Mean and spread before the tip}
+\begin{align}
+\mu &= 0.925\cdot\mathrm{FP}_{\text{proj}} &&\text{(\textbf{fitted}: Sleeper's projections ran 7.5\,\% high)}\\
+\sigma_{\text{own}} &= \clamp\!\Big(\frac{\operatorname{std}(\mathrm{FP}_{\text{last season}})}{\operatorname{mean}(\mathrm{FP}_{\text{last season}})},\,0.12,\,0.6\Big) \\
+s &= \begin{cases} 0.45 + 0.4\,(\sigma_{\text{own}} - 0.45) & n_{\text{last}}\ge 15,\ \text{mean}>0\\ 0.45 & \text{otherwise}\end{cases} &&\text{(\textbf{fitted})}\\
+\text{game} &\sim \mathcal N(\mu,\; s\,\mu)
+\end{align}
+
+\subsection{Chance he plays}
+\begin{equation}
+p(g)=\underbrace{\mathrm{base}[\text{status}][\text{next or later}]}_{\text{table}}\times\begin{cases}1 & \text{not a back-to-back}\\ 0.95 & \text{second night}\\ 0.85 & \text{second night, age}\ge 31\end{cases}
+\end{equation}
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Status (mapped from Sleeper's tag) & next game & later games\\
+\midrule
+healthy (also \api{Probable}) & 0.97 & 0.93\\
+day-to-day (\api{GTD DTD Questionable Doubtful}) & 0.60 & 0.90\\
+out short term (\api{Out}, \api{Sus}) & 0 & 0.30\\
+out long term (\api{IR}) & 0 & 0\\
+\bottomrule
+\end{tabular}
+\end{center}
+A game that has tipped: $p=1$ once he has stats, otherwise $p=0$ if he is ruled out, or the game is in its second half
+or over; just tipped with no stats yet, $p=1$.
+The healthy-later and back-to-back values are \textbf{fitted} on last season's game logs (87.3\,\% played a second
+night against 92.7\,\% otherwise; 78.6\,\% against 92.3\,\% from age 31).
+\sleeper{\api{injury_status}; the schedule (\api{schedule/nba/regular/{year}}) for back-to-backs.}
+
+\subsection{A game in progress}
+\begin{align}
+\text{elapsed} &= 720\,(q-1) + (720 - \text{clock}) \quad(\text{seconds, } q\le 4)\\
+\text{share left } r &= \begin{cases}1-\text{elapsed}/2880 & q\le 4\\ \min(300,\text{clock})/2880 & q>4\ (\text{overtime})\end{cases}\\
+\text{rate} &= \frac{\mathrm{FP}_{\text{now}} + (\mathrm{FP}_{\text{proj}}/m_{\text{proj}})\cdot 60}{m_{\text{played}} + 60}\\
+\text{minutes left} &= 0.9\; m_{\text{proj}}\; r\\
+\text{pace} &= \mathrm{FP}_{\text{now}} + \text{rate}\cdot\text{minutes left}\\
+\text{game} &\sim \mathcal N\big(\text{pace},\; s\,\mu\,\sqrt{r}\big)
+\end{align}
+Here $m_{\text{proj}}$ is his projected minutes and $m_{\text{played}}$ the minutes so far. The $60$-minute prior and the
+$0.9$ factor were \textbf{fitted} on 2{,}843 player games. The $\sqrt r$ scaling was checked: the miss at 12, 24, 36
+and 42 minutes was $0.871, 0.702, 0.506, 0.357$ of the pre-game miss, against $\sqrt r = 0.866, 0.707, 0.500, 0.354$.
+With no stats yet, the mean is $\mu$. A final game is just its score.
+\sleeper{\api{stats} (\api{pts ... sp}) live; projected \api{sp}. The clock and period come from ESPN.}
+
+\section{Lock now or wait}
+\subsection{What a slot is worth}
+A lockable starter has $X$, the FP of his latest finished game. Waiting means leaving his slot open for his later
+games (his own, or a spare bench player's that fit the slot). For games $1,\dots,n$ still to come, with
+$X_k\sim\mathcal N(\mu_k,\sigma_k)$ and play chance $p_k$:
+\begin{align}
+V_n &= p_n\,\mu_n \qquad(\text{his last game counts whatever it is; missing it scores } 0)\\
+V_k &= p_k\;\E\big[\max(X_k, V_{k+1})\big] + (1-p_k)\,V_{k+1}\\
+\E[\max(X,v)] &= v + (\mu-v)\,\Phi(d) + \sigma\,\varphi(d),\qquad d=\frac{\mu-v}{\sigma}\\
+W &= V_1,\qquad \text{value}=\begin{cases}L & \text{locked score } L\\ \max(X,W)&\text{otherwise}\end{cases}
+\end{align}
+\subsection{Its variance (internal)}
+The same recursion carries the second moment. With $c=\Pr(X_k>v)$, $a=\E[X_k;X_k>v]$ and $b=\E[X_k^2;X_k>v]$:
+\begin{align}
+c &= \Phi(d),\quad a=\mu\Phi(d)+\sigma\varphi(d),\quad b=(\mu^2+\sigma^2)\Phi(d)+(\mu+v)\,\sigma\,\varphi(d)\\
+(e_1,e_2) &= \begin{cases}(\mu_k,\ \mu_k^2+\sigma_k^2) & k=n\\ \big(a+(1-c)\,m_1,\ b+(1-c)\,m_2\big) & k<n\end{cases}\\
+m_1' &= p_k e_1 + (1-p_k)\,m_1,\qquad m_2' = p_k e_2 + (1-p_k)\,m_2\\
+\Var_W &= m_2 - m_1^2
+\end{align}
+with $(m_1,m_2)=(V_{k+1},\ \text{second moment of the games after } k)$, starting at $(0,0)$. One game gives
+$\E=p\mu$ and $\Var=p(\sigma^2+\mu^2)-(p\mu)^2$. The chance the wait ends with nothing is
+\begin{equation}
+z=\prod_{k=1}^{n}\Big(1-p_k\cdot\begin{cases}1 & k=n\\ \Pr(X_k>V_{k+1}) & k<n\end{cases}\Big)
+\end{equation}
+
+\section{Chance to win the week}
+\subsection{A team's total}
+Each seated slot contributes (mean, variance):
+\begin{equation}
+(\text{mean},\text{var})=\begin{cases}(L,\,0) & \text{locked at } L\\ (X,\,0) & \text{locking now}\\ (W,\,\Var_W) & \text{waiting (the open slot's } W,\Var_W)\end{cases}
+\end{equation}
+The team's $(M,V)$ is the sum over seated slots.
+\subsection{Win chance and lock-or-pass}
+\begin{align}
+\mathrm{Win}(M_A,V_A;M_B,V_B) &= \Phi\!\left(\frac{M_A-M_B}{\sqrt{V_A+V_B}}\right)\\
+W_{\text{lock}} &= \mathrm{Win}\big(M_{\text{rest}}+X,\ V_{\text{rest}};\ M_{\text{opp}},V_{\text{opp}}\big)
+\end{align}
+For the waiting side the slot is split into its chance of scoring nothing and a normal for the rest:
+\begin{align}
+m &= \frac{W}{1-z},\qquad v=\frac{\Var_W+W^2}{1-z}-m^2\\
+W_{\text{wait}} &= z\cdot\mathrm{Win}\big(M_{\text{rest}},V_{\text{rest}};\cdot\big)+(1-z)\cdot\mathrm{Win}\big(M_{\text{rest}}+m,\ V_{\text{rest}}+v;\cdot\big)\\
+\text{call} &= \begin{cases}\text{LOCK} & W_{\text{lock}}\ge W_{\text{wait}}\\ \text{PASS}&\text{otherwise}\end{cases}\\
+\mathrm{WPA} &= W_{\text{lock}} - W_{\text{wait}}\qquad\text{(win probability added, shown as }\pm x.x\%)
+\end{align}
+The split matters for one questionable game: trailing by 5 with a single 60\,\% game of about 20 left, one normal curve
+read 71\,\% against an exact 57\,\%.
+
+\subsection{Strategy odds and the week's chance}
+\begin{align}
+\text{Lock everything now} &= \mathrm{Win}(\text{team with every lockable game locked})\\
+\text{Leave everything open} &= \mathrm{Win}(\text{team with every lockable slot waiting})\\
+\text{Plan mix} &= \mathrm{Win}(M,V;\,M_{\text{opp}},V_{\text{opp}})\quad\text{with each call as decided above}
+\end{align}
+(a player with nothing left to play locks what he has either way).
+
+\subsection{Which slot to lock him in}
+A lock freezes him in the slot he is locked in. For each starting slot $\sigma$ he can play,
+\begin{align}
+T_\sigma &= \text{value of the other slots when he is locked in }\sigma\ (\text{everyone else re-seated by value})\\
+\mathrm{Win}_\sigma &= \mathrm{Win}\big(M_{\text{rest}}+X-(T_{\text{best}}-T_\sigma),\ V_{\text{rest}};\ \cdot\big)
+\end{align}
+\sleeper{\api{matchups/{week}} (\api{matchup_id players starters starters_points players_points points}); \api{roster_positions}.}
+
+\section{Open slot value}
+His slot, left open, gets one look at each remaining tip: his own games and any bench player's who fits the slot and is not
+seated. Looks within 15 minutes of each other count as one (the bigger projection). Each look uses its own player's
+$s$ and $p$. $(W,\Var_W,z)$ is the recursion above run over those looks in order.
+
+\section{Chance a later game beats a finished one}
+Shown on a finished game's hover. For his unfinished games $i$ with $(\mu_i,\sigma_i)$ from the game model above and play chance $p_i$:
+\begin{equation}
+\Pr[\text{some later game}>S]=1-\prod_i\Big[1-p_i\big(1-\Phi\big(\tfrac{S-\mu_i}{\sigma_i}\big)\big)\Big]
+\end{equation}
+Live games use $p_i=1$. Games are treated as independent: measured correlation within a week was $+0.03$, between
+teammates $-0.02$ and between opponents $-0.005$.
+
+\section{Keep or swap (live)}
+Keeping a starter whose game is on, or swapping a later bench player $B$ in, are valued by one step: tonight's game with
+its spread, the starter's later games behind it as the fallback. With $\mathrm{bar}$ the mean and $m_2^{\text{bar}}$ the
+second moment of the starter's later games, and play chance $p$ and game $(\mu,\sigma)$:
+\begin{align}
+\mathrm{step}(\mu,\sigma,p) &= \big(p\,e_1+(1-p)\,\mathrm{bar},\ \ p\,e_2+(1-p)\,m_2^{\text{bar}}\big)\quad\text{as in the recursion}\\
+\text{swap} &= \mathrm{step}\big(\text{backup's game}\big)\\
+\text{keep} &= \begin{cases}\mathrm{step}\big(\text{his game, not started}\big) & \text{before the tip}\\
+\mathrm{step}\big(\text{pace},\,\sigma_{\text{live}},\,1\big) & \text{under way with a score}\\
+\max(\text{score},\ \mathrm{bar}) & \text{over, or out under way (score }0)\end{cases}\\
+\text{gain} &= \text{swap}-\text{keep}\\
+\text{call} &= \begin{cases}\text{SWAP} & \text{swap}>\text{keep}\ \text{and}\ \text{pace}\le\mu_B\\ \text{KEEP}&\text{otherwise}\end{cases}
+\end{align}
+Before the tip the call is PENDING, and \emph{keep-if} $=$ swap is the finish he must be headed for. The win chances shown
+for keep and swap are $\mathrm{Win}(M_{\text{rest}}+\text{keep},\,V_{\text{rest}}+\Var_{\text{keep}};\cdot)$ and the same with
+swap; the higher decides the final call.
+
+\section{Lineup, timeline and locks}
+\begin{itemize}
+\item \textbf{Seating.} Locked players keep their slots. Everyone else, highest value first, takes a slot he is eligible
+for, sliding seated multi-position players along augmenting paths to make room. This is optimal for these slots (a
+transversal matroid). The expected total is $\sum_{\text{seated}}\text{value}$.
+\item \textbf{Today's order.} Pinned (locked or in progress), then LOCK calls, then players who play later today by tip
+(tips $\le 15$ minutes apart form a group; larger projection first unless the projections are within 1\,FP, then the
+earlier tip), then players by their next game.
+\item \textbf{Check-in time.} $t_{\text{check}} = t_{\text{tip}} - 15\ \text{min}$ for any tip where someone moves in;
+a game counts as under way until $t_{\text{tip}}+135$ minutes. One swap alarm rings 5 minutes before the later player's tip.
+\item \textbf{Locked points (shown).} $\sum_{\text{locked}} L$ (Sleeper's own total also counts each starter's latest
+game, which is not banked until it is locked).
+\item \textbf{Lock status.} Your recorded answer wins. Otherwise, with $c$ = Sleeper's counted points for the player:
+\[
+\text{status}=\begin{cases}\text{locked}& \exists\ \text{earlier game with }|FP_g-c|<0.06\\
+\text{maybe}& \text{only his latest game matches}\\ \text{no}&\text{no match}\end{cases}
+\]
+For a rival, ``maybe'' becomes ``guess locked'' if the game is final and $\mathrm{FP}\ge W$ of his later games.
+\item \textbf{Alerts.} A starter ruled out before tip: bench him and start the best eligible bench player. A questionable
+starter: alarm 30 minutes before tip. A LOCK not yet locked: reminder 30 minutes before the next tip.
+\end{itemize}
+\sleeper{\api{players_points} (counted points per player), \api{starters}.}
+
+\section{NBA team numbers}
+\begin{align}
+\text{per-game}_{t,k}^{\text{off}} &= \frac{1}{G_t}\sum_{g\in\text{team }t}\text{box}_k,\qquad
+\text{per-game}_{t,k}^{\text{def}}=\frac{1}{G_t}\sum_{g}\text{opponent's box}_k\\
+\text{rank}_{t,k} &= 1+\#\{u\ :\ \text{per-game}_{u,k}\ \text{beats}\ \text{per-game}_{t,k}\}
+\end{align}
+for $k\in\{\mathrm{pts,reb,ast,blk,stl,tpm,fga,to}\}$ over finished games, ties sharing a rank. ``Beats'' means larger on
+offense and smaller on defense, except turnovers, which reverse. An NBA record is the count of W and L over finished games.
+\sleeper{\api{stats/nba/{year}/{week}} \api{TEAM_} rows; the schedule's game \api{status}.}
+
+\section{Waivers}
+\begin{align}
+\text{drop} &= \arg\min_{\text{non-IR}} \text{value}\\
+\text{upgrade} &= \text{value}_{\text{free agent}} - \text{value}_{\text{drop}}\qquad(\text{shown only if}>0,\ \text{max }12)\\
+\widetilde{\mathrm{FPG}} &= \frac{n\cdot \mathrm{FPG}_{\text{own}} + 10\cdot 0.925\cdot\mathrm{proj}}{n+10}\quad(\text{own FP/G over }n\text{ games, pulled to the projection})\\
+\text{demand} &= \clamp\!\Big(\frac{\widetilde{\mathrm{FPG}}_{\text{fa}}/\widetilde{\mathrm{FPG}}_{\text{drop}}-1.25}{0.5},\,0,\,1\Big)\qquad(1\text{ if the drop's FP/G}\le 0)\\
+\text{pace} &= \frac{\text{FAAB left}}{\text{weeks left}},\qquad \text{FAAB left}=\texttt{waiver\_budget}-\texttt{waiver\_budget\_used}\\
+\text{bid} &= \min\!\Big(\text{FAAB left},\ \max\!\big(\text{min bid},\ \min(\mathrm{round}(0.25\cdot\text{FAAB left}),\ \mathrm{round}(\text{pace}\cdot\tfrac{\text{upgrade}}{2}\cdot\text{demand}))\big)\Big)
+\end{align}
+``value'' is the draft value of Part~II. The bid is a guide, not a price. A free agent whose latest notes say he is out for
+the season is skipped. Games after he lands: his team's games this week and next on or after the next waiver run.
+\sleeper{\api{settings.waiver_budget}, \api{waiver_budget_used}, \api{waiver_bid_min}, \api{waiver_type}
+(0 rolling, 1 reverse standings, 2 FAAB), \api{daily_waivers}, \api{reserve}, rosters (to find free agents), news text.}
+
+\section{News flags}
+Injury flag: a RotoWire tag such as ``(ankle)'' (not ``(rest)'' or ``(personal)''), or an injury word
+(injur, illness, sore, sprain, strain, tear, torn, surgery, fracture, concussion, achilles, ``out indefinitely'').
+\sleeper{\api{players/nba/{id}/news} (\api{metadata.title description analysis}), \api{trending}.}
+
+% =====================================================================
+\part{Draft}
+% =====================================================================
+
+\textbf{What a week scores (needed to read this part on its own).} The league plays Lock-In: every starting slot
+scores exactly \emph{one} game per week, the game locked into it, else its occupant's last game. A team's week is
+therefore a sum of one game per slot, which is why a player's \emph{weekly best} game matters as much as his average,
+and why team strength below is a sum of expected weekly-best games (an expected total is the sum of the slots'
+expectations whatever the correlation between them; measured between teammates it is $-0.02$).
+Playoff weeks count double in the schedule factor.
+
+\section{Player value}
+\subsection{Expected FP per game and ceiling}
+\begin{align}
+\overline{\mathrm{FP}} &= w_p\,\mathrm{FP}_{\text{proj}} + (1-w_p)\,\mathrm{FP}_{\text{last}}\qquad(w_p=1\text{ by default})\\
+\text{ceiling} &= \mathrm{Ceil}_{\text{last}}\cdot\frac{\overline{\mathrm{FP}}}{\mathrm{FP}_{\text{last}}}\qquad(\text{no game logs: }1.26\,\mathrm{FP}_{\text{proj}})\\
+\text{ceiling}' &= \overline{\mathrm{FP}} + (\text{ceiling}-\overline{\mathrm{FP}})\big(1+w_s(S_{\text{team}}-1)\big)
+\end{align}
+$\mathrm{Ceil}_{\text{last}}$ is last season's average of each Monday--Sunday week's best game (the default metric; the single
+best game or the top-quarter average are options). $w_s\in[0,1]$ is the schedule weight.
+
+\subsection{Value}
+\begin{align}
+\text{value} &= \big(0.5\,\overline{\mathrm{FP}} + 0.5\,\text{ceiling}'\big)\cdot c\cdot a\cdot \iota\cdot \alpha \;+\; \text{scarcity}\\
+c &= \begin{cases}1 & \text{a projection exists}\\ \min(1,\ \text{games}/20) & \text{otherwise}\end{cases}\\
+a &= 1-w_a(1-A)\qquad(w_a=0\text{ by default, so }a=1)\\
+\iota &= \{\text{healthy }1,\ \text{DTD }0.95,\ \text{out short }0.85,\ \text{out long }0.60,\ \text{out season }0\}\\
+\alpha &= 1-\big(1-\alpha_0\big)(1-w_p)\ \text{with a projection},\qquad \alpha_0 = 1-\min\!\big(0.25,\ 0.03\max(0,\ \text{age}-31)\big)
+\end{align}
+Here \emph{scarcity} is \textbf{position scarcity} (defined below), an additive adjustment in value points; it is not
+an injury term. Injury is the multiplier $\iota$ and availability the multiplier $a$. Value is floored at 0 after
+scarcity. A player who cannot fill any open slot of the manager sinks in the list.
+
+\subsection{Schedule factor, scarcity, availability, tiers}
+\begin{align}
+S_{\text{team}} &= \frac{\sum_w \omega_w\,E_{N}(n_w)\,/\,\sum_w\omega_w}{\text{league mean of the same}},\quad
+\omega_w=\begin{cases}2&\text{playoff week}\\1&\text{otherwise}\end{cases}\\
+E_N &= (0,\ 0.564,\ 0.846,\ 1.029,\ 1.163,\ 1.267)\ \text{ for }N=1,\dots,6\text{ games (expected best of }N\text{ draws)}\\
+\text{scarcity}_p &= w_{\text{sc}}\Big(\overline{R}-\min_{\text{pos}\in\text{elig}(p)}R_{\text{pos}}\Big),\qquad
+\overline R=\operatorname{mean}_{\text{pos}}R_{\text{pos}}\\
+R_{\text{pos}} &= \text{best value left at pos after every team's starting slots are filled}\\
+A &= \frac{\sum_i \lambda_i\,\text{share}_i}{\sum_i\lambda_i},\quad\lambda=(0.5,\,0.3,\,0.2)\ \text{(last three seasons)};\ \text{rookie}\to 0.88\\
+\text{tier break} &:\ \text{a new tier starts when value}<0.94\times(\text{top value of the current tier})
+\end{align}
+A single lost season (share $<0.5$) from an otherwise durable player (others average $\ge 0.8$) is pulled toward his usual share
+by $\min\!\big(1,\max(0.25,(35-\text{age})/6)\big)$.
+\sleeper{Projections (\api{pts reb ast stl blk to fgm fga ftm fg3m sp owned adp_std}); \api{age}; \api{fantasy_positions};
+\api{injury_status}; the schedule. (\api{adp_std} is Sleeper's name for average draft position in \emph{standard}
+scoring; it is not a standard deviation.)}
+
+\section{Auction prices}
+\begin{align}
+P &= (\text{starter slots}) + \min(\text{bench slots},\,2)\qquad\text{(priced slots per team)}\\
+R &= \text{value of the }(P\times\text{managers})\text{-th best player in the pool}\\
+\mathrm{VAR} &= \max(0,\ \text{value}-R)\\
+\text{free dollars} &= \sum_m\big(\text{remaining}_m - \text{min bid}\cdot\text{open}_m\big)\\
+\$/\mathrm{VAR} &= \frac{\text{free dollars}}{\sum \mathrm{VAR}\ \text{of the top available players}}\\
+\text{Worth} &= \min\!\big(\text{min bid} + \mathrm{VAR}\cdot\$/\mathrm{VAR},\ \text{the largest legal bid in the room}\big)\\
+\text{max bid} &= \text{remaining} - \text{min bid}\cdot(\text{open mandatory} - 1)\\
+\text{pressure} &= \sum_{\substack{\text{rivals who can pay Worth}\\ \text{and have a fitting slot}}}\!\!\beta_{\text{pace}}\cdot\text{aggression}\\
+\text{Rec.\ max} &= \clamp\!\Big(\text{Worth}\cdot\big(1+0.15\,\tfrac{\text{pressure}}{\text{managers}-1}\big),\ \text{min bid},\ \text{my max bid}\Big)
+\end{align}
+with $\beta_{\text{pace}}$: spend early $1.3$ then $0.8$; spend late $0.8$ then $1.3$; even $1$ (the switch is at 40\,\% of the draft).
+The reservation rule means every non-IR slot is mandatory.
+\sleeper{Draft picks: \api{metadata.amount}, \api{picked_by}; \api{settings.budget}.}
+
+\section{Spending guide and the call}
+\begin{align}
+\text{inflation} &= \frac{\$/\mathrm{VAR}_{\text{now}}}{\$/\mathrm{VAR}_{\text{opening}}}\\
+\text{allowance} &= \frac{\text{remaining}-\text{min bid}\cdot\text{open bench}}{\text{open starters}}\\
+\text{room per starter } \rho &= \frac{\text{room remaining}-\text{min bid}\cdot\text{room open bench}}{\text{room open starters}}\\
+\text{comfort limit} &= \text{remaining}-\text{bench after}-\text{starters after}\cdot 0.8\,\rho\\
+\text{walk-away} &= \text{remaining}-\text{bench after}-\text{starters after}\cdot 0.5\,\rho
+\end{align}
+(each clamped to $[\text{min bid},\text{my max bid}]$, and walk-away $\ge$ comfort limit). The target price is Worth if no rival can
+pay it; otherwise the market price (the Rec.\ max), up to $\times 1.25$ for a top player when you are in the richest third and
+a bidding war is likely, never past the comfort limit.
+\[
+\text{call}=\begin{cases}\text{BUY}&\text{target}\le\text{comfort limit}\\ \text{STAR ONLY}&\text{target}\le\text{walk-away}\\ \text{TOO PRICEY}&\text{otherwise}\\ \text{CAN'T}&\text{no slot, or no legal bid}\end{cases}
+\]
+\textbf{Drain} nominations: players two or more rivals can pay for that you will not buy (up to 5); \textbf{sneak}: players
+you want that few rivals can afford (up to 3), scanned from the top 40 available.
+Money rank $=1+\#\{\text{managers with more remaining}\}$; per-slot rank likewise on $\text{remaining}/\text{open}$.
+
+\section{Fit (0--100)}
+\begin{align}
+\text{Fit} &= \mathrm{round}\!\Big(100\cdot\frac{\text{value}}{\text{best rosterable value left}}\cdot \text{role}\cdot\text{price}\Big)\\
+\text{role}&=\{\text{open starting spot }1,\ \text{bench only }0.6,\ \text{no spot }0\}\\
+\text{price}&=\{\text{BUY }1,\ \text{STAR ONLY }0.85,\ \text{TOO PRICEY }0.4,\ \text{CAN'T }0\}\quad(1\text{ before the draft is live})
+\end{align}
+Strong at 70 or more, decent at 45 or more, weak below that.
+
+\section{Position market and sales}
+\begin{align}
+\text{need}_{\text{pos}} &= \text{open starting spots at pos, summed over the room}\\
+\text{left}_{\text{pos}} &= \text{starter-quality players counted at pos (the top }N=\text{room open starters by value)}\\
+\text{also}_{\text{pos}} &= \text{multi-position players counted at another position who could also play here}\\
+\text{status} &= \begin{cases}\text{short}&\text{left}<\text{need}\\ \text{even}&\text{left}<1.3\,\text{need}\\ \text{deep}&\text{otherwise}\end{cases}\\
+\text{cliff drop} &= \text{value(best of tier)}-\text{value(best of next tier)}\\
+\text{sale vs Worth} &= \text{price}-\text{Worth at the moment it sold (replayed from the picks)}
+\end{align}
+The recent trend is the \emph{median} of that difference over the last ten sales, so one runaway bid does not move it.
+A multi-position player is counted once, at whichever of his positions has the most need still unfilled, and shows up in
+\emph{also} at his other positions. Because $\sum_{\text{pos}}\text{left}=N=\sum_{\text{pos}}\text{need}$, the status is
+\textbf{relative}: a position can only be deep when another is short. Money is not in \emph{need} (every non-IR slot must
+be filled at the \$1 minimum, so every open spot is real demand); it is in the \emph{chasers} column, the rivals with an
+open spot there whose max bid reaches the Worth of the best player left at the position.
+
+\section{Team strength in the room}
+\begin{align}
+\mathrm{fp\_gen} &= \sum_{\text{starters}}\overline{\mathrm{FP}}\\
+\mathrm{win\_score} &= \sum_{\text{filled starting spots}}\max\!\big(R_{\text{weekly}},\ \text{ceiling}'\cdot A\big)\;+\;n_{\text{empty}}\Big(R_{\text{weekly}}+\frac{\text{money per empty starter}}{\$/\mathrm{VAR}}\cdot\kappa\Big)\\
+R_{\text{weekly}} &= 0.88\cdot\text{ceiling}'_{\text{repl}},\qquad \kappa=\frac{R_{\text{weekly}}}{\text{value}_{\text{repl}}}\\
+\text{NBA team talent} &= \sum_{\text{top 8 players}}\mathrm{FP}_{\text{proj}}
+\end{align}
+Every term is in weekly-best FP. The replacement player is taken from the actual pool: the one ranked just past every
+team's starters (starter slots $\times$ managers). The $0.88$ is not a discount on replacement; it is the typical
+availability $A$ of a player with no games on file (the median share of weeks played), applied to him as $A$ is applied
+to every starter. Money buys ranking value, so $\kappa$ (the replacement player's weekly-best FP per point of value) puts
+what it buys on the same scale. $\mathrm{fp\_gen}$ is deliberately a different reading: per-game output, not a week's score.
+Projected NBA wins come from a betting win-totals file you edit; they are not calculated.
+
+\section{Keepers}
+\begin{align}
+\text{keeper price} &= \text{escalation}(\text{last price})\qquad(\$17\to\$20:\ +\$1\ \text{per full }\$5)\\
+\text{last price} &= \begin{cases}\text{his winning FAAB bid}&\text{claimed on waivers after the auction}\\ 0\ (\text{escalates to the minimum})&\text{added as a free agent}\\ \text{his auction price}&\text{otherwise (a trade does not change it)}\end{cases}\\
+\text{surplus} &= \text{Worth at draft start}-\text{keeper price}\\
+\text{verdict} &= \begin{cases}\text{good}&\text{surplus}\ge\max(2,\ 0.10\,\text{Worth})\\ \text{bad}&\text{surplus}\le-\max(2,\ 0.10\,\text{Worth})\\ \text{even}&\text{otherwise}\end{cases}
+\end{align}
+The escalation rule is the league's own (editable in Settings), so the app prices exactly what the league charges,
+steps included. The verdict threshold scales with the player: $\max(\$2,\,10\,\%\text{ of Worth})$. The keeper dialog
+offers one row per keeper slot, so candidates never outnumber the slots.
+\subsection{Next year's outlook}
+\begin{align}
+\text{value}' &= \text{value}_{\text{healthy}}\cdot f(\text{age}) + \text{scarcity},\qquad
+f(\text{age})=g\cdot\frac{\mathrm{age\_mult}(\text{age}+1)}{\mathrm{age\_mult}(\text{age})}\\
+g &= \begin{cases}1.10 & \lfloor\text{age}\rfloor+1\le 21\\ 1&\text{otherwise}\end{cases}\qquad(\text{\textbf{fitted}, see below})\\
+\text{worth}' &= \mathrm{round}\big(\text{min bid} + \max(0,\ \text{value}'-R)\cdot\$/\mathrm{VAR}_{\text{start}}\big)\\
+\text{next price} &= \text{escalation}(\text{buy price}),\qquad \text{surplus}'=\text{worth}'-\text{next price}\\
+\text{good-up-to} &= \max\{\,b\ :\ \text{surplus}'(b)\ \text{is a good keep}\,\}\\
+\text{stash} &= \text{good keep next year}\ \wedge\ \text{out now}
+\end{align}
+Where $g$ comes from: this season's projection over last season's FP/G (median, players with 40+ games) is $1.08$ at
+age 20 and $1.07$ at 21, against $0.955$ for all ages, a real lift of about $1.13$ and $1.12$; ages 22 to 24 read
+$0.92$ to $0.96$, level with everyone else, so there is no step to taper into. $1.10$ is the cautious side of that.
+It does not overlap with the age term: $\mathrm{age\_mult}=1$ below 31, so the ratio is exactly 1 for a young player.
+The age multiplier ratio is the raw penalty ratio, so a veteran still declines next year even though this season's value
+carries no age penalty when a projection is used. $\text{worth}'$ moves one for one with $\$/\mathrm{VAR}_{\text{start}}$:
+$\pm10\,\%$ in the rate is about $\pm\$8$ on an \$83 player and $\pm\$3$ on a \$28 one. A stash can sit in one of the
+league's IR slots while he is out. $\$/\mathrm{VAR}_{\text{start}}$ is the draft-start rate after keepers.
+\sleeper{Rosters' \api{keepers}; last season's draft \api{metadata.amount}; \api{age}.}
+
+\section{Manager habits}
+\begin{align}
+\text{top-3 share} &= \frac{\text{sum of his three biggest buys}}{\text{what he spent at that auction}}\\
+\text{style} &= \begin{cases}\text{star chaser}&\text{share}\ge\text{median}+0.07\\ \text{spreads money}&\text{share}\le\text{median}-0.07\\ \text{typical}&\text{otherwise}\end{cases}\\
+\text{reach} &= \operatorname{mean}_{\text{first 6 snake picks}}\big(\mathrm{ADP}-\text{pick number}\big)\qquad(+\text{ means earlier than usual})
+\end{align}
+Reach uses only a manager's first six picks, where ADP runs from about 1 to 72. $\mathrm{ADP}$ is \api{adp_std},
+Sleeper's standard-scoring average draft position (a position, not a spread).
+\sleeper{Past drafts (\api{draft_picks}, \api{picked_by}, \api{metadata.amount}); \api{adp_std}; last season's
+\api{transactions} (\api{type}, \api{status}, \api{adds}, \api{settings.waiver_bid}) for keeper prices.}
+
+\end{document}
