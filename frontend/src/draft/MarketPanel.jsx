@@ -4,7 +4,8 @@ import { PosTag } from "../core/Pos.jsx";
 import { Term, priceTone } from "../core/Terms.jsx";
 import Icon from "../core/Icon.jsx";
 
-const STATUS = { scarce: ["bad", "scarce"], tight: ["even", "tight"], plenty: ["good", "plenty"] };
+// shown as short / even / deep: the counts add up to the open spots, so the status compares positions with each other
+const STATUS = { scarce: ["bad", "short"], tight: ["even", "even"], plenty: ["good", "deep"] };
 
 /**
  * Position market under the spending guide: per position, demand vs supply, the tier cliff and which rivals are chasing it, then the room trend (recent sales vs their Worth at the time).
@@ -56,7 +57,7 @@ export default function MarketPanel({ leagueId, live, refreshKey, onSelect }) {
       <div className="trend-head">
         <span className="bid-label"><Term k="room_trend" /></span>
         {m.recent_diff != null && (
-          <span className={`small ${m.recent_diff > 2 ? "warn-text" : m.recent_diff < -2 ? "ok" : "muted"}`} data-tip="Average over the last 10 sales.">
+          <span className={`small ${m.recent_diff > 2 ? "warn-text" : m.recent_diff < -2 ? "ok" : "muted"}`} data-tip="The typical (median) sale against Worth over the last 10 sales; one runaway bid doesn't move it.">
             {m.recent_diff > 0 ? "+" : m.recent_diff < 0 ? "−" : ""}${Math.abs(m.recent_diff)} vs worth lately
           </span>
         )}

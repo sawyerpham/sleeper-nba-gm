@@ -34,7 +34,7 @@ export const TERMS = {
   open_starters: ["Open starters", "Starting spots still empty."],
   need: ["Need", "Open starting spots for this position across the room."],
   supply: ["Left", "Starter-quality players left at this position: available players in the top N by value, N = open starting spots in the room. Each counts once, where he'll be used (a PF/C at whichever has more open spots)."],
-  pos_status: ["Market", "Scarce: fewer starter-quality players than open spots, prices will rise, buy early. Tight: under 1.3 per spot. Plenty: wait for value."],
+  pos_status: ["Market", "How this position compares with the others. The starter-quality players left add up to the room's open spots, so a position is only deep when another is short. Short: fewer of them than open spots here, prices will rise, buy early. Even: under 1.3 per spot. Deep: 1.3 or more per spot, wait for value."],
   tier_cliff: ["Top tier", "Best tier left here, how many remain, and how far the next tier's best drops in fantasy points. Last in a tier = buy now or drop a level."],
   chasing: ["Chasing", "Rivals with an open spot here who can afford the best player left. More chasers = bidding wars."],
   room_trend: ["Room trend", "How the room is spending, over the last sales: + = buyer paid above Worth, − = below."],

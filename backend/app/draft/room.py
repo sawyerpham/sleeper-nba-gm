@@ -6,7 +6,9 @@ and two team strength estimates for the Teams view of the rankings:
                 never below a replacement-level player (the best one left once every team has its starters; a
                 worse starter would be swapped for him). An empty starting spot counts as replacement level plus
                 what the team's money per open starting spot buys at the current price of value, so a team that
-                still has its money is not ranked as if it will start nobody.
+                still has its money is not ranked as if it will start nobody. Money buys ranking value (half
+                FP/G, half ceiling), so what it buys is put on the weekly-best scale with the replacement player's
+                own weekly-best ÷ value before it is added: every term of win_score is weekly-best FP.
 """
 
 from __future__ import annotations
@@ -44,6 +46,7 @@ def room_board(session, my_manager_id: str) -> list[dict]:
     ranked = sorted(pool, key=lambda pid: -pool[pid])
     repl_pid = ranked[min(len(ranked) - 1, starter_slots * len(session.managers))] if ranked else None
     repl = stats(repl_pid)[1] * NO_GAMES_AVAILABILITY if repl_pid is not None else 0.0
+    weekly_per_value = repl / pool[repl_pid] if repl_pid is not None and pool[repl_pid] > 0 else 1.0
 
     rate = market_rate(lg, session.managers, session.draft.picks, (pool[p] for p in session.available_ids()), pool)
 
@@ -58,10 +61,9 @@ def room_board(session, my_manager_id: str) -> list[dict]:
         empty = max(0, starter_slots - len(starters))
         b = s.budget
         if empty:
-            # ponytail: value bought with money is in ranking-value units (≈ FP); fine for ordering teams mid-draft.
             open_bench = max(0, b.open_mandatory - empty)
             per_starter = max(0.0, (b.remaining - open_bench * lg.min_bid) / empty - lg.min_bid)
-            bought = per_starter / rate.dollars_per_var if rate.dollars_per_var > 0 else 0.0
+            bought = per_starter / rate.dollars_per_var * weekly_per_value if rate.dollars_per_var > 0 else 0.0
             win += empty * (repl + bought)
         out.append({
             "manager_id": s.manager_id, "name": s.name, "is_user": s.is_user, "is_next_nominator": s.is_next_nominator,

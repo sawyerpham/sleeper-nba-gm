@@ -251,3 +251,28 @@ def test_pre_draft_worth_counts_keepers_and_matches_draft_start(fixture_world):
     s.engine.reset()
     assert s.draft.status == "setup" and s.start_worth(luka()) == live   # same number before the draft, from the keeper rows
     assert s.keeper_start_rate().free_dollars == no_keepers - 9   # his $10 is spent, $1 of it on a spot that no longer needs reserving
+
+
+def test_win_score_of_an_empty_roster_is_all_on_the_weekly_best_scale(fixture_world):
+    """An empty starting spot = the replacement player's weekly best + what the money for it buys, and the money part
+    is converted from ranking value to weekly-best FP with the replacement player's own ratio."""
+    from app.core.engine.bidding import market_rate
+    from app.core.engine.ranking import expected_fpts
+    from app.draft.room import room_board
+    from nba_fantasy_shared.scoring.aggregate import NO_GAMES_AVAILABILITY
+
+    s = make_session(fixture_world)
+    lg, pool = s.league, s.pool_values()
+    starters = sum(x.count for x in lg.roster_slots if x.slot not in ("BN", "IR"))
+    ranked = sorted(pool, key=lambda pid: -pool[pid])
+    repl_pid = ranked[min(len(ranked) - 1, starters * len(s.managers))]
+    rec = s.players[repl_pid]
+    ceiling = expected_fpts(rec, s.valuations.get(repl_pid), lg.ranking, lg.scoring, s.schedule().get(rec.team_abbr or "", 1.0))[1]
+    repl = ceiling * NO_GAMES_AVAILABILITY
+    rate = market_rate(lg, s.managers, s.draft.picks, (pool[p] for p in s.available_ids()), pool)
+    me = next(m for m in room_board(s, "m1") if m["manager_id"] == "m1")
+    b = me["budget"]
+    per_starter = max(0.0, (b["remaining"] - (b["open_mandatory"] - starters) * lg.min_bid) / starters - lg.min_bid)
+    scale = repl / pool[repl_pid] if pool[repl_pid] > 0 else 1.0        # weekly-best FP per point of ranking value
+    bought = per_starter / rate.dollars_per_var * scale if rate.dollars_per_var > 0 else 0.0
+    assert me["empty_starters"] == starters and me["win_score"] == pytest.approx(starters * (repl + bought), abs=0.06)

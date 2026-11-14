@@ -48,6 +48,9 @@ def pull_details(platform: Any, store: JsonStore, sleeper_league_id: str) -> dic
             "adp": _draft_adp(platform, league, draft, picks),
         })
         league_id = league.get("previous_league_id")
+    if len(seasons) > 1:   # last season's pickups: what a keeper who wasn't bought at that auction costs
+        # ponytail: last season only (26 small calls a pull); older seasons if a league keeps players more than a year
+        seasons[1]["pickups"] = pickup_prices(_season_transactions(platform, seasons[1]["league"]["league_id"]))
     doc = {"pulled_at": datetime.now(timezone.utc).isoformat(), "seasons": seasons}
     old = load_details(store, sleeper_league_id)
     if seasons:
@@ -58,6 +61,27 @@ def pull_details(platform: Any, store: JsonStore, sleeper_league_id: str) -> dic
     store.write_json(details_rel(sleeper_league_id), doc, indent=None)
     log.info("Sleeper league %s: %d season(s) cached", sleeper_league_id, len(seasons))
     return doc
+
+
+def _season_transactions(platform: Any, league_id: str) -> list[dict]:
+    """Every transaction of a finished season (Sleeper serves them one week at a time)."""
+    from .sleeper_changelog import MAX_TX_WEEKS
+
+    return [t for leg in range(1, MAX_TX_WEEKS + 1) for t in platform.get_json(f"league/{league_id}/transactions/{leg}") or []]
+
+
+def pickup_prices(transactions: list[dict]) -> dict[str, int]:
+    """Sleeper player id -> what his latest pickup cost: the winning bid of a waiver claim (`settings.waiver_bid`:
+    1 and 6 seen on real claims, 2026-11-14), 0 for a free-agent add. Trades move a player without changing his price.
+    The league prices a keeper who wasn't bought at auction at his FAAB bid."""
+    out: dict[str, int] = {}
+    for t in sorted(transactions, key=lambda t: t.get("status_updated") or 0):
+        if t.get("status") != "complete" or t.get("type") not in ("waiver", "free_agent"):
+            continue
+        bid = as_int((t.get("settings") or {}).get("waiver_bid")) or 0 if t["type"] == "waiver" else 0
+        for sid in t.get("adds") or {}:
+            out[str(sid)] = bid
+    return out
 
 
 def _draft_adp(platform: Any, league: dict, draft: dict | None, picks: list[dict]) -> dict[str, float]:
@@ -101,7 +125,9 @@ def last_auction(details: dict | None) -> dict | None:
 
 
 def tendencies(details: dict | None) -> dict[str, dict]:
-    """Per Sleeper user id, how they spent in the last completed auction."""
+    """Per Sleeper user id, how they spent in the last completed auction. top3_share = his three biggest buys as a
+    share of what he spent there (not of the budget: a manager who kept players had less to spend at auction, and
+    against the full budget he would read as spreading his money)."""
     season = last_auction(details)
     if season is None:
         return {}
@@ -113,7 +139,8 @@ def tendencies(details: dict | None) -> dict[str, dict]:
     shares = {}
     for uid, buys in by_user.items():
         buys.sort(reverse=True)
-        shares[uid] = sum(a for a, _ in buys[:3]) / budget if budget else 0.0
+        spent = sum(a for a, _ in buys) or budget
+        shares[uid] = sum(a for a, _ in buys[:3]) / spent if spent else 0.0
     median = sorted(shares.values())[len(shares) // 2] if shares else 0.0
     out = {}
     for uid, buys in by_user.items():
@@ -265,12 +292,15 @@ def manager_tendency(details: dict | None, manager: Manager) -> dict | None:
 def current_keepers(
     details: dict | None, managers: list[Manager], players: Mapping[int, PlayerRecord], escalation: KeeperEscalation
 ) -> list[dict]:
-    """Keepers already set in Sleeper for this season, priced with the league's escalation rule."""
+    """Keepers already set in Sleeper for this season, priced with the league's escalation rule on what each cost
+    last season: his auction price, or his latest pickup after it (FAAB bid; a free-agent add costs nothing, so it
+    escalates from the minimum). No cost only when Sleeper shows neither."""
     if not details or not details.get("seasons"):
         return []
     current = details["seasons"][0]
     prev = last_auction({"seasons": details["seasons"][1:]})
     last_price = {p.get("player_id"): _amount(p) for p in (prev or {}).get("picks", [])}
+    last_price.update((prev or {}).get("pickups") or {})   # picked up after the auction: that price replaces it
     by_sleeper = {r.sleeper_id: r for r in players.values() if r.sleeper_id}
     by_roster = {m.sleeper_roster_id: m for m in managers if m.sleeper_roster_id is not None}
     by_user = {m.sleeper_user_id: m for m in managers if m.sleeper_user_id}
@@ -285,7 +315,7 @@ def current_keepers(
             last = last_price.get(str(sid))
             out.append({
                 "manager_id": manager.manager_id, "player_id": rec.player_id, "full_name": rec.full_name,
-                "last_price": last, "cost": escalation.price(last) if last else None,
+                "last_price": last, "cost": escalation.price(last) if last is not None else None,
             })
     return out
 
