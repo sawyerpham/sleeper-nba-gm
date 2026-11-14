@@ -7,7 +7,9 @@ per position (PG SG SF PF C):
              multi-position player, best first, at whichever of his positions has the most need still
              unfilled (a PF/C goes to C while C is the shorter one). "left" adds up to N.
   also     = multi-position players counted at another position who could also play here
-  status   = scarce when left < need, tight when left < 1.3 × need, else plenty
+  status   = scarce when left < need, tight when left < 1.3 × need, else plenty. "left" adds up to the room's
+             open starting spots, so the status is relative: one position can only be plenty when another is
+             scarce (the UI words it short / even / deep and says so)
   tier     = best tier left there, how many of it are left (names) and the value drop to the next tier's best
   chasers  = rivals with an open spot there whose cap reaches the fair value of the best player left there
 room trend:
