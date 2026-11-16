@@ -65,7 +65,7 @@ export default function NotifyPage() {
               onChange={(e) => set({ lock_min_wpa: Math.max(0, Math.min(100, Math.round(Number(e.target.value) || 0))) })} data-testid="notify-lock-wpa" aria-label="Minimum win chance added" />
             points of win chance <span className="muted">(0 = every lock call; the card's WPA)</span></label>
         </div>
-      ) : <div className="small muted">{st?.error || "Loading…"}</div>}
+      ) : <div className="small muted loading">{st?.error || "Loading…"}</div>}
       {msg && <div className={`small ${msg === "Saved" ? "muted" : "warn-text"}`} data-testid="notify-msg">{msg}</div>}
     </div>
   );

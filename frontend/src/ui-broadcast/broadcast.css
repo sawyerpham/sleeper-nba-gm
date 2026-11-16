@@ -167,3 +167,15 @@ main.bc-main:has(.bc-season) { padding: 0; max-width: none; margin: 0; }
   .bc-bug-team { padding: 8px 10px; gap: 8px; }
   .bc-bug-avatar, .bc-bug-name span { display: none; }
 }
+
+/* ---- League / News / Waivers in Broadcast: big and televised (the look is the theme's, see themes.css) ---- */
+.bc-main .st-table td { padding-block: 14px; font-size: var(--fs-lg); } .bc-main .st-table th { font-size: var(--fs-sm); }
+.bc-main .st-rank b { transform-origin: center; font-size: var(--fs-2xl); }
+.bc-main .st-table .team-logo-sm, .bc-main .st-table img { width: 34px; height: 34px; }
+.bc-main .news-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 12px; }
+.bc-main .news-list > .news[data-testid="news-league"] { grid-column: 1 / -1; column-count: 2; column-gap: 22px; }
+.bc-main .news-list > .news[data-testid="news-league"] > h3 { column-span: all; }
+.bc-main .news-item { break-inside: avoid; } .bc-main .news-title { font-size: var(--fs-xl); } .bc-main .news-story { font-size: var(--fs-md); }
+.bc-main .wv-table td { padding-block: 12px; } .bc-main .wv-table .wv-player .headshot, .bc-main .wv-table .wv-player img:first-child { width: 58px; height: 58px; }
+.bc-main .wv-table .wv-player strong { font-size: var(--fs-xl); } .bc-main .wv-bid { font-size: var(--fs-xl); padding: 4px 16px; }
+@media (max-width: 1199px) { .bc-main .news-list { grid-template-columns: minmax(0, 1fr); } .bc-main .news-list > .news[data-testid="news-league"] { column-count: 1; } }

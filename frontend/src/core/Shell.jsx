@@ -9,9 +9,9 @@ import Icon from "./Icon.jsx";
 // What every UI's shell shares (src/App.jsx, src/ui-command, src/ui-broadcast): the app state kept in localStorage and the Settings popup.
 
 /** Settings > Appearance > UI: id ("" = New) and label; main.jsx loads the matching App and stylesheet. */
-export const UIS = [["", "New"], ["command", "Command Center"], ["broadcast", "Broadcast"]];
+export const UIS = [["", "New"], ["apple", "Apple"], ["command", "Command Center"], ["broadcast", "Broadcast"]];
 // design presets (themes.css): fonts, surfaces, corners and effects; the first is the default
-const THEMES = [["courtside", "Courtside: broadcast scoreboard"], ["office", "Front Office: analyst terminal"], ["locker", "Locker Room: light"]];
+const THEMES = [["courtside", "Courtside: broadcast scoreboard"], ["office", "Front Office: analyst terminal"], ["locker", "Locker Room: light"], ["apple", "Apple: light and dark"]];
 // pixelated photos behind the page (public/wallpapers, made by backgroundimages/pixelate.py)
 const WALLPAPERS = [
   ["", "No wallpaper"],
@@ -31,7 +31,8 @@ export const SEASON_VIEWS = { season: "week", news: "news", standings: "league",
 /** The UI this page loaded with (see UIS). */
 const UI = (() => { try { return localStorage.getItem("da.ui") || ""; } catch { return ""; } })();
 /** Switch UI: remember the choice and reload, since each UI brings its own global stylesheet. Settings reopens after the reload. */
-const setUi = (v) => { try { localStorage.setItem("da.ui", v); sessionStorage.setItem("da.settings", "1"); } catch { } location.reload(); };
+const setUi = (v) => { try { localStorage.setItem("da.ui", v); if (v === "apple") localStorage.setItem("da.theme", "apple");   // the Apple UI is built for the Apple theme
+    sessionStorage.setItem("da.settings", "1"); } catch { } location.reload(); };
 /** True once after a UI switch (setUi): the new UI opens with Settings still showing. */
 const reopenSettings = () => { try { const v = sessionStorage.getItem("da.settings"); sessionStorage.removeItem("da.settings"); return !!v; } catch { return false; } };
 
@@ -86,6 +87,15 @@ export function useAppState() {
     localStorage.setItem("da.theme", theme);
   }, [theme]);
 
+  // Courtside only: a picked colour replaces its orange --primary (inline style beats the theme rule); "" keeps the default
+  const [accent, setAccent] = useState(() => localStorage.getItem("da.accent") || "");
+  useEffect(() => {
+    const s = document.documentElement.style;
+    if (theme === "courtside" && accent) { s.setProperty("--primary", accent); s.setProperty("--info-t", `color-mix(in srgb, ${accent} 45%, white)`); }   // --info-t: the light tint of it (header icons, chips)
+    else { s.removeProperty("--primary"); s.removeProperty("--info-t"); }
+    localStorage.setItem("da.accent", accent);
+  }, [theme, accent]);
+
   /** Fetch /health into state; an unreachable API is recorded as { ok: false }. */
   const refreshHealth = useCallback(() => {
     api.get("/health").then(setHealth).catch(() => setHealth({ ok: false }));
@@ -97,7 +107,19 @@ export function useAppState() {
     return () => clearInterval(t);
   }, [refreshHealth]);
 
-  return { tab, setTab, goTab, settingsOpen, setSettingsOpen, leagueId, setLeagueId, leagueName, wall, setWall, theme, setTheme, health, refreshHealth };
+  return { tab, setTab, goTab, settingsOpen, setSettingsOpen, leagueId, setLeagueId, leagueName, wall, setWall, theme, setTheme, accent, setAccent, health, refreshHealth };
+}
+
+/** Courtside's main colour: the picker only changes a local draft (dragging it would re-theme the app on every step); Save applies it. */
+function AccentPick({ app }) {
+  const [draft, setDraft] = useState(app.accent || "#f97316");
+  return (
+    <div className="inline" style={{ marginTop: 8, width: "100%" }}>
+      <input type="color" value={draft} onChange={(e) => setDraft(e.target.value)} data-testid="accent" /> Main colour
+      {app.accent && <button className="small ghost" onClick={() => { app.setAccent(""); setDraft("#f97316"); }}>reset</button>}
+      <button className="small primary" style={{ marginLeft: "auto" }} onClick={() => app.setAccent(draft)} disabled={draft === (app.accent || "#f97316")}>Save</button>
+    </div>
+  );
 }
 
 /** The Settings popup (Appearance: UI, theme, wallpaper; Notifications: the Telegram link and what to push; League: league, its settings, the data pull). `app` is useAppState()'s result. */
@@ -118,6 +140,7 @@ export function SettingsModal({ app }) {
         <select value={app.theme} onChange={(e) => app.setTheme(e.target.value)} data-testid="theme">
           {THEMES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
         </select>
+        {app.theme === "courtside" && <AccentPick app={app} />}
       </div>
       <div className="panel wall-pick"><h3>Wallpaper</h3>
         <select value={app.wall} onChange={(e) => app.setWall(e.target.value)} data-testid="wallpaper">

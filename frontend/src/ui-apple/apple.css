@@ -1,0 +1,130 @@
+@import "../styles.css";   /* the shared components' styles (and the themes); this file only lays out the Apple UI shell. Built for data-theme="apple". */
+
+/* ---- shell: a floating frosted sidebar and the page ---- */
+.ap { display: grid; grid-template-columns: 252px minmax(0, 1fr); min-height: 100vh; }
+.ap-side { position: sticky; top: 0; height: 100vh; z-index: 26; display: flex; flex-direction: column; gap: 6px; padding: 14px 10px; }
+.ap-side::before { content: ""; position: absolute; inset: 10px 0 10px 10px; border-radius: 26px; background: var(--header); border: 1px solid var(--border);
+  box-shadow: var(--shadow); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); z-index: -1; }
+.ap-side > * { position: relative; }
+.ap .ap-brand { display: flex; align-items: center; gap: 12px; margin: 6px 6px 10px; padding: 8px; border-radius: 16px; background: transparent; text-align: left; }
+.ap-brand-icon { flex: none; width: 42px; height: 42px; display: grid; place-items: center; font-size: 24px; border-radius: 12px; color: #fff;
+  background: linear-gradient(160deg, #ff9f0a, #ff6a00); box-shadow: 0 4px 12px rgba(255, 106, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+.ap-brand-text { min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.ap-brand-text strong { font-size: var(--fs-md); font-weight: 700; }
+.ap-brand-text small { font-size: var(--fs-xs); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-nav { display: flex; flex-direction: column; gap: 2px; padding: 0 8px; }
+.ap .ap-nav button { display: flex; align-items: center; gap: 12px; padding: 7px 10px; border-radius: 12px; background: transparent; color: var(--text); font-size: var(--fs-md); font-weight: 500; text-align: left; }
+.ap .ap-nav button:hover { background: var(--hover); }
+.ap .ap-nav button.active { background: color-mix(in srgb, var(--primary) 16%, transparent); color: var(--text); font-weight: 600; }
+.ap-tile { width: 30px; height: 30px; display: grid; place-items: center; font-size: 17px; border-radius: 9px; color: #fff; background: var(--c);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2); }
+.ap-gap { flex: 1; }
+.ap-health { margin: 0 14px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; border-radius: 12px; font-size: var(--fs-xs); font-weight: 600; background: var(--bad); color: var(--bad-t); }
+main.ap-main { min-width: 0; padding: 0; max-width: none; margin: 0; }
+main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
+
+/* ---- Season: large title + toolbar, then the view filling the window ---- */
+.ap-page { height: 100vh; display: flex; flex-direction: column; gap: 14px; padding: 18px 22px 18px 12px; }
+.ap-top { flex: none; display: flex; align-items: center; gap: 16px; min-width: 0; }
+.ap-title { margin: 0; display: flex; flex-direction: column; min-width: 0; font-family: var(--font-display); font-size: var(--fs-6xl); font-weight: 800; line-height: 1.05; letter-spacing: -0.035em; white-space: nowrap; }
+.ap-title span { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 500; letter-spacing: 0; color: var(--muted); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; }
+.week-nav { display: flex; align-items: center; gap: 2px; flex: none; padding: 3px; border-radius: 999px; background: var(--panel-2); }   /* a segmented control */
+.ap .week-nav button { width: 30px; height: 30px; padding: 0; display: grid; place-items: center; background: transparent; }
+.week-nav-name { min-width: 92px; text-align: center; padding: 4px 12px; border-radius: 999px; background: var(--panel-solid); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14); font-size: var(--fs-sm); font-weight: 600; letter-spacing: 0.02em; }
+.season-tools-x { margin-left: auto; display: flex; align-items: center; gap: 8px; width: min(420px, 40%); flex: none; }
+.season-tools-x .season-search { flex: 1; min-width: 0; }
+.season-tools-x .season-search :is(.search-wrap, input) { width: 100%; min-width: 0; }
+.season-tools-x .season-search input { border-radius: 999px; padding-left: 16px; }
+.season-tools-x .icon-btn { flex: none; width: 36px; height: 36px; padding: 0; display: grid; place-items: center; font-size: var(--fs-lg); }
+
+.ap-week { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) var(--side-w); gap: 14px; }
+.ap-center { min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; padding-bottom: 4px; }
+.ap-center > .panel, .ap-pair > .panel, .ap-inspector > .panel { margin: 0; }
+.ap-center > .matchup { flex: 1 0 auto; min-height: 460px; display: flex; flex-direction: column; padding: 12px 14px; }
+.ap-inspector { min-height: 0; display: flex; flex-direction: column; }
+.ap-inspector > .panel.scroll { flex: 1; min-height: 0; max-height: none; }
+.ap-fill, .ap-scroll { flex: 1; min-height: 0; }
+.ap-scroll { overflow: auto; }
+
+/* widgets: rounded tiles with big rounded numerals, the first one an activity ring */
+.ap-widgets { flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.ap-widget { min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 14px 18px; border-radius: 22px; background: var(--panel); border: 1px solid var(--border-inner);
+  box-shadow: var(--shadow); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); }
+.ap-widget.hot { background: color-mix(in srgb, var(--q) 14%, var(--panel)); }
+.ap-label { font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
+.ap-num { font-family: var(--font-num); font-size: var(--fs-5xl); font-weight: 800; line-height: 1.1; letter-spacing: -0.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-num.sm { font-size: var(--fs-2xl); padding: 5px 0; }
+.ap-num span { color: var(--muted); font-weight: 600; }
+.ap-foot { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-ring-widget { flex-direction: row; align-items: center; gap: 14px; }
+.ap-ring { flex: none; width: 66px; height: 66px; }
+.ap-ring circle { fill: none; stroke-width: 9; }
+.ap-ring .trk { stroke: color-mix(in srgb, var(--primary) 18%, transparent); }
+.ap-ring .val { stroke: var(--primary); stroke-linecap: round; transition: stroke-dasharray 0.6s cubic-bezier(0.32, 0.72, 0, 1); }
+.ap-ring-widget > div { display: flex; flex-direction: column; min-width: 0; }
+
+/* inset grouped lists: Do now and Tonight */
+.ap-pair { flex: none; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 14px; max-height: 260px; min-height: 0; }
+.ap-pair > .panel { min-height: 0; overflow: auto; padding: 14px 6px 6px; }
+.ap-group h3 { margin: 0 0 6px 14px; font-size: var(--fs-lg); }
+.ap .ap-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 14px; border: 0; border-radius: 0; background: transparent; text-align: left; position: relative; }
+.ap-row + .ap-row::before { content: ""; position: absolute; top: 0; left: 14px; right: 0; border-top: 1px solid var(--border-inner); }   /* the inset hairline */
+.ap button.ap-row:hover { background: var(--hover); }
+.ap-empty { color: var(--muted); font-size: var(--fs-sm); }
+.ap-call { --st: var(--muted); }
+.ap-call.bad { --st: var(--danger); } .ap-call.even { --st: var(--q); } .ap-call.good { --st: var(--ok); }
+.ap-call-icon { flex: none; width: 30px; height: 30px; display: grid; place-items: center; font-size: 17px; border-radius: 9px; color: #fff; background: var(--st); }
+.ap-call-body { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.ap-call-when { flex: none; font-size: var(--fs-sm); font-weight: 600; color: var(--muted); }
+.ap-call-who { flex: none; display: flex; }
+.ap .ap-call-who button { padding: 0; width: 30px; height: 30px; margin-left: -6px; overflow: hidden; background: var(--panel-solid); border: 2px solid var(--panel-solid); }
+.ap-game { color: var(--text); font: inherit; }
+.ap-game-teams { flex: 1; display: grid; grid-template-columns: 1fr auto 1fr auto; gap: 4px 10px; font-weight: 600; }
+.ap-game-teams b { font-variant-numeric: tabular-nums; }
+.ap-game-status { flex: none; font-size: var(--fs-xs); color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.ap-game.in .ap-game-status { color: var(--live); font-weight: 700; }
+.ap-pill { flex: none; padding: 2px 9px; border-radius: 999px; font-size: var(--fs-2xs); font-weight: 600; background: var(--primary-soft); color: var(--info-t); }
+
+/* player / team / game cards: a centered sheet over a dimmed, blurred page */
+.ap-sheet-wrap { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 28px; background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); animation: ap-fade 0.2s ease-out; }
+.ap-sheet { position: relative; width: min(100%, 880px); max-height: 100%; display: flex; flex-direction: column; border-radius: 28px; background: var(--panel-solid);
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--border-inner); animation: ap-pop 0.28s cubic-bezier(0.32, 0.72, 0, 1); overflow: hidden; }
+.ap-sheet > .panel { flex: 1; min-height: 0; max-height: none; margin: 0; overflow: auto; padding-top: 54px; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+@keyframes ap-fade { from { opacity: 0; } }
+@keyframes ap-pop { from { transform: translateY(24px) scale(0.96); opacity: 0; } }
+.card-nav { position: absolute; top: 14px; left: 16px; z-index: 3; display: flex; gap: 4px; }
+.card-nav button { width: 30px; height: 30px; padding: 0; display: grid; place-items: center; }
+
+/* ---- narrower windows: one column; a phone: the sidebar becomes a bottom tab bar ---- */
+@media (max-width: 1199px) {
+  .ap-page { height: auto; min-height: 100vh; }
+  .ap-week { grid-template-columns: minmax(0, 1fr); }
+  .ap-center { overflow: visible; }
+  .ap-center > .matchup { min-height: 70vh; }
+  .ap-inspector { max-height: 80vh; }
+  .ap-widgets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ap-pair { grid-template-columns: minmax(0, 1fr); max-height: none; }
+  .ap-fill { min-height: 80vh; }
+}
+@media (max-width: 1299px) { .ap { grid-template-columns: 76px minmax(0, 1fr); } .ap-brand-text, .ap .ap-nav button { font-size: 0; } .ap .ap-nav button { justify-content: center; padding: 6px; } .ap .ap-brand { justify-content: center; margin: 6px 0 10px; padding: 4px; } .ap-health { font-size: 0; margin: 0 10px; } }
+@media (max-width: 699px) {
+  .ap { grid-template-columns: minmax(0, 1fr); }
+  .ap-side { position: fixed; inset: auto 0 0 0; height: 68px; flex-direction: row; justify-content: space-around; padding: 6px 8px; }
+  .ap-side::before { inset: 4px 8px; border-radius: 22px; }
+  .ap-brand, .ap-gap, .ap-health { display: none; }
+  .ap-nav { flex-direction: row; padding: 0; }
+  main.ap-main { padding-bottom: 80px; }
+  .ap-page { padding: 14px 12px; }
+  .ap-top { flex-wrap: wrap; gap: 10px; }
+  .season-tools-x { width: 100%; }
+  .ap-title { font-size: var(--fs-5xl); }
+  .ap-sheet-wrap { padding: 12px 12px 80px; }
+}
+
+/* ---- League / News / Waivers in Apple: one calm, readable column, each section a grouped list (the look is the theme's) ---- */
+.ap .news-list > .panel { padding-inline: 14px; }
+.ap .news-item .headshot, .ap .news-item img:first-child { width: 34px; height: 34px; }
+.ap .news-title { margin-top: 3px; } .ap .news-story { max-width: 70ch; }
+.ap .st-table td { padding-block: 11px; } .ap .wv-table td { padding-block: 10px; }
+.ap .tr-team { padding-block: 10px; }

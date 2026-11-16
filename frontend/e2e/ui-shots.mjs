@@ -31,11 +31,11 @@ const BASE = process.env.DA_URL || "http://localhost:5173";
 const LEAGUE = process.env.DA_LEAGUE || "tobedecided";
 const WALL = process.env.WALL || "";   // a wallpaper id (App.jsx WALLPAPERS) to test contrast over a photo
 const THEME = process.env.THEME || "courtside";   // a theme id (App.jsx THEMES)
-const OUT = `e2e/screenshots/ui-${ui}-${w}${WALL ? "-" + WALL : ""}${THEME ? "-" + THEME : ""}`;
+const OUT = `e2e/screenshots/ui-${ui}-${w}${process.env.SCHEME ? "-" + process.env.SCHEME : ""}${WALL ? "-" + WALL : ""}${THEME ? "-" + THEME : ""}`;
 fs.mkdirSync(OUT, { recursive: true });
 
 const browser = await chromium.launch({ channel: process.env.DA_BROWSER || "msedge", headless: true });
-const page = await browser.newPage({ viewport: { width: +w, height: +h } });
+const page = await browser.newPage({ viewport: { width: +w, height: +h }, colorScheme: process.env.SCHEME || "light" });
 page.setDefaultTimeout(30000);
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));

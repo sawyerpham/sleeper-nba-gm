@@ -171,9 +171,15 @@ def news(league_id: str, state: AppState = Depends(get_state)) -> dict:
     fetch = _fetch(state)
     try:
         free = trending(fetch)
-        return season_news(week_view(session, fetch, extra=tuple(free)), fetch, free)
+        out = season_news(week_view(session, fetch, extra=tuple(free)), fetch, free)
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    rosters ={t: sorted(r, reverse=True) for t, r in team_rosters(session)[0].items()}
+    for notes in out.values():   # the same "#2 option" the Teams Report shows, per note
+        for n in notes:
+            role = _team_role(session, rosters.get(n["team"], []), n["player_id"]) if n.get("player_id") else None
+            n["role"] = role and {"label": role["label"], "star": role["star"]}
+    return out
 
 
 @router.get("/waivers")

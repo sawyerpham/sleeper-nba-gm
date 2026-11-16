@@ -114,3 +114,14 @@ main.cc-main:has(.cc-page) { padding: 0; max-width: none; margin: 0; }
   .cc-drawer-wrap { left: 0; bottom: 62px; }
   .cc-drawer { width: 100%; }
 }
+
+/* ---- League / News / Waivers in Command Center: dense and side by side (the look is the theme's, see themes.css) ---- */
+.cc .st-table td, .cc .wv-table td { padding-block: 4px; } .cc .st-table th, .cc .wv-table th { padding-block: 5px; }
+.cc .st-table { font-size: var(--fs-sm); }
+.cc .news-list { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 12px; }
+.cc .news-list > .news[data-testid="news-league"] { grid-column: 2; grid-row: 1 / span 4; }
+.cc .news-list > :not([data-testid="news-league"]) { grid-column: 1; }
+.cc .news-item { padding-block: 5px; } .cc .news-story { -webkit-line-clamp: 2; }
+.cc .wv-table .wv-player .headshot, .cc .wv-table .wv-player img:first-child { width: 32px; height: 32px; }
+.cc .wv-table thead th { position: sticky; top: 0; z-index: 2; }
+@media (max-width: 1199px) { .cc .news-list { grid-template-columns: minmax(0, 1fr); } .cc .news-list > .news[data-testid="news-league"], .cc .news-list > :not([data-testid="news-league"]) { grid-column: 1; grid-row: auto; } }

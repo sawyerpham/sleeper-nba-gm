@@ -142,7 +142,7 @@ export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, on
         <nav className="profile-tabs" data-testid="profile-tabs">
           {TABS.map(([id, label]) => <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)} data-testid={`profile-${id}`}>{label}</button>)}
         </nav>
-        {!ready ? <div className="small muted">Loading…</div>
+        {!ready ? <div className="small muted loading">Loading…</div>
           : tab === "summary" ? <>
             <SeasonSummary sea={sea} onOpenGame={onOpenGame} onOpenMatchup={onOpenMatchup} />
             <textarea rows="1" style={{ width: "100%", marginTop: 10 }} placeholder="your notes" value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== (ov.notes || "") && patch({ notes })} />

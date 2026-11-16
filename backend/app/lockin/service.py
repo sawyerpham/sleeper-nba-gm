@@ -814,7 +814,7 @@ def season_news(view: dict, fetch: Fetch, free: list[str] = ()) -> dict:
     def notes(sid: str) -> list[dict]:
         """A player's news notes with his identity, injury tag and owner."""
         p, t = players[sid], owner.get(sid)
-        return [{**n, "sid": sid, "player_id": p["player_id"], "name": p["name"], "team": p.get("team"),
+        return [{**n, "sid": sid, "player_id": p["player_id"], "name": p["name"], "team": p.get("team"), "pos": p.get("pos") or [],
                  "injury_tag": p.get("injury_tag"), "injury_note": p.get("injury_note"), "owner": t["name"] if t else None,
                  "user": (t.get("user") or t["name"]) if t else None}
                 for n in player_news(fetch, sid)]

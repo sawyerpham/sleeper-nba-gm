@@ -164,7 +164,7 @@ export default function DraftPage({ leagueId }) {
   }, [rankings, filter, posFilter, sort]);
 
   if (!leagueId) return <p className="muted">Select or create a league on the Settings tab first.</p>;
-  if (!view) return <p>{error || "Loading…"}</p>;
+  if (!view) return <p className={error ? undefined : "muted"}>{error || "Loading…"}</p>;
 
   const live = view.status === "live";
   /** Refresh everything that reads the draft (spending guide, market, room board). */
@@ -307,7 +307,7 @@ export default function DraftPage({ leagueId }) {
         </div>
       )}
 
-      <div className="draft-grid" ref={colsRef}>
+      <div className={`draft-grid ${live ? "" : "no-draft"}`} ref={colsRef}>
         <section className="dg-left">
           <div className={`dg-pane ${live ? "fit-content" : ""}`}>
             {live ? <SpendingGuide leagueId={leagueId} live={live} refreshKey={refreshKey} onSelect={setSelected}

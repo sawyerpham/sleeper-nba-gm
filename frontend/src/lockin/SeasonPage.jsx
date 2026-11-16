@@ -883,7 +883,7 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
       </div>
       {/* starters + bench fill the window; IR rows sit below the fold (scroll down), at the same row height */}
       <div className="mu-scroll">
-      <div className="mu-grid with-arrows" ref={gridRef} style={{ gridTemplateRows: tracks.join(" "), minHeight: minH, ...(irRows && { height: `calc(${allRows / (allRows - irRows)} * (100% + 5px) - 5px)` }) }}>
+      <div className="mu-grid with-arrows" ref={gridRef} style={{ gridTemplateRows: tracks.join(" "), minHeight: minH }}>
         <SwapArrows pairs={me.pairs} side="left" gutter={gutter} names={(sid) => data.players[sid]?.name || sid} />
         {!thin && <SwapArrows pairs={them.pairs} side="right" gutter={gutter} names={(sid) => data.players[sid]?.name || sid} />}
         {tl && lane && xs.xs?.size > 0 && [["l", lane.l], ["r", lane.r]].filter(([, x]) => x != null).map(([k, x]) => (
@@ -1058,13 +1058,15 @@ const newsTime = (iso) => {
 function NewsNote({ n, open, owner }) {
   const title = n.headline.startsWith(`${n.name} - `) ? n.headline.slice(n.name.length + 3) : n.headline;
   return (
-    <div className={`news-item ${n.injury ? "injury" : ""}`}>
+    <div className={`news-item ${n.injury ? "injury" : ""} ${isDoubt(n.injury_tag) ? "doubt" : ""}`}>
       <div className="news-head">
         <span className="clickable news-player" onClick={() => open(n.player_id)}>
           <Headshot sleeperId={n.sid} name={n.name} size={28} /> <strong>{n.name}</strong>
         </span>
+        {n.pos?.length > 0 && <span className="small"><PosList list={n.pos} /></span>}
+        {n.role && <span className={`role-tag ${n.role.star ? "star" : ""}`}>{n.role.label}</span>}
+        {n.team && <span className="small muted news-team"><img src={teamLogo(n.team)} alt="" width={16} height={16} /><TeamLink abbr={n.team} /></span>}
         <InjuryTag tag={n.injury_tag} note={n.injury_note} />
-        {n.team && <span className="small muted"><TeamLink abbr={n.team} /></span>}
         {owner && <span className="small muted">· {n.owner}</span>}
         <span className="small muted news-time">{newsTime(n.published)}</span>
       </div>
@@ -1085,7 +1087,7 @@ function TeamsReport({ leagueId, open, refreshKey }) {
   useEffect(() => { api.get(`/leagues/${leagueId}/season/injuries`).then(setR).catch(() => setR({ teams: [], names: {} })); }, [leagueId, refreshKey]);
   return (
     <div className="panel news-teams" data-testid="teams-report">
-      <h3>Teams Report <span className="small muted">most starters out first</span></h3>
+      <h3>Teams Report <span className="small muted">most starters hurt first</span></h3>
       {!r ? <div className="muted">Loading injuries…</div> : r.teams.map((t, i) => (
         <div key={t.abbr} className="tr-team clickable" onClick={() => openTeam?.(t.abbr)} data-testid={`report-${t.abbr}`}>
           <span className="muted tr-rank">{i + 1}</span>
@@ -1093,7 +1095,7 @@ function TeamsReport({ leagueId, open, refreshKey }) {
           <div className="tr-body">
             <div className="tr-top"><strong>{r.names[t.abbr] || t.abbr}</strong>
               <span className="tr-counts">
-                {t.starters_out > 0 && <span className="health-out">{t.starters_out} starter{t.starters_out > 1 ? "s" : ""} out</span>}
+                {t.starters_out > 0 && <span className="health-out">{t.starters_out} starter{t.starters_out > 1 ? "s" : ""}</span>}
                 {t.starters_q > 0 && <span className="health-q">{t.starters_q} starter{t.starters_q > 1 ? "s" : ""} ?</span>}
               </span></div>
             <div className="tr-names">{order(t.players).map((h) => (
@@ -1103,11 +1105,32 @@ function TeamsReport({ leagueId, open, refreshKey }) {
                 <span className={`health-${h.group} ${h.starter ? "tr-starter" : ""}`}>{h.name}</span>
                 {h.role && <span className={`role-tag ${h.role.star ? "star" : ""}`}
                   data-tip={h.role.shared_with ? `Shares the #1 option with ${h.role.shared_with.name} (${h.role.shared_with.fpg} projected FP/G)` : undefined}>{h.role.label}</span>}
-                <span className="muted small">{h.status}{h.body ? ` · ${h.body}` : ""}{h.note ? ` · ${h.note}` : ""}</span></div>))}</div>
+                <span className="muted small">{[/^out$/i.test(h.status) ? "" : h.status, h.body, h.note].filter(Boolean).join(" · ")}</span></div>))}</div>
           </div>
         </div>
       ))}
     </div>
+  );
+}
+
+/** The news filter's NBA team dropdown: a native select can't show images, so this is a details popup of logo + abbreviation rows. */
+function TeamPick({ value, onChange, teams }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    /** Close the popup on a click anywhere outside it. */
+    const away = (e) => { if (ref.current && !ref.current.contains(e.target)) ref.current.open = false; };
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, []);
+  const pick = (t) => { onChange(t); ref.current.open = false; };
+  const row = (t) => <>{t ? <img src={teamLogo(t)} alt="" width={18} height={18} /> : null}{t || "All NBA teams"}</>;
+  return (
+    <details className="team-pick" ref={ref} data-testid="news-nba">
+      <summary>{row(value)}</summary>
+      <div className="team-pick-list">
+        {["", ...teams].map((t) => <button key={t} type="button" className={`ghost ${t === value ? "active" : ""}`} onClick={() => pick(t)}>{row(t)}</button>)}
+      </div>
+    </details>
   );
 }
 
@@ -1135,27 +1158,26 @@ export function NewsView({ leagueId, open, refreshKey }) {
     <div className="news-col">
       <div className="panel news-filters" data-testid="news-filters">
         <input type="search" placeholder="Search player, team, manager or note…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="news-search" />
-        <select value={nba} onChange={(e) => setNba(e.target.value)} data-testid="news-nba"><option value="">All NBA teams</option>{nbaTeams.map((t) => <option key={t}>{t}</option>)}</select>
+        <TeamPick value={nba} onChange={setNba} teams={nbaTeams} />
         <select value={mgr} onChange={(e) => setMgr(e.target.value)} data-testid="news-manager"><option value="">All managers</option>{managers.map((m) => <option key={m}>{m}</option>)}</select>
         <label className="inline"><input type="checkbox" checked={inj} onChange={(e) => setInj(e.target.checked)} data-testid="news-injuries" /> Injuries only</label>
-        {(q || nba || mgr || inj) && <button className="small ghost" onClick={() => { setQ(""); setNba(""); setMgr(""); setInj(false); }}>clear</button>}
       </div>
       <div className="news-list">
       {!mgr && (
         <details className="panel news" open data-testid="news-mine">
-          <summary><h3>My team <span className="small muted">({mine.length})</span></h3></summary>
+          <summary><h3>My team</h3></summary>
           {mine.length ? mine.map((n, i) => <NewsNote key={i} n={n} open={open} />)
             : <div className="muted">No recent notes on your players{q || nba || inj ? " match" : ""}.</div>}
         </details>
       )}
       {!mgr && free.length > 0 && (
         <details className="panel news" open data-testid="news-free">
-          <summary><h3>Free agents <span className="small muted">(most added / dropped on Sleeper today, {free.length})</span></h3></summary>
+          <summary><h3>Free agents</h3></summary>
           {free.map((n, i) => <NewsNote key={i} n={n} open={open} />)}
         </details>
       )}
       <div className="panel news" data-testid="news-league">
-        <h3>League-wide <span className="small muted">({mgr || "other teams' players"}{league.length > LEAGUE_NEWS ? `, newest ${LEAGUE_NEWS} of ${league.length}` : ""})</span></h3>
+        <h3>League-wide</h3>
         {league.length ? league.slice(0, LEAGUE_NEWS).map((n, i) => <NewsNote key={i} n={n} open={open} owner />)
           : <div className="muted">No notes match.</div>}
       </div>
@@ -1189,7 +1211,7 @@ function BestGames({ leagueId, week, openPid, openGame }) {
                 <div className="small muted best-line">{b.lead.map(([k, v]) => <span key={k}><strong>{v}</strong> {k}</span>)}
                   <span>{b.fg[0]}/{b.fg[1]} FG</span><span>{b.ft[0]}/{b.ft[1]} FT</span><span>{b.min} MIN</span></div>
               </div>
-              <div className={`best-gamecard ${g.event && openGame ? "clickable" : ""}`} data-tip={g.event && openGame ? "Open the game card" : undefined}
+              <div className={`best-gamecard ${g.event && openGame ? "clickable" : ""}`}
                 onClick={g.event && openGame ? () => openGame({ game: g, team: b.team, sid: b.sid, name: b.name }) : undefined}>
                 {[away, home].map(([abbr, pts]) => (
                   <div key={abbr} className={`best-gc-team ${abbr === b.team ? "his" : ""}`}><img src={teamLogo(abbr)} alt="" width={16} height={16} /> {abbr}<strong>{pts ?? "—"}</strong></div>))}
@@ -1241,10 +1263,10 @@ export function LeagueView({ data, leagueId, open, openPid, openGame }) {
       <BestGames leagueId={leagueId} week={data.week} openPid={openPid} openGame={openGame} />
       <div className="panel">
         <h3>Standings</h3>
-        <table className="small" data-testid="standings">
+        <table className="small st-table" data-testid="standings">
           <thead><tr><th>#</th><th>Team</th><th className="num">W</th><th className="num">L</th><th className="num">PF</th><th className="num">FAAB left</th></tr></thead>
           <tbody>{standings.map((t, i) => (
-            <tr key={t.roster_id} className={t.is_user ? "you-need" : ""}><td>{i + 1}</td><td className="clickable" onClick={() => show(t.roster_id)}><TeamName t={t} size={22} record={false} /></td><td className="num">{t.wins}</td><td className="num">{t.losses}</td>
+            <tr key={t.roster_id} className={`${t.is_user ? "you-need" : ""} st-row st-${i + 1}`} style={{ "--pct": t.wins + t.losses ? t.wins / (t.wins + t.losses) : 0 }}><td className="st-rank"><b>{i + 1}</b></td><td className="clickable st-team" onClick={() => show(t.roster_id)}><TeamName t={t} size={22} record={false} /></td><td className="num">{t.wins}</td><td className="num">{t.losses}</td>
               <td className="num">{fp(t.fpts)}</td><td className="num">{data.waiver ? `$${(data.faab_budget ?? 100) - (t.faab_used || 0)}` : "?"}</td></tr>))}</tbody>
         </table>
       </div>
