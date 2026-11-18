@@ -173,6 +173,19 @@ def week_view(session, fetch: Fetch, week: int | None = None, today: date | None
             note = " - ".join(x for x in (pl.get("injury_body_part"), pl.get("injury_notes")) if x)
             injury[str(e["player_id"])] = (SLEEPER_INJURY.get(pl["injury_status"], "day_to_day"), f"{pl['injury_status']}: {note}".rstrip(": "))
             injury_tags[str(e["player_id"])] = pl["injury_status"]   # Sleeper's own tag (GTD, DTD, Out, ...) for display
+    # the projections' copy of the tag is WEEK_TTL old: Sleeper's player list (INJURY_TTL, the Teams Report's feed) is the fresher source
+    live = fetch(SLEEPER_PLAYERS, INJURY_TTL) or {}
+    for sid in {k[0] for k in proj}:
+        pl = live.get(sid)
+        if pl is None:
+            continue
+        if pl.get("injury_status"):
+            note = " - ".join(x for x in (pl.get("injury_body_part"), pl.get("injury_notes")) if x)
+            injury[sid] = (SLEEPER_INJURY.get(pl["injury_status"], "day_to_day"), f"{pl['injury_status']}: {note}".rstrip(": "))
+            injury_tags[sid] = pl["injury_status"]
+        else:
+            injury.pop(sid, None)
+            injury_tags.pop(sid, None)
     for e in fetch(f"{SLEEPER}/stats/nba/{year}/{week}?season_type=regular", LIVE_TTL) or []:
         stats[(str(e["player_id"]), e["date"])] = e.get("stats") or {}
 
