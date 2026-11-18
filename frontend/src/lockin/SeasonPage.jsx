@@ -1,5 +1,4 @@
 import React, { useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { useNBAMatches, findMatch, watchUrl } from "./streams.jsx";
 import { createPortal } from "react-dom";
 import { api, qs } from "../api.js";
 import Headshot from "../core/Headshot.jsx";
@@ -9,6 +8,8 @@ import TeamLink, { TeamLinkContext } from "../core/TeamLink.jsx";
 import PlayerSearch from "../core/PlayerSearch.jsx";
 import NeonArrow from "../core/NeonArrow.jsx";
 import DragScroll from "../core/DragScroll.jsx";
+import { useWatch } from "../core/watch.js";
+import { useNBAMatches, findMatch, watchUrl } from "./streams.jsx";
 import InjuryTag, { injuryTip, isDoubt, isOut } from "../core/InjuryTag.jsx";
 import { fmt, setZone, timeOf } from "./tz.js";
 import { reseat, swapSteps } from "./swaps.js";
@@ -325,8 +326,12 @@ export function GamePanel({ sel, data, leagueId, onOpenPid, onClose }) {
     if (n) owner[normName(n)] = { sid, team: t.user || t.name, mine: t.is_user };
   }
   const watch = sel.game.state !== "post" ? watchUrl(findMatch(matches, sel.game, sel.team)) : null;
-  const when = g?.tip ? fmt(g.tip, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
-  const status = !g ? "" : g.state === "in" ? quarters(g.detail) : g.state === "post" ? "Final" : `Tips ${fmt(g.tip, { hour: "numeric", minute: "2-digit" })}`;
+  const dayKey = (ms) => fmt(ms, { year: "numeric", month: "numeric", day: "numeric" });
+  const relDay = !g?.tip ? "" : dayKey(g.tip) === dayKey(Date.now()) ? "Today" : dayKey(g.tip) === dayKey(Date.now() + 864e5) ? "Tomorrow" : fmt(g.tip, { weekday: "short", month: "short", day: "numeric" });
+  const when = g?.tip ? `${relDay}${relDay === "Today" || relDay === "Tomorrow" ? "," : " ·"} ${fmt(g.tip, { hour: "numeric", minute: "2-digit" })}` : "";
+  const mins = g?.tip ? Math.floor((new Date(g.tip).getTime() - Date.now()) / 60000) : 0;
+  const countdown = mins <= 0 ? "Tips soon" : [[Math.floor(mins / 1440), "d"], [Math.floor(mins / 60) % 24, "h"], [mins % 60, "m"]].filter(([n]) => n).map(([n, u]) => `${n}${u}`).join(" ");
+  const status = !g ? "" : g.state === "in" ? quarters(g.detail) : g.state === "post" ? "Final" : countdown;
   return (
     <div className="panel scroll game-panel" data-testid="game-panel">
       <button className="sidebar-close" onClick={onClose} title="Close game" data-testid="game-close" aria-label="Close game"><Icon name="x" /></button>
@@ -334,7 +339,7 @@ export function GamePanel({ sel, data, leagueId, onOpenPid, onClose }) {
         <div className="gp-score">
           {g.teams.map((t, i) => (
             <React.Fragment key={t.abbr}>
-              {i === 1 && <div className="gp-status"><span className={g.state === "in" ? "gp-live" : ""}>{status}</span><span className="small muted">{when}</span></div>}
+              {i === 1 && <div className="gp-status">{g.state !== "in" && g.state !== "post" && mins > 0 && <span className="small muted">TIPS IN</span>}<span className={g.state === "in" ? "gp-live" : ""}>{status}</span><span className="small muted">{when}</span></div>}
               <div className={`gp-team ${i ? "gp-home" : ""}`}>
                 {t.logo && <TeamLink abbr={t.abbr}><img src={t.logo} alt="" width={40} height={40} /></TeamLink>}
                 <div><div className="gp-abbr"><TeamLink abbr={t.abbr} />{g.state !== "pre" && t.record && <span className="gp-rec"> {t.record}</span>}</div>
@@ -402,6 +407,11 @@ export function GamePanel({ sel, data, leagueId, onOpenPid, onClose }) {
   );
 }
 
+/** A row's win-probability edge from locking: win % locked minus win % left open. */
+export const lockEdge = (r) => (r.win_lock ?? 0) - (r.win_wait ?? 0);
+/** The plan's lockable games, best edge first. A lock that costs more than 5 points of win chance isn't worth a card. x is only set for a player in a starting slot, so this includes starters the plan benches (Sleeper lets them lock). */
+export const lockableOf = (p) => p.players.filter((r) => r.x != null && r.x_final && r.lock_status !== "locked" && r.lock_status !== "guess" && lockEdge(r) >= -0.05)
+  .sort((a, b) => lockEdge(b) - lockEdge(a));
 /** A 0-1 share as a whole-number percent. */
 export const pct = (x) => `${Math.round((x ?? 0) * 100)}%`;
 /** Everything after the first word of a name (the whole name when it has one word). */
@@ -410,7 +420,7 @@ const lastName = (n) => n.split(" ").slice(1).join(" ") || n;
  * The right side when no player is open: the week's Lock-In numbers for any team (yours by default; the drop-down loads another's plan from the plan endpoint). Stats, not instructions: open(sid) opens a player's profile.
  * Matchup: win probability; projected final, banked points and games left for both teams. By approach: win probability locking every lockable game now vs leaving every slot open vs the plan's mix (backend outlook); the opponent's remaining projections and banked games. Lockable games: each game that could be locked now with its score, the open slot's value (his later games or a spare bench player's, the best each day: backend open_slot), win % locked vs open and the next tip. Swap windows and Injury watch: tonight's live-vs-later comparisons and questionable / out starters.
  */
-export function LockinGuide({ data, plan, leagueId, setLock, open, focus }) {
+export function LockinGuide({ data, plan, leagueId, setLock, open, focus, hideSwaps }) {
   const [rid, setRid] = useState(focus ?? plan.roster_id);
   useEffect(() => { if (focus != null) setRid(focus); }, [focus]);
   const [other, setOther] = useState(null);
@@ -438,12 +448,8 @@ export function LockinGuide({ data, plan, leagueId, setLock, open, focus }) {
   const clip = (n) => (n.length > 10 ? `${n.slice(0, 8)}..` : n);
   const o = p.opponent, out = p.outlook;
   /** A row's win-probability edge from locking: win % locked minus win % left open. */
-  const edge = (r) => (r.win_lock ?? 0) - (r.win_wait ?? 0);
-  // a lock that costs more than 5 points of win chance isn't worth a card
-  // x is only set for a player in a starting slot, so this includes starters the plan benches (Sleeper lets them lock)
-  const lockable = p.players.filter((r) => r.x != null && r.x_final && r.lock_status !== "locked" && r.lock_status !== "guess"
-    && edge(r) >= -0.05)
-    .sort((a, b) => edge(b) - edge(a));
+  const edge = lockEdge;
+  const lockable = lockableOf(p);
   // a KEEP call (his game under way, headed past the backup's) is no swap: it drops off the list
   const swaps = watch.filter((w) => w.kind === "swap" && w.decision !== "KEEP"), injuries = watch.filter((w) => w.kind === "gtd" || w.kind === "out");
   // the Sleeper swaps to make right now: the same steps as the lineup grid's numbered arrows (bestLineup at the clock)
@@ -532,7 +538,7 @@ export function LockinGuide({ data, plan, leagueId, setLock, open, focus }) {
           })}
         </section>
       )}
-      {(nowSwaps.length > 0 || windows.length > 0) && (
+      {!hideSwaps && (nowSwaps.length > 0 || windows.length > 0) && (
         <section className="guide-card">
           <div className="bid-label">Swaps</div>
           {/* one line per swap: "Now swap [a] & [b]" for the moves due now (in arrow order), then
@@ -600,12 +606,9 @@ export function RosterAlerts({ roster }) {
  * `lane` (matchup cards): { xs: tip ms -> x px, scale }, so the chips line up as a timeline (see laneXs). `onOpen(game)` opens that game on the right (GamePanel). `onLock(date)`: the corner padlock locks or unlocks (open on any final game he played while not benched, past ones too, when nothing is locked; filled on the locked game; unlock is "").
  */
 function GameChips({ games, today, lockDate, lockGuess, lockable, benched, day, lane, team, onOpen, onLock }) {
-  const { list: matches } = useNBAMatches();
   const graph = useNarrow();
   // graph bars share one scale per player: his best projection / score this week
   const peak = Math.max(1, ...games.map((x) => Math.max(x.fp ?? 0, x.pace ?? 0, x.proj ?? 0)));
-  // each chip's stream: a scan of every listed stream, so once per list / games, not on every render (the slider re-renders)
-  const watches = React.useMemo(() => games.map((g) => (g.state !== "post" ? watchUrl(findMatch(matches, g, team)) : null)), [matches, games, team]);
   if (!games.length) return lane ? <span className="chips-lane"><span className="muted small">no games</span></span> : <span className="muted small">no games</span>;
   const chips = games.map((g, i) => {
         // live: ESPN says in progress, or his stats are coming in before ESPN's state catches up; final only once ESPN says so
@@ -617,7 +620,6 @@ function GameChips({ games, today, lockDate, lockGuess, lockable, benched, day, 
         const toggle = !onLock ? null : lockDate === g.date ? "" : !lockDate && g.state === "post" && played && !benched ? g.date : null;
         /** Click on the corner padlock: lock this game, or unlock it when it's the locked one. */
         const lockClick = (e) => { e.stopPropagation(); onLock(toggle); };
-        const watch = watches[i];
         const exp = live && g.pace != null ? g.pace : g.proj;
         const tip = [
           graph && [timeOf(g.tip), played && `${fp(g.fp)} FP`, exp != null && `proj ${fp(exp)}`].filter(Boolean).join(" · "),
@@ -627,7 +629,6 @@ function GameChips({ games, today, lockDate, lockGuess, lockable, benched, day, 
           g.beat != null && `${Math.round(g.beat * 100)}% to score higher this week`,
           lockDate === g.date ? (lockGuess ? "locked (a guess: his next game confirms it)" : "locked") : dead && !toggle && "can't be locked",
           toggle === "" ? "padlock: unlock" : toggle && (dead ? "padlock: mark it locked (a lock you didn't record)" : "padlock: lock"),
-          watch && "▶: watch",
         ].filter(Boolean).join(" · ") + (g.box ? `\n${boxLine(g.box, g.min)}` : "");
         return (
           <span key={g.date} onClick={onOpen && g.event ? (e) => { e.stopPropagation(); onOpen(g); } : undefined}
@@ -639,7 +640,6 @@ function GameChips({ games, today, lockDate, lockGuess, lockable, benched, day, 
               : played ? "final" : timeOf(g.tip).replace(":00", "").replace(" PM", "p").replace(" AM", "a")}</span></span>
             {toggle && <button className="gch-lockbtn corner" onClick={lockClick} aria-label="Lock" data-testid="lock-game"><LockIcon open /></button>}
             {toggle === "" && <button className="gch-lockbtn corner unlock" onClick={lockClick} aria-label="Unlock" data-testid="unlock-game"><LockIcon /></button>}
-            {watch && <a className="gch-lockbtn corner watch" href={watch} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} aria-label="Watch" data-testid="watch-game"><svg className="gch-play" viewBox="0 0 9 10" aria-hidden="true"><path d="M0 0L9 5L0 10Z" fill="currentColor" /></svg></a>}
             {graph ? <>
               <span className="gch-bar"><i className="exp" style={{ height: `${100 * (exp ?? 0) / peak}%` }} />{played && <i className="act" style={{ height: `${100 * g.fp / peak}%` }} />}</span>
               <span className="gch-fp">{fp(played ? g.fp : exp)}</span>
@@ -1134,24 +1134,33 @@ function TeamPick({ value, onChange, teams }) {
   );
 }
 
-/** News tab: fantasy notes on your players (collapsible, always starts open), then on the other teams' players under it, filterable by search, NBA team, manager and injured-only. Reloads on Sync; the backend caches both lists for 15 minutes otherwise. */
+/** News tab: tabs under the filter bar, My team (opens first), Watched (players watched from their profile), League-wide and Free agents; the filter bar narrows whichever is open. Reloads on Sync; the backend caches the notes for 15 minutes otherwise. */
 export function NewsView({ leagueId, open, refreshKey }) {
   const [news, setNews] = useState(null);
   const [error, setError] = useState("");
-  const [q, setQ] = useState(""), [nba, setNba] = useState(""), [mgr, setMgr] = useState(""), [inj, setInj] = useState(false);
+  const [q, setQ] = useState(""), [nba, setNba] = useState(""), [mgr, setMgr] = useState(""), [inj, setInj] = useState(false), [tab, setTab] = useState("mine");
+  const [watched] = useWatch(leagueId);
+  const watchKey = watched.join(",");   // a change reloads the news: the backend adds a newly watched free agent's notes
   useEffect(() => {
     api.get(`/leagues/${leagueId}/season/news`).then((n) => { setNews(n); setError(""); }).catch((e) => setError(e.message));
-  }, [leagueId, refreshKey]);
+  }, [leagueId, refreshKey, watchKey]);
   if (error) return <div className="panel error">{error}</div>;
   if (!news) return <div className="panel muted">Loading news…</div>;
   const words = q.toLowerCase().trim();
-  /** The news filter: a search over player, NBA team, manager's username and the note itself, plus the team and injured switches. The manager pick only narrows the league list. */
+  /** The news filter: a search over player, NBA team, manager's username and the note itself, plus the team and injured switches. */
   const keep = (n) => (!nba || n.team === nba) && (!inj || n.injury)
     && (!words || [n.name, n.team, n.user, n.headline, n.story].join(" ").toLowerCase().includes(words));
-  const mine = news.mine.filter(keep), free = news.free.filter(keep);
-  const league = news.league.filter((n) => keep(n) && (!mgr || n.user === mgr));
-  const nbaTeams = [...new Set([...news.mine, ...news.league, ...news.free].map((n) => n.team).filter(Boolean))].sort();
+  const all = [...news.mine, ...news.league, ...news.free];
+  const lists = {
+    mine: news.mine,
+    watched: all.filter((n) => watched.includes(n.player_id)).sort((a, b) => (b.published || "").localeCompare(a.published || "")),
+    league: news.league.filter((n) => !mgr || n.user === mgr),
+    free: news.free.filter((n) => n.trending !== false),
+  };
+  const shown = lists[tab].filter(keep);
+  const nbaTeams = [...new Set(all.map((n) => n.team).filter(Boolean))].sort();
   const managers = [...new Set(news.league.map((n) => n.user))].sort((a, b) => a.localeCompare(b));
+  const empty = { mine: "No recent notes on your players", watched: watched.length ? "No recent notes on your watched players" : "No watched players yet: open a player and press Watch", league: "No notes", free: "No notes" }[tab];
   return (
     <div className="news-wrap">
     <TeamsReport leagueId={leagueId} open={open} refreshKey={refreshKey} />
@@ -1159,28 +1168,18 @@ export function NewsView({ leagueId, open, refreshKey }) {
       <div className="panel news-filters" data-testid="news-filters">
         <input type="search" placeholder="Search player, team, manager or note…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="news-search" />
         <TeamPick value={nba} onChange={setNba} teams={nbaTeams} />
-        <select value={mgr} onChange={(e) => setMgr(e.target.value)} data-testid="news-manager"><option value="">All managers</option>{managers.map((m) => <option key={m}>{m}</option>)}</select>
+        {tab === "league" && <select value={mgr} onChange={(e) => setMgr(e.target.value)} data-testid="news-manager"><option value="">All managers</option>{managers.map((m) => <option key={m}>{m}</option>)}</select>}
         <label className="inline"><input type="checkbox" checked={inj} onChange={(e) => setInj(e.target.checked)} data-testid="news-injuries" /> Injuries only</label>
       </div>
-      <div className="news-list">
-      {!mgr && (
-        <details className="panel news" open data-testid="news-mine">
-          <summary><h3>My team</h3></summary>
-          {mine.length ? mine.map((n, i) => <NewsNote key={i} n={n} open={open} />)
-            : <div className="muted">No recent notes on your players{q || nba || inj ? " match" : ""}.</div>}
-        </details>
-      )}
-      {!mgr && free.length > 0 && (
-        <details className="panel news" open data-testid="news-free">
-          <summary><h3>Free agents</h3></summary>
-          {free.map((n, i) => <NewsNote key={i} n={n} open={open} />)}
-        </details>
-      )}
-      <div className="panel news" data-testid="news-league">
-        <h3>League-wide</h3>
-        {league.length ? league.slice(0, LEAGUE_NEWS).map((n, i) => <NewsNote key={i} n={n} open={open} owner />)
-          : <div className="muted">No notes match.</div>}
+      <div className="profile-tabs news-tabs" role="tablist">
+        {[["mine", "My team"], ["watched", "Watched"], ["league", "League-wide"], ["free", "Free agents"]].map(([id, label]) => (
+          <button key={id} role="tab" className={tab === id ? "active" : ""} onClick={() => setTab(id)} data-testid={`news-tab-${id}`}>{label}</button>))}
       </div>
+      <div className="news-list">
+        <div className="panel news" data-testid={`news-${tab}`}>
+          {shown.length ? shown.slice(0, tab === "league" ? LEAGUE_NEWS : undefined).map((n, i) => <NewsNote key={i} n={n} open={open} owner={tab === "league" || tab === "watched"} />)
+            : <div className="muted">{shown.length === 0 && (q || nba || inj) ? "No notes match." : `${empty}.`}</div>}
+        </div>
       </div>
     </div>
     </div>

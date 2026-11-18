@@ -83,7 +83,7 @@ function CommandSeason({ leagueId, leagueName, view, onWeek }) {
               </div>
               <WeekView key={data.week} data={data} plan={plan} open={s.open} openGame={s.openGame} setLock={s.setLock} leagueId={leagueId} onShow={setFocusRid} focus={s.matchup} />
             </section>
-            <aside className="cc-side"><LockinGuide data={data} plan={plan} leagueId={leagueId} setLock={s.setLock} open={s.open} focus={focusRid} /></aside>
+            <aside className="cc-side"><LockinGuide data={data} plan={plan} leagueId={leagueId} setLock={s.setLock} open={s.open} focus={focusRid} hideSwaps /></aside>
           </div>
         )}
         {view === "news" && <div className="cc-fill"><NewsView leagueId={leagueId} open={s.openPid} refreshKey={s.tick} /></div>}

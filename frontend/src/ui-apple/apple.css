@@ -37,17 +37,26 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
 .season-tools-x .season-search input { border-radius: 999px; padding-left: 16px; }
 .season-tools-x .icon-btn { flex: none; width: 36px; height: 36px; padding: 0; display: grid; place-items: center; font-size: var(--fs-lg); }
 
-.ap-week { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) var(--side-w); gap: 14px; }
-.ap-center { min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; padding-bottom: 4px; }
+.ap-week { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.ap-center { min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; padding-bottom: 4px; scrollbar-width: none; }
+.ap-center::-webkit-scrollbar { display: none; }
 .ap-center > .panel, .ap-pair > .panel, .ap-inspector > .panel { margin: 0; }
 .ap-center > .matchup { flex: 1 0 auto; min-height: 460px; display: flex; flex-direction: column; padding: 12px 14px; }
 .ap-inspector { min-height: 0; display: flex; flex-direction: column; }
 .ap-inspector > .panel.scroll { flex: 1; min-height: 0; max-height: none; }
 .ap-fill, .ap-scroll { flex: 1; min-height: 0; }
+.ap-fill { display: flex; flex-direction: column; overflow: hidden; }   /* the page never grows: the news list scrolls inside, the sidebar stays put */
 .ap-scroll { overflow: auto; }
 
 /* widgets: rounded tiles with big rounded numerals, the first one an activity ring */
-.ap-widgets { flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.ap-widgets { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.6fr); gap: 14px; }
+.ap-lock-widget { gap: 8px; }
+.ap-locks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; }
+.ap .ap-lock { display: flex; align-items: center; gap: 10px; width: 100%; padding: 5px 10px 5px 6px; border-radius: 14px; background: var(--panel-2); text-align: left; color: var(--text); }
+.ap-lock-main { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.ap-lock-main strong { font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-lock-main span { font-size: var(--fs-2xs); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-lock .hub-edge { flex: none; }
 .ap-widget { min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 14px 18px; border-radius: 22px; background: var(--panel); border: 1px solid var(--border-inner);
   box-shadow: var(--shadow); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); }
 .ap-widget.hot { background: color-mix(in srgb, var(--q) 14%, var(--panel)); }
@@ -64,8 +73,8 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
 .ap-ring-widget > div { display: flex; flex-direction: column; min-width: 0; }
 
 /* inset grouped lists: Do now and Tonight */
-.ap-pair { flex: none; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 14px; max-height: 260px; min-height: 0; }
-.ap-pair > .panel { min-height: 0; overflow: auto; padding: 14px 6px 6px; }
+.ap-pair { flex: none; display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 14px; min-height: 0; }
+.ap-pair > .panel { min-height: 0; overflow: visible; padding: 14px 6px 6px; }
 .ap-group h3 { margin: 0 0 6px 14px; font-size: var(--fs-lg); }
 .ap .ap-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 14px; border: 0; border-radius: 0; background: transparent; text-align: left; position: relative; }
 .ap-row + .ap-row::before { content: ""; position: absolute; top: 0; left: 14px; right: 0; border-top: 1px solid var(--border-inner); }   /* the inset hairline */
@@ -79,9 +88,17 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
 .ap-call-who { flex: none; display: flex; }
 .ap .ap-call-who button { padding: 0; width: 30px; height: 30px; margin-left: -6px; overflow: hidden; background: var(--panel-solid); border: 2px solid var(--panel-solid); }
 .ap-game { color: var(--text); font: inherit; }
-.ap-game-teams { flex: 1; display: grid; grid-template-columns: 1fr auto 1fr auto; gap: 4px 10px; font-weight: 600; }
-.ap-game-teams b { font-variant-numeric: tabular-nums; }
-.ap-game-status { flex: none; font-size: var(--fs-xs); color: var(--muted); display: flex; align-items: center; gap: 6px; }
+/* fixed columns (away, @, home, status, "yours" slot) so every row lines up whether or not it has your players */
+.ap-games { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 0 8px 4px; }   /* Tonight in two columns, each game a bordered tile */
+.ap-games .ap-row::before { display: none; }
+.ap .ap-game { display: grid; grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr) 66px 62px; gap: 6px; padding-block: 8px; border: 1px solid var(--border); border-radius: 14px; }
+.ap-team { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.ap-team img { flex: none; width: 28px; height: 28px; object-fit: contain; }
+.ap-team strong { font-size: var(--fs-md); font-weight: 700; }
+.ap-team b { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 700; }
+.ap-at { text-align: center; color: var(--muted); font-size: var(--fs-xs); }
+.ap-slot { display: flex; justify-content: flex-end; }
+.ap-game-status { font-size: var(--fs-xs); color: var(--muted); display: flex; align-items: center; justify-content: flex-end; gap: 6px; white-space: nowrap; }
 .ap-game.in .ap-game-status { color: var(--live); font-weight: 700; }
 .ap-pill { flex: none; padding: 2px 9px; border-radius: 999px; font-size: var(--fs-2xs); font-weight: 600; background: var(--primary-soft); color: var(--info-t); }
 
@@ -104,6 +121,7 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
   .ap-center > .matchup { min-height: 70vh; }
   .ap-inspector { max-height: 80vh; }
   .ap-widgets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ap-lock-widget { grid-column: 1 / -1; }
   .ap-pair { grid-template-columns: minmax(0, 1fr); max-height: none; }
   .ap-fill { min-height: 80vh; }
 }
@@ -128,3 +146,7 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
 .ap .news-title { margin-top: 3px; } .ap .news-story { max-width: 70ch; }
 .ap .st-table td { padding-block: 11px; } .ap .wv-table td { padding-block: 10px; }
 .ap .tr-team { padding-block: 10px; }
+
+/* ---- Team card in Apple: a sheet; ranks as two grouped lists, the depth chart with room around each capsule (the look is the theme's) ---- */
+.ap .team-ranks { gap: 18px; } .ap .team-ranks-row { font-size: var(--fs-sm); }
+.ap table.depth-grid td { padding-block: 6px; } .ap .dg-cell img { width: 28px; height: 28px; }

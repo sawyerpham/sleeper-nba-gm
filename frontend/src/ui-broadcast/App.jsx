@@ -79,7 +79,7 @@ function BroadcastSeason({ leagueId, view, onWeek }) {
         {view === "week" && (
           <div className="bc-desk">
             <Matrix data={data} plan={plan} s={s} leagueId={leagueId} />
-            <aside className="bc-analysis"><LockinGuide data={data} plan={plan} leagueId={leagueId} setLock={s.setLock} open={s.open} /></aside>
+            <aside className="bc-analysis"><LockinGuide data={data} plan={plan} leagueId={leagueId} setLock={s.setLock} open={s.open} hideSwaps /></aside>
           </div>
         )}
         {view === "news" && <div className="bc-fill"><NewsView leagueId={leagueId} open={s.openPid} refreshKey={s.tick} /></div>}

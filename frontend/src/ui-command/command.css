@@ -125,3 +125,7 @@ main.cc-main:has(.cc-page) { padding: 0; max-width: none; margin: 0; }
 .cc .wv-table .wv-player .headshot, .cc .wv-table .wv-player img:first-child { width: 32px; height: 32px; }
 .cc .wv-table thead th { position: sticky; top: 0; z-index: 2; }
 @media (max-width: 1199px) { .cc .news-list { grid-template-columns: minmax(0, 1fr); } .cc .news-list > .news[data-testid="news-league"], .cc .news-list > :not([data-testid="news-league"]) { grid-column: 1; grid-row: auto; } }
+
+/* ---- Team card in Command Center: a drawer, so ranks and the depth chart run compact (the look is the theme's) ---- */
+.cc .team-ranks { gap: 14px; margin-block: 0 6px; } .cc .team-ranks-row { padding-block: 1px; }
+.cc table.depth-grid td { padding-block: 2px; } .cc .dg-cell img { width: 18px; height: 18px; }

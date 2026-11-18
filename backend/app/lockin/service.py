@@ -431,6 +431,23 @@ def write_lock(store, league_id: str, week: int, sid: str, game_date: str | None
     store.write_json(LOCKS_FILE, data)
 
 
+WATCH_FILE = "season_watched.json"   # players you watch: {league: [player id, ...]}
+
+
+def read_watch(store, league_id: str) -> list[int]:
+    """The player ids watched in a league (they get their own News tab)."""
+    return (store.read_json(WATCH_FILE) if store.exists(WATCH_FILE) else {}).get(league_id, [])
+
+
+def write_watch(store, league_id: str, player_id: int, watched: bool) -> list[int]:
+    """Watch or unwatch one player; returns the league's watched ids."""
+    data = store.read_json(WATCH_FILE) if store.exists(WATCH_FILE) else {}
+    ids = [p for p in data.get(league_id, []) if p != player_id] + ([player_id] if watched else [])
+    data[league_id] = ids
+    store.write_json(WATCH_FILE, data)
+    return ids
+
+
 def _slot_counts(positions: list[str]) -> dict[str, int]:
     """Count the starting slots of each type (bench and IR excluded)."""
     counts: dict[str, int] = {}
@@ -800,23 +817,25 @@ def player_news(fetch: Fetch, sid: str) -> list[dict]:
     return out[:4]
 
 
-def season_news(view: dict, fetch: Fetch, free: list[str] = ()) -> dict:
+def season_news(view: dict, fetch: Fetch, free: list[str] = (), watch: list[str] = ()) -> dict:
     """The News tab: fantasy notes (RotoWire, via Sleeper) on every player of yours, then on every player the other teams
     roster, newest first. Sleeper's notes feed only works one player at a time (no league-wide feed), so this is one
     request per player, in parallel and cached NEWS_TTL: only the first load after a Sync pays for it. `free`: free
-    agents to cover too (Sleeper's trending adds / drops; the view must hold them, week_view(extra=...))."""
+    agents to cover too (Sleeper's trending adds / drops; the view must hold them, week_view(extra=...)). `watch`: watched
+    free agents, covered too; their notes carry trending=False so the Free agents tab can leave them out."""
     from concurrent.futures import ThreadPoolExecutor
 
     players = view["players"]
     owner = {sid: t for t in view["teams"] for sid in t["players"]}
-    free = [s for s in dict.fromkeys(free) if s not in owner and (players.get(s) or {}).get("player_id")]
+    trend = set(free)
+    free = [s for s in dict.fromkeys([*free, *watch]) if s not in owner and (players.get(s) or {}).get("player_id")]
 
     def notes(sid: str) -> list[dict]:
         """A player's news notes with his identity, injury tag and owner."""
         p, t = players[sid], owner.get(sid)
         return [{**n, "sid": sid, "player_id": p["player_id"], "name": p["name"], "team": p.get("team"), "pos": p.get("pos") or [],
                  "injury_tag": p.get("injury_tag"), "injury_note": p.get("injury_note"), "owner": t["name"] if t else None,
-                 "user": (t.get("user") or t["name"]) if t else None}
+                 "user": (t.get("user") or t["name"]) if t else None, "trending": sid in trend or sid in owner}
                 for n in player_news(fetch, sid)]
     sids = [s for s in [*owner, *free] if s in players and s not in RETIRED]
     with ThreadPoolExecutor(16) as ex:

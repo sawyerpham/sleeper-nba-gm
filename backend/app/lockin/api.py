@@ -20,6 +20,7 @@ from .service import (
     http_fetch,
     injury_report,
     read_locks,
+    read_watch,
     season_news,
     season_player,
     sleeper_injuries,
@@ -33,6 +34,7 @@ from .service import (
     waivers,
     week_view,
     write_lock,
+    write_watch,
 )
 
 router = APIRouter(prefix="/leagues/{league_id}/season", tags=["season"])
@@ -171,7 +173,8 @@ def news(league_id: str, state: AppState = Depends(get_state)) -> dict:
     fetch = _fetch(state)
     try:
         free = trending(fetch)
-        out = season_news(week_view(session, fetch, extra=tuple(free)), fetch, free)
+        sids = [session.players[p].sleeper_id for p in read_watch(state.store, league_id) if p in session.players and session.players[p].sleeper_id]   # watched players' notes come too
+        out = season_news(week_view(session, fetch, extra=(*free, *sids)), fetch, free, sids)
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     rosters ={t: sorted(r, reverse=True) for t, r in team_rosters(session)[0].items()}
@@ -180,6 +183,26 @@ def news(league_id: str, state: AppState = Depends(get_state)) -> dict:
             role = _team_role(session, rosters.get(n["team"], []), n["player_id"]) if n.get("player_id") else None
             n["role"] = role and {"label": role["label"], "star": role["star"]}
     return out
+
+
+class Watch(BaseModel):
+    """Body to watch or unwatch one player."""
+    player_id: int
+    watched: bool
+
+
+@router.get("/watch")
+def get_watch(league_id: str, state: AppState = Depends(get_state)) -> dict:
+    """The player ids you watch in this league."""
+    _session(state, league_id)
+    return {"watched": read_watch(state.store, league_id)}
+
+
+@router.post("/watch")
+def set_watch(league_id: str, body: Watch, state: AppState = Depends(get_state)) -> dict:
+    """Watch or unwatch a player; returns the league's watched ids."""
+    _session(state, league_id)
+    return {"watched": write_watch(state.store, league_id, body.player_id, body.watched)}
 
 
 @router.get("/waivers")

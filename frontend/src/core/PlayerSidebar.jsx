@@ -3,10 +3,11 @@ import { PosList, PosTag, posClass, tierHue } from "./Pos.jsx";
 import { api, qs } from "../api.js";
 import { CallBadge, Term, TERMS } from "./Terms.jsx";
 import Headshot from "./Headshot.jsx";
-import TeamLink from "./TeamLink.jsx";
+import TeamLink, { TeamTag } from "./TeamLink.jsx";
 import { ordinal } from "../draft/SpendingGuide.jsx";
 import { SeasonHistory, SeasonLog, SeasonSummary } from "../lockin/SeasonProfile.jsx";
 import Icon from "./Icon.jsx";
+import { useWatch } from "./watch.js";
 
 const TABS = [["summary", "Summary"], ["log", "Game Log"], ["team", "Team"], ["history", "History"]];
 /**
@@ -16,6 +17,7 @@ const TABS = [["summary", "Summary"], ["log", "Game Log"], ["team", "Team"], ["h
  * `onOpenMatchup(roster_id)`: the Summary's owner name shows that manager's matchup this week.
  */
 export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, onOverridesChanged, userName, onBlock, rankings, onSelectPlayer, season, plan, onClose, onOpenGame, onOpenMatchup }) {
+  const [watched, toggleWatch] = useWatch(leagueId);
   const [data, setData] = useState(null);
   const [rec, setRec] = useState(null);
   const [spend, setSpend] = useState(null);
@@ -73,9 +75,10 @@ export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, on
     <>
       {onClose && <button className="sidebar-close" onClick={onClose} title="Close profile" data-testid="sidebar-close" aria-label="Close profile"><Icon name="x" /></button>}
       <div className="sec profile-top">
+      {season && <button className={`small watch-btn ${watched.includes(shownId) ? "on" : ""}`} onClick={() => toggleWatch(shownId)} data-testid="watch-btn">{watched.includes(shownId) ? "Unwatch" : "Watch"}</button>}
       <h3>
         <Headshot sleeperId={rec_.sleeper_id} name={rec_.full_name} size={96} large />
-        {rec_.full_name} <span className="muted">{rec_.fantasy?.number != null && `#${rec_.fantasy.number} `}{rec_.team_abbr ? <TeamLink abbr={rec_.team_abbr} /> : "FA"}</span>
+        {rec_.full_name} <span className="muted">{rec_.fantasy?.number != null && `#${rec_.fantasy.number} `}{rec_.team_abbr ? <TeamTag abbr={rec_.team_abbr} /> : "FA"}</span>
         <span className="profile-tags">
           <span>{ov.eligibility.length ? <PosList list={ov.eligibility} /> : "no position"} · age {bio.age ?? "?"}</span>
           {season && data.team?.role && (
@@ -268,7 +271,7 @@ export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, on
             <thead><tr><th>season</th><th>team</th><th>age</th><th>GP</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th></tr></thead>
             <tbody>
               {data.detail.season_totals.slice().reverse().map((t, i) => (
-                <tr key={i}><td>{t.season}</td><td><TeamLink abbr={t.team_abbr} /></td><td>{t.age ?? ""}</td><td>{t.gp}</td><td>{t.gp ? (t.minutes / t.gp).toFixed(1) : ""}</td>
+                <tr key={i}><td>{t.season}</td><td><TeamTag abbr={t.team_abbr} /></td><td>{t.age ?? ""}</td><td>{t.gp}</td><td>{t.gp ? (t.minutes / t.gp).toFixed(1) : ""}</td>
                   <td>{t.gp ? (t.pts / t.gp).toFixed(1) : ""}</td><td>{t.gp ? (t.reb / t.gp).toFixed(1) : ""}</td><td>{t.gp ? (t.ast / t.gp).toFixed(1) : ""}</td>
                   <td>{t.gp ? (t.stl / t.gp).toFixed(1) : ""}</td><td>{t.gp ? (t.blk / t.gp).toFixed(1) : ""}</td><td>{t.gp ? (t.tov / t.gp).toFixed(1) : ""}</td></tr>
               ))}
@@ -312,9 +315,9 @@ export function TeamRanks({ r }) {
     <div className="team-ranks" data-testid="team-ranks">
       {[["offense", "Offense"], ["defense", "Defense"]].map(([side, title]) => (
         <div key={side} className="team-ranks-side">
-          <div className="team-ranks-head"><span>{title}</span>{rank(r[side].pts)}</div>
+          <div className="team-ranks-head" style={{ "--rk": 1 - (r[side].pts.rank - 1) / Math.max(1, r.teams - 1) }}><span>{title}</span>{rank(r[side].pts)}</div>
           {RANK_STATS.map(([k, label]) => (
-            <div key={k} className="team-ranks-row small">
+            <div key={k} className="team-ranks-row small" style={{ "--rk": 1 - (r[side][k].rank - 1) / Math.max(1, r.teams - 1) }}>
               <span>{side === "offense" ? label : k === "to" ? "Turnovers forced" : `${label} allowed`}</span>{rank(r[side][k])}
             </div>
           ))}
@@ -330,7 +333,7 @@ export function DepthGrid({ grid, onSelectPlayer }) {
     <table className="depth-grid small" data-testid="depth-grid">
       <thead><tr><th></th><th>1st</th><th>2nd</th><th>3rd</th></tr></thead>
       <tbody>{["PG", "SG", "SF", "PF", "C"].map((pos) => (
-        <tr key={pos}><td><PosTag text={pos} /></td>
+        <tr key={pos} className="dg-row"><td className="dg-pos"><PosTag text={pos} /></td>
           {[0, 1, 2].map((i) => {
             const m = grid[pos]?.[i];
             return <td key={i} className={m ? `dg-cell ${m.is_self ? "self" : "clickable"}` : "muted"} onClick={() => m && !m.is_self && onSelectPlayer?.(m.player_id)}

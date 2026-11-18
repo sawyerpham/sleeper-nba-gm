@@ -179,3 +179,7 @@ main.bc-main:has(.bc-season) { padding: 0; max-width: none; margin: 0; }
 .bc-main .wv-table td { padding-block: 12px; } .bc-main .wv-table .wv-player .headshot, .bc-main .wv-table .wv-player img:first-child { width: 58px; height: 58px; }
 .bc-main .wv-table .wv-player strong { font-size: var(--fs-xl); } .bc-main .wv-bid { font-size: var(--fs-xl); padding: 4px 16px; }
 @media (max-width: 1199px) { .bc-main .news-list { grid-template-columns: minmax(0, 1fr); } .bc-main .news-list > .news[data-testid="news-league"] { column-count: 1; } }
+
+/* ---- Team card in Broadcast: a wide sheet, so ranks and the depth chart get TV-sized type and room (the look is the theme's) ---- */
+.bc-sheet .team-ranks { gap: 44px; } .bc-sheet .team-ranks-head { font-size: var(--fs-xl); } .bc-sheet .team-ranks-row { padding-block: 5px; font-size: var(--fs-md); }
+.bc-sheet table.depth-grid td { padding: 8px 12px; font-size: var(--fs-md); } .bc-sheet .dg-cell img { width: 32px; height: 32px; }

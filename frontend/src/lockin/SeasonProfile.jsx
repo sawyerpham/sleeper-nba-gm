@@ -1,5 +1,5 @@
 import React from "react";
-import TeamLink from "../core/TeamLink.jsx";
+import { TeamTag } from "../core/TeamLink.jsx";
 import { fmt } from "./tz.js";
 import DragScroll from "../core/DragScroll.jsx";
 import InjuryTag from "../core/InjuryTag.jsx";
@@ -39,7 +39,7 @@ export function SeasonSummary({ sea, onOpenGame, onOpenMatchup }) {
             <span className="small">{live ? quarters(g.detail) : "Final"}</span>
           </div>
           <div className="sp-game-mid">
-            <div className="sp-score"><strong><TeamLink abbr={g.team} /></strong> {g.team_pts ?? "—"} <span className="muted">{g.home ? "vs" : "@"}</span> <strong><TeamLink abbr={g.opp} /></strong> {g.opp_pts ?? "—"}</div>
+            <div className="sp-score"><strong><TeamTag abbr={g.team} /></strong> {g.team_pts ?? "—"} <span className="muted">{g.home ? "vs" : "@"}</span> <strong><TeamTag abbr={g.opp} /></strong> {g.opp_pts ?? "—"}</div>
             <div className="sp-fp"><span>{f2(g.fp)}</span><small>FP</small></div>
           </div>
           <div className="small muted">{g.min} min · {g.pts} pts · {g.reb} reb · {g.ast} ast · {g.stl} stl · {g.blk} blk · {g.to} to{g.fga != null && <> · {g.fgm}/{g.fga} FG · {g.ftm}/{g.fta} FT</>}</div>
@@ -102,7 +102,7 @@ export function SeasonLog({ sea }) {
       <thead><tr><th>WK</th><th>OPP</th><th>DATE</th>{LOG_COLS.map(([h]) => <th key={h} className="log-cell">{h}</th>)}</tr></thead>
       <tbody>{sea.season_log.map((r) => (
         <tr key={r.date} className={`${r.week === sea.week ? "this-week" : ""} ${r.fp == null ? "muted" : ""}`}>
-          <td>{r.week}</td><td>{r.home ? "" : "@"}<TeamLink abbr={r.opp} /></td><td>{mmdd(r.date)}</td>
+          <td>{r.week}</td><td>{r.home ? "" : "@"}<TeamTag abbr={r.opp} /></td><td>{mmdd(r.date)}</td>
           {LOG_COLS.map(([h, f, k]) => {
             const tone = r.fp == null ? null : logTone(k, r[k], avg[k]);
             return <td key={h} className="num log-cell">
