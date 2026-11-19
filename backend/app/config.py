@@ -11,7 +11,6 @@ FIXTURES_DIR = BACKEND_ROOT / "tests" / "fixtures"
 DEFAULT_ROSTER_SEASON = "2026-27"
 DEFAULT_STATS_SEASON = "2025-26"
 
-# Relative paths inside the data directory (DESIGN.md 1.8).
 OVERRIDES_REL = "player_overrides.json"
 
 
@@ -54,7 +53,7 @@ def reconcile_rel(roster_season: str) -> str:
     return f"cache/reconcile_{roster_season}.json"
 
 
-VALUATION_MODEL_VERSION = "v2"  # bump when PlayerValuation gains fields so stale caches are recomputed
+VALUATION_MODEL_VERSION = "v2"
 
 
 def valuations_rel(stats_season: str, scoring_hash: str) -> str:

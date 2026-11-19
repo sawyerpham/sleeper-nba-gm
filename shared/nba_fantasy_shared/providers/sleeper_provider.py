@@ -320,8 +320,8 @@ class SleeperProvider:
         try:
             research = self._get_json(f"{host}/players/nba/research/regular/{year}", f"Sleeper GET /players/nba/research/regular/{year}") or {}
         except CallFailed:
-            research = {}   # ownership is nice to have; projections still count
-        if research:   # players it leaves out are on (almost) no rosters
+            research = {}
+        if research:
             for sid, proj in out.items():
                 proj["owned"] = float((research.get(sid) or {}).get("owned") or 0.0)
         return out

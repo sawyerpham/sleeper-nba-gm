@@ -32,10 +32,10 @@ from .budget import manager_budget
 from .ranking import RankedPlayer
 
 STARTER_ORDER: tuple[str, ...] = roster.POSITION_SLOTS + roster.FLEX_SLOTS + ("UTIL",)
-FIT_SCAN_LIMIT = 200  # candidates examined per slot when looking for one that fits the allowance
+FIT_SCAN_LIMIT = 200
 DEFAULT_TARGETS = 5
-NOMINATION_SCAN = 40  # available players considered for nomination ideas
-NOMINATE_DRAIN, NOMINATE_SNEAK = 5, 3   # how many of each the guide lists
+NOMINATION_SCAN = 40
+NOMINATE_DRAIN, NOMINATE_SNEAK = 5, 3
 
 
 @dataclass
@@ -72,21 +72,21 @@ class TargetAdvice:
     """Advice on one player: the slot he would fill, the market price, comfort limit, walk-away, your max, the competition and the call (buy / star / pricey / cannot)."""
     player_id: int
     name: str
-    slot: str | None                 # slot they would take on my roster
-    tier: str                        # top | starter | bench
+    slot: str | None
+    tier: str
     fair_value: float
-    recommended: int                 # "market price": fair value × competition pressure, capped at my cap
-    stretch: int                     # "comfort limit": above this, my money per open starter falls under 80 % of the room's
-    walk_away: int                   # "walk-away": above this, under 50 %; never pay more
-    all_in: int                      # my cap (the most I may legally bid)
-    suggested: int                   # "your max": the most to bid (never past the walk-away)
-    rivals_at_fair: int              # other managers who can pay fair value and fit the player
-    rivals_above_market: int         # other managers whose max bid reaches the market max
+    recommended: int
+    stretch: int
+    walk_away: int
+    all_in: int
+    suggested: int
+    rivals_at_fair: int
+    rivals_above_market: int
     left_after: int
-    per_slot_after: float            # per remaining mandatory slot
-    per_starter_after: float         # per remaining starter slot after bench at min_bid
+    per_slot_after: float
+    per_starter_after: float
     room_per_starter: float
-    verdict: str                     # the call: buy | star (star only) | pricey (too pricey) | cannot
+    verdict: str
     text: str
 
 
@@ -99,7 +99,7 @@ class SpendingGuide:
     managers: list[ManagerMoney]
     num_managers: int
     money_rank: int
-    per_slot_rank: int              # 0 when the manager has no open slot
+    per_slot_rank: int
     room_remaining: int
     room_open_mandatory: int
     room_open_starters: int
@@ -120,7 +120,7 @@ class SpendingGuide:
     targets: list[TargetAdvice]
     advice: list[str] = field(default_factory=list)
     nominations: list[dict] = field(default_factory=list)
-    calls: dict[int, TargetAdvice] = field(default_factory=dict)   # call + your max for each of `call_ids`
+    calls: dict[int, TargetAdvice] = field(default_factory=dict)
 
 
 def ordinal(n: int) -> str:
@@ -238,7 +238,7 @@ def spending_guide(
     room_bench_min = min_bid * sum(x.open_bench for x in money)
     room_ps = (room_remaining - room_bench_min) / room_open_starters if room_open_starters else 0.0
     few_rivals = max(1, (n - 1) // 4)
-    rich = money_rank <= max(1, -(-n // 3))  # top third of the room by money left
+    rich = money_rank <= max(1, -(-n // 3))
 
     def tier_of(p: RankedPlayer) -> str:
         """Whether a candidate is a top, starter or bench target by his rank among the candidates."""
@@ -298,8 +298,6 @@ def spending_guide(
             return (f"you'd have ${left} for {slots} slot{'s' if slots != 1 else ''}: ${per_starter(x):.0f} per starter{share}, "
                     f"bench at ${min_bid}")
 
-        # What you'd pay if it goes your way: fair value when nobody else can pay it, else the market price, with
-        # up to 25 % on top (never past the comfort limit) for a top player when you are rich and a war is likely.
         if rivals_at_fair == 0:
             target_price = clamp(fair)
         elif tier == "top" and rich and rivals_above > few_rivals and market <= stretch:
@@ -344,9 +342,6 @@ def spending_guide(
                 continue
             targets.append(advise(p))
 
-    # drain: players the room will pay a lot for that you won't buy (no fitting slot, above your cap, or too pricey);
-    # sneak: players you want that few rivals can afford right now, so they may go near fair value.
-    # ponytail: scans the top NOMINATION_SCAN available; widen if late-draft suggestions run dry.
     nominations: list[dict] = []
     if me.open_mandatory > 0:
         drain, sneak = [], []
@@ -360,12 +355,11 @@ def spending_guide(
                     drain.append((market * rivals, p, market, payers, "you have no slot for him" if not p.rosterable else "above your cap"))
                 continue
             a = advise(p)
-            if a.verdict == "pricey":   # past your walk-away; a star-only player may still be your star
+            if a.verdict == "pricey":
                 if rivals >= 2:
                     drain.append((market * rivals, p, market, payers, "too pricey for your build"))
             elif a.verdict == "buy" and r.can_bid and rivals <= few_rivals:
                 sneak.append((-p.value, p, a.suggested, payers, ""))
-        # who = the rivals who can pay that much and still need players, biggest cap first
         who = lambda payers: [{"name": x.name, "cap": x.max_bid} for x in payers]
         for _, p, market, payers, why in sorted(drain, key=lambda t: -t[0])[:NOMINATE_DRAIN]:
             nominations.append({"kind": "drain", "player_id": p.player_id, "name": p.full_name, "price": market, "rivals": len(payers),

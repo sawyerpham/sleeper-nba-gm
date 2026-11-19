@@ -5,7 +5,6 @@ from app.core.services.sleeper_league import details_rel
 
 def test_details_cache_does_not_share_a_file_with_the_providers_raw_league_cache():
     """Details cache does not share a file with the providers raw league cache."""
-    # SleeperProvider.fetch_league writes cache/sleeper_league_<id>.json; sharing it wiped rosters and keepers.
     assert details_rel("123") != "cache/sleeper_league_123.json"
 
 
@@ -70,7 +69,6 @@ def test_mock_draft_picks_are_matched_by_seat():
     out = sync_picks(platform, session, "D")
     assert out["errors"] == [] and recorded == [(10, "m4", 58), (11, "m6", 27)]
 
-    # the lot in progress comes from the draft metadata (player, high bid and its seat, nominator, clock)
     session.players[12] = SimpleNamespace(player_id=12, sleeper_id="1380", full_name="Giannis", team_abbr="MIA")
     draft["metadata"] = {"nominated_player_id": "1380", "highest_offer": "39", "offering_slot": "6", "offering_user_id": "",
                          "nominating_slot": "4", "timer_end_at": "2026-10-14T11:44:09Z"}
@@ -86,11 +84,11 @@ def test_a_kept_pickup_costs_his_faab_bid_and_a_free_agent_add_the_minimum():
     from app.core.services.sleeper_league import current_keepers, pickup_prices
     from nba_fantasy_shared.models.league import KeeperEscalation, Manager
 
-    tx = lambda kind, sid, when, bid=None, status="complete": {   # noqa: E731
+    tx = lambda kind, sid, when, bid=None, status="complete": {
         "type": kind, "status": status, "status_updated": when, "adds": {sid: 1}, "settings": {"waiver_bid": bid} if bid is not None else None}
     pickups = pickup_prices([tx("waiver", "10", 1, 3), tx("waiver", "10", 5, 12), tx("free_agent", "11", 2),
                              tx("waiver", "12", 3, 40, status="failed"), tx("trade", "13", 4), tx("waiver", "14", 6, 7)])
-    assert pickups == {"10": 12, "11": 0, "14": 7}             # latest claim wins; failed claims and trades don't price him
+    assert pickups == {"10": 12, "11": 0, "14": 7}
 
     prev = {"draft": {"type": "auction", "status": "complete"}, "pickups": pickups,
             "picks": [{"player_id": "13", "metadata": {"amount": "20"}}, {"player_id": "14", "metadata": {"amount": "30"}}]}
@@ -98,18 +96,18 @@ def test_a_kept_pickup_costs_his_faab_bid_and_a_free_agent_add_the_minimum():
     players = {i: SimpleNamespace(player_id=i, sleeper_id=str(i), full_name=f"P{i}") for i in range(10, 16)}
     kept = current_keepers({"seasons": [now, prev]}, [Manager(manager_id="m1", name="Me", sleeper_roster_id=1)], players, KeeperEscalation())
     cost = {k["player_id"]: (k["last_price"], k["cost"]) for k in kept}
-    assert cost[10] == (12, 14)       # FAAB bid 12 -> +$1 per full $5
-    assert cost[11] == (0, 1)         # free-agent add: the minimum
-    assert cost[13] == (20, 24)       # bought at auction, traded later: the auction price stands
-    assert cost[14] == (7, 8)         # bought for 30, dropped, claimed back for 7: the claim is his price
-    assert cost[15] == (None, None)   # no trace of him last season
+    assert cost[10] == (12, 14)
+    assert cost[11] == (0, 1)
+    assert cost[13] == (20, 24)
+    assert cost[14] == (7, 8)
+    assert cost[15] == (None, None)
 
 
 def test_top3_share_is_of_what_he_spent_at_the_auction_not_of_the_budget():
     """A manager who spent $150 of $200 at auction (the rest went on keepers): 100 on his top three is 67 %, not 50 %."""
     from app.core.services.sleeper_league import tendencies
 
-    pick = lambda uid, amount: {"picked_by": uid, "metadata": {"amount": str(amount), "first_name": "P", "last_name": str(amount)}}   # noqa: E731
+    pick = lambda uid, amount: {"picked_by": uid, "metadata": {"amount": str(amount), "first_name": "P", "last_name": str(amount)}}
     season_doc = {"league": {"season": "2025"}, "draft": {"type": "auction", "status": "complete", "settings": {"budget": 200}},
                   "picks": [pick("a", x) for x in (40, 30, 20, 30, 30)] + [pick("b", x) for x in (50, 50, 50, 25, 25)]}
     t = tendencies({"seasons": [season_doc]})

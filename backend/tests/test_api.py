@@ -110,7 +110,6 @@ def test_only_notes_are_editable_eligibility_and_injury_come_from_sleeper(pulled
     assert r.status_code == 200 and r.json()["notes"] == "watch his knee"
     assert r.json()["injury_source"] == "sleeper" and r.json()["eligibility_source"] == "sleeper"
     assert json.loads(state.store.path("player_overrides.json").read_text(encoding="utf-8"))[str(BUTLER)]["notes"] == "watch his knee"
-    # eligibility / injury fields are ignored: nothing left to change
     assert client.patch(f"/api/players/{BUTLER}/overrides", json={"injury_status": "out_long_term"}).status_code == 400
     assert client.post(f"/api/players/{BUTLER}/overrides/reset", json={"fields": ["injury"]}).status_code in (404, 405)
     assert client.patch("/api/players/1/overrides", json={"notes": "x"}).status_code == 404
@@ -144,8 +143,8 @@ def test_settings_put_recomputes_valuations_and_validates(pulled):
     assert r.status_code == 200 and r.json()["scoring"]["base"]["pts"] == 1.0 and r.json()["keeper"]["max_per_manager"] == 2
     after = client.get(f"/api/players/{JOKIC}", params={"league_id": "lg-settings", "include_history": "false"}).json()["valuation"]["avg_fpts"]
     assert after > before
-    assert client.get("/api/leagues/lg-settings").json()["league"]["scoring"]["base"]["pts"] == 1.0  # persisted
-    settings["budget_per_manager"] = 10  # cannot fill 15 mandatory slots at $1
+    assert client.get("/api/leagues/lg-settings").json()["league"]["scoring"]["base"]["pts"] == 1.0
+    settings["budget_per_manager"] = 10
     assert client.put("/api/leagues/lg-settings/settings", json=settings).status_code in (400, 422)
     settings["budget_per_manager"] = 200
     settings["league_id"] = "other"
@@ -167,7 +166,7 @@ def test_managers_endpoints(pulled):
     assert r.status_code == 200 and len(r.json()) == 2
     assert client.get("/api/leagues/lg-managers/draft").json()["nomination_order"] == ["a", "b"]
     assert client.get("/api/leagues/lg-managers/settings").json()["num_managers"] == 2
-    assert client.put("/api/leagues/lg-managers/managers", json=[two[1]]).status_code == 400  # nobody is the user
+    assert client.put("/api/leagues/lg-managers/managers", json=[two[1]]).status_code == 400
 
 
 def test_keeper_evaluate_endpoint(pulled):
@@ -183,7 +182,6 @@ def test_keeper_evaluate_endpoint(pulled):
     assert jokic["keeper_price"] == 20 and jokic["verdict"] == "good" and jokic["full_name"] == "Nikola Jokić"
     assert walker["keeper_price"] == 3 and walker["computed_price"] == 20 and walker["verdict"] in ("bad", "even")
     assert client.post("/api/leagues/lg-keep/keepers/evaluate", json={"candidates": [{"manager_id": "m1", "player_id": 1, "last_price": 5}]}).status_code == 400
-    # the rule itself is a league setting
     settings = client.get("/api/leagues/lg-keep/settings").json()
     assert settings["keeper"]["escalation"] == {"enabled": True, "step_dollars": 5, "increase_per_step": 1}
     settings["keeper"]["escalation"]["increase_per_step"] = 2
@@ -212,7 +210,7 @@ def test_sleeper_preview_and_apply(pulled):
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["scoring_map"]["provisional"] is False and body["scoring_map"]["unknown_keys"] == []
-    assert [d["field"] for d in body["diffs"]] == ["name"]  # provisional fixture mirrors SPEC defaults exactly
+    assert [d["field"] for d in body["diffs"]] == ["name"]
     r = client.post("/api/leagues/lg-sleeper/sleeper/apply", json={"sleeper_league_id": PROVISIONAL_LEAGUE, "apply": ["name", "scoring", "roster_slots", "keepers"]})
     assert r.status_code == 200
     assert r.json()["name"] == "Provisional NBA league fixture" and r.json()["scoring"]["source"] == "sleeper"
@@ -220,10 +218,10 @@ def test_sleeper_preview_and_apply(pulled):
     assert client.post("/api/leagues/lg-sleeper/sleeper/preview", json={"sleeper_league_id": NFL_LEAGUE}).status_code == 400
     assert client.post("/api/leagues/lg-sleeper/sleeper/preview", json={"sleeper_league_id": "1"}).status_code == 404
 
-    state.get_session("lg-sleeper").league.name = "Old name"   # renamed on Sleeper since: Season Sync takes it
+    state.get_session("lg-sleeper").league.name = "Old name"
     assert client.post("/api/leagues/lg-sleeper/season/sync").json()["renamed"] == "Provisional NBA league fixture"
     assert client.get("/api/leagues/lg-sleeper").json()["league"]["name"] == "Provisional NBA league fixture"
-    assert client.post("/api/leagues/lg-sleeper/season/sync").json()["renamed"] is None   # unchanged: nothing to do
+    assert client.post("/api/leagues/lg-sleeper/season/sync").json()["renamed"] is None
 
 
 def test_full_draft_flow_over_the_api(pulled):
@@ -273,20 +271,19 @@ def test_full_draft_flow_over_the_api(pulled):
     assert r.json()["next_nominator"] == "m3" and r.json()["progress"] == pytest.approx(2 / 179, abs=1e-4)
 
     walker = next(row for row in client.get("/api/leagues/lg-draft/rankings").json() if row["player_id"] == WALKER)
-    assert walker["stack_if_added"] == 2  # DEN with Jokić
+    assert walker["stack_if_added"] == 2
     hits = client.get("/api/players", params={"q": "jok", "league_id": "lg-draft"}).json()
     assert hits[0]["drafted_by"] == "m1"
     everyone = client.get("/api/leagues/lg-draft/rankings", params={"include_unrosterable": "true"}).json()
     assert len(everyone) == 23 - 3
     r = client.put("/api/leagues/lg-draft/draft/nomination-order", json={"order": ["m12"] + [f"m{i}" for i in range(1, 12)]})
     assert r.status_code == 200 and r.json()["nomination_order"][0] == "m12"
-    assert r.json()["next_nominator"] == "m3"  # reordering on the fly keeps whose turn it is
+    assert r.json()["next_nominator"] == "m3"
     assert client.put("/api/leagues/lg-draft/draft/nomination-order", json={"order": ["m1"]}).status_code == 400
     r = client.put("/api/leagues/lg-draft/draft/next-nominator", json={"manager_id": "m8"})
     assert r.status_code == 200 and r.json()["next_nominator"] == "m8"
     assert client.put("/api/leagues/lg-draft/draft/next-nominator", json={"manager_id": "m99"}).status_code == 400
 
-    # persisted: a fresh AppState over the same store sees the same draft
     fresh = AppState(state.store, state.stats, state.platform)
     s2 = fresh.get_session("lg-draft")
     assert len(s2.draft.picks) == 3 and s2.engine.budget("m1").remaining == 130 and s2.draft.status == "live"
@@ -311,7 +308,7 @@ def test_picks_can_be_moved_between_managers_edited_and_removed(pulled):
     assert client.patch("/api/leagues/lg-edit/draft/picks/2", json={"price": 500}).status_code == 400
     assert client.patch("/api/leagues/lg-edit/draft/picks/42", json={"price": 5}).status_code == 400
 
-    r = client.patch("/api/leagues/lg-edit/draft/picks/1", json={"manager_id": "m4"})  # keeper moves; history follows
+    r = client.patch("/api/leagues/lg-edit/draft/picks/1", json={"manager_id": "m4"})
     assert r.status_code == 200 and next(p for p in r.json()["picks"] if p["pick_number"] == 1)["manager_id"] == "m4"
     rows = [k for k in state.get_session("lg-edit").keeper_history.records if k.season == "2026-27"]
     assert [(k.manager_id, k.player_id, k.cost.amount) for k in rows] == [("m4", DONCIC, 50)]
@@ -321,7 +318,7 @@ def test_picks_can_be_moved_between_managers_edited_and_removed(pulled):
     assert any(row["player_id"] == BUTLER for row in client.get("/api/leagues/lg-edit/rankings").json())
     assert client.delete("/api/leagues/lg-edit/draft/picks/3").status_code == 400
     fresh = AppState(state.store, state.stats, state.platform)
-    assert len(fresh.get_session("lg-edit").draft.picks) == 2  # persisted
+    assert len(fresh.get_session("lg-edit").draft.picks) == 2
 
 
 def test_settings_managers_keepers_and_scoring_are_editable_mid_draft(pulled):
@@ -332,17 +329,15 @@ def test_settings_managers_keepers_and_scoring_are_editable_mid_draft(pulled):
     assert client.post("/api/leagues/lg-mid/draft/pick", json={"player_id": JOKIC, "manager_id": "m2", "price": 60}).status_code == 200
     before = client.get("/api/leagues/lg-mid/rankings", params={"limit": 1}).json()[0]
 
-    # per-category point values + bonus threshold, while live -> valuations and rankings change immediately
     settings = client.get("/api/leagues/lg-mid/settings").json()
     settings["scoring"]["base"]["ast"] = 3.0
-    settings["scoring"]["bonuses"][1]["threshold"] = 30  # pts_40 -> 30+
+    settings["scoring"]["bonuses"][1]["threshold"] = 30
     settings["ranking"]["weight_ceiling"] = 0.0
     assert client.put("/api/leagues/lg-mid/settings", json=settings).status_code == 200
     after = client.get("/api/leagues/lg-mid/rankings", params={"limit": 1}).json()[0]
     assert after["avg_fpts"] != before["avg_fpts"] or after["player_id"] != before["player_id"]
-    assert client.get("/api/leagues/lg-mid/draft").json()["status"] == "live"  # draft untouched
+    assert client.get("/api/leagues/lg-mid/draft").json()["status"] == "live"
 
-    # roster slots + budget while live: budgets and open slots recompute for every manager
     settings = client.get("/api/leagues/lg-mid/settings").json()
     settings["roster_slots"] = [s for s in settings["roster_slots"] if s["slot"] != "BN"] + [{"slot": "BN", "count": 6}]
     settings["budget_per_manager"] = 250
@@ -350,13 +345,11 @@ def test_settings_managers_keepers_and_scoring_are_editable_mid_draft(pulled):
     view = client.get("/api/leagues/lg-mid/draft").json()
     m2 = next(m for m in view["managers"] if m["manager_id"] == "m2")
     assert m2["budget"]["open_mandatory"] == 12 and m2["open_slots"]["BN"] == 6
-    # per-manager budget edit mid-draft (Sleeper budgets are per manager)
     r = client.patch("/api/leagues/lg-mid/managers/m2", json={"budget_total": 250, "name": "Renamed"})
     assert r.status_code == 200
     m2 = next(m for m in client.get("/api/leagues/lg-mid/draft").json()["managers"] if m["manager_id"] == "m2")
     assert m2["budget"]["remaining"] == 190 and m2["name"] == "Renamed"
 
-    # nomination order and keeper history while live
     order = [f"m{i}" for i in range(12, 0, -1)]
     assert client.put("/api/leagues/lg-mid/draft/nomination-order", json={"order": order}).json()["nomination_order"] == order
     rec = {"season": "2025-26", "manager_id": "m4", "player_id": DONCIC, "player_name": "Luka Dončić", "cost": {"type": "auction", "amount": 61}}
@@ -386,13 +379,12 @@ def test_gate_export_round_trips_with_no_data_loss(pulled):
     on_disk = json.loads(store.path(body["relative_path"]).read_text(encoding="utf-8"))
     assert on_disk == body["document"]
 
-    exported = DraftExport.model_validate(on_disk)                      # parses under the versioned model
+    exported = DraftExport.model_validate(on_disk)
     assert exported.schema_version == 1 and exported.generated_by == "draft-advisor"
     session = state.get_session("lg-export")
-    assert _comparable(exported) == _comparable(session.to_export())    # byte-for-byte the session's state
+    assert _comparable(exported) == _comparable(session.to_export())
     assert _comparable(DraftExport.model_validate_json(exported.model_dump_json())) == _comparable(exported)
 
-    # every drafted player carries record + overrides + valuation; keepers and history are present
     assert set(exported.players) == {str(p) for p in (DONCIC, JOKIC, BUTLER, S_CURRY, WALKER)}
     curry = exported.players[str(S_CURRY)]
     assert curry.overrides.notes == "watch minutes" and curry.overrides.injury_source == "sleeper"
@@ -403,14 +395,12 @@ def test_gate_export_round_trips_with_no_data_loss(pulled):
     assert [p.player_id for p in exported.draft.picks] == [DONCIC, JOKIC, BUTLER, S_CURRY, WALKER]
     assert exported.league.mandatory_slot_count() == 15 and exported.league.total_slot_count() == 17
 
-    # the league file on disk is the same document, and a fresh process restores an identical session
     assert _comparable(DraftExport.model_validate(store.read_json("leagues/lg-export.json"))) == _comparable(exported)
     fresh = AppState(store, state.stats, state.platform)
     restored = fresh.get_session("lg-export")
     assert _comparable(restored.to_export()) == _comparable(exported)
     assert restored.engine.budget("m1").remaining == 105 and restored.engine.next_nominator() == "m5"
     assert restored.rankings()[0].player_id not in {JOKIC, DONCIC}
-    # and the snapshot alone (no pool) still restores the drafted players
     from app.core.engine.session import DraftSession
     lonely = DraftSession.from_export(exported, {}, {}, {})
     assert {p.player_id for p in lonely.draft.picks} <= set(lonely.players)
@@ -428,7 +418,7 @@ def test_player_detail_has_his_team_with_teammates_and_ranks(pulled):
     assert role["star"] and role["rank"] == 1 and role["label"].startswith("Clear #1") or role["label"] == "#1 option (shared)"
     assert 0 < role["share"] < 1 and role["vs"]["fpg"] <= role["fpg"]
     assert any(m["is_self"] for m in team["teammates"])
-    starters = [m for m in team["teammates"] if m["starter"]]   # depth chart: starters first, PG -> C
+    starters = [m for m in team["teammates"] if m["starter"]]
     assert team["teammates"][:len(starters)] == starters
     order = ["PG", "SG", "SF", "PF", "C"]
     assert [order.index(m["depth"][:-1]) for m in starters] == sorted(order.index(m["depth"][:-1]) for m in starters)
@@ -439,6 +429,6 @@ def test_nba_teams_and_room_strength(pulled):
     client, *_ = pulled
     league(client, "lg-nba", "NBA League")
     teams = client.get("/api/leagues/lg-nba/nba-teams").json()
-    assert teams and all(t["talent_fpg"] > 0 and t["proj_wins"] is None for t in teams)   # no win totals file in tests
+    assert teams and all(t["talent_fpg"] > 0 and t["proj_wins"] is None for t in teams)
     room = client.get("/api/leagues/lg-nba/room").json()
-    assert len(room) == 12 and all(m["win_score"] > 0 and m["per_slot"] > 0 for m in room)   # empty rosters still score
+    assert len(room) == 12 and all(m["win_score"] > 0 and m["per_slot"] > 0 for m in room)

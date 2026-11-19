@@ -36,7 +36,7 @@ class ReconcileInputs:
     """Everything the reconciler needs: the roster season, the nba_api pool, every Sleeper entry, Sleeper fantasy attributes and nba_api's static player list."""
     roster_season: str
     nba_pool: list[PlayerBio]
-    sleeper_all: list[PlayerBio]  # every non-placeholder Sleeper entry, rostered or not
+    sleeper_all: list[PlayerBio]
     fantasy: dict[str, FantasyAttributes] = field(default_factory=dict)
     nba_static: list[PlayerRef] = field(default_factory=list)
 
@@ -58,7 +58,7 @@ def merge_bio(nba: PlayerBio | None, sleeper: PlayerBio | None) -> PlayerBio:
     if nba is None and sleeper is None:
         raise ValueError("merge_bio needs at least one bio")
     if nba is None:
-        return sleeper.model_copy()  # type: ignore[union-attr]
+        return sleeper.model_copy()
     merged = nba.model_copy()
     if sleeper is not None:
         if merged.birthdate is None:
@@ -134,11 +134,11 @@ class _Reconciler:
         if nba is not None and sleeper is not None:
             if sleeper.team_abbr and nba.team_abbr and sleeper.team_abbr != nba.team_abbr:
                 team_conflict = {"nba_api": nba.team_abbr, "sleeper": sleeper.team_abbr}
-                team = sleeper.team_abbr  # Decision 8: Sleeper wins
+                team = sleeper.team_abbr
             elif sleeper.team_abbr:
                 team = sleeper.team_abbr
             elif nba.team_abbr:
-                unsigned = True  # Sleeper says FA/RET; NBA.com still lists a team
+                unsigned = True
                 team = nba.team_abbr
         record = PlayerRecord(
             player_id=player_id,

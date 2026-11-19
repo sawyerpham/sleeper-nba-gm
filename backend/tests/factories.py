@@ -27,8 +27,8 @@ def record(pid: int, name: str, team: str | None = "DEN", age: float | None = 27
 
 def override(pid: int, eligibility: list[str], injury: str = "healthy", source: str = "sleeper") -> PlayerOverrides:
     """A PlayerOverrides with the given eligibility and injury status."""
-    return PlayerOverrides(player_id=pid, eligibility=eligibility, eligibility_source=source,  # type: ignore[arg-type]
-                           injury_status=injury, injury_source=source, updated_at=NOW)  # type: ignore[arg-type]
+    return PlayerOverrides(player_id=pid, eligibility=eligibility, eligibility_source=source,
+                           injury_status=injury, injury_source=source, updated_at=NOW)
 
 
 def valuation(pid: int, avg: float, best: float, gp: int = 65, wk_best: float | None = None, weeks: int = 22) -> PlayerValuation:
@@ -59,7 +59,6 @@ def managers(n: int = 3, budget: int = 50, user_index: int = 0, behaviors: dict[
     ]
 
 
-# (pid, name, team, eligibility, avg, best, gp, age, injury)
 PlayerSpec = tuple[int, str, str, list[str], float, float, int, float, str]
 
 
@@ -85,7 +84,7 @@ def default_world() -> tuple[dict, dict, dict]:
         (9, "Ike Bench", "PHX", ["C"], 12.0, 24.0, 40, 28.0, "healthy"),
         (10, "Jo Spare", "PHX", ["PF"], 10.0, 20.0, 82, 31.0, "healthy"),
         (11, "Kai Spare", "OKC", ["SG"], 8.0, 15.0, 30, 21.0, "healthy"),
-        (12, "Lou Rookie", "OKC", ["PG"], 30.0, 70.0, 3, 20.0, "healthy"),  # tiny sample, huge ceiling
+        (12, "Lou Rookie", "OKC", ["PG"], 30.0, 70.0, 3, 20.0, "healthy"),
     ]
     return world(specs)
 

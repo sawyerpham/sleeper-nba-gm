@@ -15,16 +15,10 @@ import { LeagueView, LockIcon, LockinGuide, NewsView, WaiversView, bestLineup, b
 import { fmt, timeOf } from "../lockin/tz.js";
 import { api, qs } from "../api.js";
 
-// Broadcast (Settings > UI): game night on TV. A scoreboard band on top, a ticker of tonight's games, the week as a grid
-// of roster spots by day (one cell per game: points, projection, live state, lock), the analysis desk (Week Stats) on the
-// right and a chyron of calls along the bottom. Player / team / game cards open as a sheet over the page.
 
-/** "2026-10-20" -> "10/20". */
 const md = (d) => d.slice(5).replace("-", "/");
-/** "Mon 7:30 PM" for the next check-in. */
 const whenText = (ms) => fmt(ms, { weekday: "short", hour: "numeric", minute: "2-digit" });
 
-/** Root of the Broadcast UI: the network bar (league, tabs, settings) and the open page. */
 export default function App() {
   const app = useAppState();
   const { tab, setTab, leagueId, health } = app;
@@ -52,12 +46,10 @@ export default function App() {
   );
 }
 
-/** The Season side of Broadcast: score bug (Week), the games ticker with search and Sync, then the view; cards open in a sheet. */
 function BroadcastSeason({ leagueId, view, onWeek }) {
   const s = useSeason(leagueId, onWeek);
   useEffect(() => {
     if (!s.cur) return undefined;
-    /** Escape closes the sheet. */
     const k = (e) => e.key === "Escape" && s.close();
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
@@ -99,11 +91,9 @@ function BroadcastSeason({ leagueId, view, onWeek }) {
   );
 }
 
-/** The scoreboard band: both teams' banked points and projections either side of the week, the win-chance bar and the next check-in. */
 function ScoreBug({ s }) {
   const { data, plan } = s;
   const o = plan.opponent, nowMs = nowOf(data), next = nextCheckIn(plan, nowMs);
-  /** One team's end of the bug (`right`: the opponent's, mirrored). */
   const side = (t, right) => (
     <div className={`bc-bug-team ${right ? "right" : "me"}`}>
       {t?.avatar && <img className="bc-bug-avatar" src={t.avatar} alt="" width={52} height={52} onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />}
@@ -128,7 +118,6 @@ function ScoreBug({ s }) {
   );
 }
 
-/** Tonight's games (the league's players' games, yours counted) as a ticker; a click opens the game card. */
 function Ticker({ data, s }) {
   const { date, list } = slate(data);
   return (
@@ -149,29 +138,20 @@ function Ticker({ data, s }) {
   );
 }
 
-/**
- * The week as a grid: a row per roster spot (your best lineup now, or the opponent's Sleeper lineup), a column per day,
- * one cell per game. A cell shows the opponent, the points (or, before / during the game, the projection or live pace) and
- * the status; a locked game is filled, a game that can't count any more is struck out (the same rules as the lineup
- * grid's game chips). On your rows the corner padlock locks a final game or unlocks the locked one; ⇄ marks a player the
- * best lineup moves (his Sleeper slot → the slot he should be in).
- * A player card's owner (s.matchup) shows that team's matchup instead: both its teams' Sleeper lineups, no lock buttons.
- */
 function Matrix({ data, plan, s, leagueId }) {
-  const [side, setSide] = useState("me");   // "me": the matchup's first team (you in yours), "opp": the other
-  const [other, setOther] = useState(null);  // another matchup's plan (its first team, the opponent riding along)
+  const [side, setSide] = useState("me");
+  const [other, setOther] = useState(null);
   useEffect(() => {
     const rid = s.matchup?.rid, pair = rid && data.matchups.find((p) => p.some((m) => m.roster_id === rid));
     if (!pair) return;
     if (pair.some((m) => m.roster_id === plan.roster_id)) { setOther(null); setSide(rid === plan.roster_id ? "me" : "opp"); return; }
     setSide(rid === pair[0].roster_id ? "me" : "opp");
-    // ponytail: loaded once per click, not on the minute reload; reopen it from the card for fresh numbers
     api.get(`/leagues/${leagueId}/season/plan` + qs({ week: data.week, roster_id: pair[0].roster_id })).then(setOther).catch(() => setOther(null));
-  }, [s.matchup, data.week]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [s.matchup, data.week]);
   const gamesOf = useMemo(() => Object.fromEntries(Object.entries(data.players).map(([sid, p]) => [sid, p.games])), [data.players]);
   const base = other || plan, first = side === "me" || !base.opponent;
   const team = first ? base : base.opponent;
-  const mine = !other && first;   // your team: best lineup and lock buttons
+  const mine = !other && first;
   const { rows } = bestLineup(team, nowOf(data), data.roster_positions, !mine, gamesOf);
   const from = Object.fromEntries(team.players.map((r) => [r.sid, r.slot]));
   const { lines, bench, ir } = bySlot(rows, data.roster_positions, data.reserve_slots);
@@ -205,7 +185,6 @@ function Matrix({ data, plan, s, leagueId }) {
   );
 }
 
-/** One roster spot in the Matrix: slot, player, a cell per day, and his week (the locked score, else what his games are worth). */
 function MatrixRow({ data, line, from, mine, s }) {
   const r = line.r;
   if (!r) return <tr className="bc-row empty"><td className="bc-slot"><PosTag text={line.slot} /></td><td className="small muted" colSpan={data.dates.length + 2}>empty</td></tr>;
@@ -230,7 +209,6 @@ function MatrixRow({ data, line, from, mine, s }) {
         const i = games.findIndex((g) => g.date === d);
         if (i < 0) return <td key={d} className={`bc-cell none ${d === data.today ? "today" : ""}`} />;
         const g = games[i];
-        // the same rules as SeasonPage's GameChips
         const played = g.fp != null, live = g.state === "in" || (played && g.state !== "post");
         const later = games.slice(i + 1).some((x) => x.state !== "pre" || x.fp != null);
         const dead = lockDate ? g.date !== lockDate : (g.state === "post" && (later || r.x == null)) || (live && benched);
@@ -256,7 +234,6 @@ function MatrixRow({ data, line, from, mine, s }) {
   );
 }
 
-/** The bottom chyron: every call (callsOf) in a row; a click opens the player. */
 function Chyron({ data, plan, s }) {
   const calls = callsOf(data, plan), nowMs = nowOf(data), next = nextCheckIn(plan, nowMs);
   return (

@@ -5,17 +5,13 @@ import { tierHue } from "../core/Pos.jsx";
 import { Term, TERMS } from "../core/Terms.jsx";
 import Icon from "../core/Icon.jsx";
 
-/**
- * Inline "who won it?" bar: the price is prefilled with the recommended max, and one click on a manager records the pick.
- * The slot is assigned automatically (most specific open slot); fix it afterwards from the pick chip. Rivals with a history on this player are highlighted.
- */
 export default function PickBar({ leagueId, view, player, nominatedBy, tier, search, onCancel, onPicked, live }) {
   const managers = view?.managers || [];
   const [price, setPrice] = useState("");
   const [rec, setRec] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [fresh, setFresh] = useState(true); // price is still the prefill: the first numpad digit replaces it
+  const [fresh, setFresh] = useState(true);
   const priceRef = useRef(null);
 
   useEffect(() => {
@@ -37,15 +33,11 @@ export default function PickBar({ leagueId, view, player, nominatedBy, tier, sea
     const fan = tier?.team_abbr && m.tendency.favorite_teams?.includes(tier.team_abbr);
     return before || fan ? { m, why: [before, fan && `${tier.team_abbr} fan`].filter(Boolean).join(" · ") } : null;
   }).filter(Boolean);
-  /** Nudge the price by `d` dollars (never below $1). */
   const bump = (d) => { setPrice(String(Math.max(1, n + d))); setFresh(false); };
-  /** Numpad digit: the first one replaces the prefilled price, later ones append (up to three digits). */
   const tap = (d) => { setPrice((p) => (fresh ? String(d) : (p + d).replace(/^0+/, "").slice(0, 3))); setFresh(false); };
-  /** Clear the price box. */
   const clear = () => { setPrice(""); setFresh(false); };
   const empty = price === "";
 
-  /** Record the pick for `managerId` at the typed price and hand the updated draft view to `onPicked`. */
   const record = async (managerId) => {
     setError(""); setBusy(true);
     try {
@@ -120,7 +112,6 @@ export default function PickBar({ leagueId, view, player, nominatedBy, tier, sea
   );
 }
 
-/** Sleeper's live auction state for this lot: high bid, who holds it, and a countdown that ticks locally between syncs. */
 function LiveBid({ live }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(t); }, []);

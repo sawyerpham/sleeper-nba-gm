@@ -6,15 +6,11 @@ import { tierHue } from "../core/Pos.jsx";
 import { CallBadge, Term, TERMS, liveCall } from "../core/Terms.jsx";
 import { bidSound, nominationSound } from "../core/sounds.js";
 
-/**
- * Replaces "On the block" while Sleeper sync is on: the player nominated in Sleeper right now with his numbers, the live high bid against his Worth and Max (and your walk-away) as a one-word call, and the bid history down the right (each bidder's cap).
- * Below it: what winning him leaves you, the next best players for that spot, his Lock-In numbers, next year's keeper call, team role and injury. Blinks and chimes on a new high bid, and rises on a new nomination.
- */
 export default function LiveLot({ leagueId, lot, row, rankings, managers, onOpen }) {
   const [spend, setSpend] = useState(null);
-  const [extra, setExtra] = useState({});   // team role (player endpoint) and keeper outlook (fit endpoint)
+  const [extra, setExtra] = useState({});
   const [now, setNow] = useState(Date.now());
-  const bids = useRef({ id: null, list: [] });   // every new high bid seen for this lot, from the sync polls
+  const bids = useRef({ id: null, list: [] });
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(t); }, []);
   const [flash, setFlash] = useState(0);
   const seen = useRef({ id: lot.player_id, bid: lot.high_bid });
@@ -25,8 +21,7 @@ export default function LiveLot({ leagueId, lot, row, rankings, managers, onOpen
     if (prev.id !== lot.player_id || lot.high_bid == null || prev.bid === lot.high_bid) return undefined;
     bidSound();
     setFlash((n) => n + 1);
-    const t = setTimeout(() => setFlash(0), 900);
-    return () => clearTimeout(t);
+    return undefined;
   }, [lot.player_id, lot.high_bid]);
   useEffect(() => {
     let off = false;
@@ -56,7 +51,6 @@ export default function LiveLot({ leagueId, lot, row, rankings, managers, onOpen
 
   const me = managers.find((m) => m.is_user);
   const leading = me && lot.leader === me.name;
-  // where the live bid sits against your numbers; holding the high bid trumps the rest
   const band = leading ? { cls: "lead", word: "LEADING", text: "you hold the high bid" } : spend ? liveCall(bid, spend) : null;
   const price = leading ? bid : Math.max(bid + 1, 1);
   const slot = row?.assignable_slot;

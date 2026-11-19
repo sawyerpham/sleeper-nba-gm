@@ -79,7 +79,7 @@ class FantasyAttributes(BaseModel):
 
     sleeper_id: str
     fantasy_positions: list[Position] = Field(default_factory=list)
-    position: str | None = None          # Sleeper's main position (what its positional ranks use)
+    position: str | None = None
     fantasy_positions_alt: list[Position] | None = None
     injury_status_raw: str | None = None
     injury_body_part: str | None = None
@@ -90,7 +90,7 @@ class FantasyAttributes(BaseModel):
     team_changed_at: datetime | None = None
     depth_chart_position: str | None = None
     depth_chart_order: int | None = None
-    number: int | None = None            # jersey number
+    number: int | None = None
 
 
 class PlayerRecord(BaseModel):
@@ -105,12 +105,12 @@ class PlayerRecord(BaseModel):
     team_abbr: str | None = None
     team_conflict: dict[str, str] | None = None
     unsigned_per_sleeper: bool = False
-    sleeper_status: str | None = None  # "ACT" | "TWO-WAY" | "FA" | "RET" ... as Sleeper reports it
+    sleeper_status: str | None = None
     bio: PlayerBio
     fantasy: FantasyAttributes | None = None
     match_method: MatchMethod
     has_stats: bool = True
-    projection: dict[str, float] | None = None  # Sleeper season projection, per-game stats (attached at load)
+    projection: dict[str, float] | None = None
 
 
 class PlayerOverrides(BaseModel):
@@ -168,17 +168,17 @@ class PlayerValuation(BaseModel):
     stats_season: str
     games_played: int
     per_game_fpts: list[float]
-    avg_fpts: float                     # FP per game played
-    best_game_fpts: float               # single best game
-    weekly_best_avg: float = 0.0        # mean of the best game in each fantasy week played (Lock-In estimator)
-    top_quarter_avg: float = 0.0        # mean of the top 25 % of games
-    total_fpts: float = 0.0             # season total
-    weeks_played: int = 0               # fantasy weeks (Mon-Sun) with at least one game
-    season_weeks: int = 0               # fantasy weeks in the league season
-    availability: float = 0.0           # weeks_played / season_weeks (the app blends in earlier seasons, see below)
-    availability_seasons: dict[str, float] = Field(default_factory=dict)   # season -> share of weeks played
-    stat_averages: dict[str, float] = Field(default_factory=dict)   # pts, reb, ast, ... per game
-    bonus_fpts_per_game: float = 0.0    # FP from bonus rules, per game
+    avg_fpts: float
+    best_game_fpts: float
+    weekly_best_avg: float = 0.0
+    top_quarter_avg: float = 0.0
+    total_fpts: float = 0.0
+    weeks_played: int = 0
+    season_weeks: int = 0
+    availability: float = 0.0
+    availability_seasons: dict[str, float] = Field(default_factory=dict)
+    stat_averages: dict[str, float] = Field(default_factory=dict)
+    bonus_fpts_per_game: float = 0.0
     bonus_counts: dict[str, int]
     minutes_avg: float
     teams_played_for: list[str]

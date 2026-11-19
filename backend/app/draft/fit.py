@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 
 from ..core.engine.ranking import tiers
 
-BENCH_FIT = 0.6          # a bench player rarely scores under Lock-In
+BENCH_FIT = 0.6
 PRICE_FIT = {"buy": 1.0, "star": 0.85, "pricey": 0.4, "cannot": 0.0}
 CALL_LABEL = {"buy": "BUY", "star": "STAR ONLY", "pricey": "TOO PRICEY", "cannot": "CAN'T"}
 INJURY_LABEL = {"day_to_day": "Day-to-day", "out_short_term": "Out short term", "out_long_term": "Out long term", "out_season": "Out for the season"}
@@ -32,12 +32,12 @@ class TeamFit:
     """How well a player fits a manager's team: a 0-100 score with verdict, headline, the score's three parts, context notes and the keeper outlook."""
     player_id: int
     score: int
-    verdict: str                                   # strong | decent | weak (same colours as the Fit column)
+    verdict: str
     headline: str
-    score_lines: list[str] = field(default_factory=list)   # the three parts of the score
-    notes: list[str] = field(default_factory=list)          # context, not in the score
-    reasons: list[str] = field(default_factory=list)        # score_lines + notes
-    keeper: dict | None = None                              # next year's keep call if bought now (never in the score)
+    score_lines: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+    reasons: list[str] = field(default_factory=list)
+    keeper: dict | None = None
 
 
 def _ordinal(n: int) -> str:
@@ -92,7 +92,6 @@ def team_fit(session, manager_id: str, player_id: int) -> TeamFit:
     score, quality, role, price_line = _score(p, _best_value(session, manager_id), call)
     verdict = verdict_for(score)
 
-    # Headline: the score plus whatever pulled it down most (or why it is high).
     v = call.verdict if call else None
     drags = [t for t, bad in (("bench only", p.assignable_slot == "BN"), ("no open spot", p.assignable_slot is None),
                              ("you can't bid on him", v == "cannot" and p.assignable_slot is not None),
@@ -140,8 +139,8 @@ def team_fit(session, manager_id: str, player_id: int) -> TeamFit:
         from ..core.engine.keepers import keeper_outlook
 
         if call and call.verdict != "cannot":
-            buy = call.recommended   # his Max: where bidding likely ends
-        else:   # before the draft, or no slot for him: his market price from the bid guide, else fair value
+            buy = call.recommended
+        else:
             rec = session.recommend(player_id, manager_id)
             buy = rec.recommended_max if rec.can_bid else max(session.league.min_bid, round(rec.fair_value))
         keeper = keeper_outlook(session, p, buy)

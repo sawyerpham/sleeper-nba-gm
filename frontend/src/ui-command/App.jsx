@@ -11,15 +11,11 @@ import { CardNav, CurrentCard, SeasonTools, WeekNav, callsOf, nextCheckIn, nowOf
 import { LeagueView, LockinGuide, NewsView, WaiversView, WeekView, dayName, fp, pct, quarters, untilText } from "../lockin/SeasonPage.jsx";
 import { fmt, timeOf } from "../lockin/tz.js";
 
-// Command Center (Settings > UI): decisions first. An icon rail replaces the header; the Season tab opens on what needs you
-// now (the calls list), with the lineup grid under it and the week's numbers on the right; player / team / game cards
-// slide in over the right column instead of replacing it.
 
 const RAIL = [["season", "calendar", "Today"], ["standings", "trophy", "League"], ["news", "news", "News"], ["waivers", "user-plus", "Waivers"], ["draft", "gavel", "Draft"]];
 const TITLES = { week: "Today", league: "League", news: "News", waivers: "Waivers" };
 const CALL_ICON = { swap: "swap", gtd: "alert", out: "alert", lock: "lock", alert: "alert" };
 
-/** Root of the Command Center UI: the icon rail and the open page. */
 export default function App() {
   const app = useAppState();
   const { tab, setTab, leagueId, health } = app;
@@ -49,13 +45,11 @@ export default function App() {
   );
 }
 
-/** The Season side of Command Center: a title bar (week, search, sync), then the view; cards open in a drawer. */
 function CommandSeason({ leagueId, leagueName, view, onWeek }) {
   const s = useSeason(leagueId, onWeek);
-  const [focusRid, setFocusRid] = useState(null);   // the matchup on the lineup grid: Week Stats follows it
+  const [focusRid, setFocusRid] = useState(null);
   useEffect(() => {
     if (!s.cur) return undefined;
-    /** Escape closes the drawer. */
     const k = (e) => e.key === "Escape" && s.close();
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
@@ -102,7 +96,6 @@ function CommandSeason({ leagueId, leagueName, view, onWeek }) {
   );
 }
 
-/** The four numbers that say where the week stands: win chance, projected finals, the next check-in and how many calls are open. */
 function StatusTiles({ data, plan }) {
   const nowMs = nowOf(data), next = nextCheckIn(plan, nowMs), o = plan.opponent;
   const calls = callsOf(data, plan).length;
@@ -132,7 +125,6 @@ function StatusTiles({ data, plan }) {
   );
 }
 
-/** "Do now": every call (callsOf) as a row with its time, headline and the players to open. */
 function Calls({ data, plan, s }) {
   const calls = callsOf(data, plan);
   return (
@@ -153,7 +145,6 @@ function Calls({ data, plan, s }) {
   );
 }
 
-/** Today's NBA games that involve the league's players (yours counted); a click opens the game card. */
 function Slate({ data, s }) {
   const { date, list } = slate(data);
   return (

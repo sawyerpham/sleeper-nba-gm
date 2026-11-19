@@ -53,7 +53,7 @@ def test_per_player_and_batch_rows_normalize_to_identical_game_lines(fixtures_di
         assert (ga.game_date, ga.team_abbr, ga.opponent_abbr, ga.home, ga.win) == (gb.game_date, gb.team_abbr, gb.opponent_abbr, gb.home, gb.win)
         for stat in ("pts", "reb", "ast", "stl", "blk", "tov", "fgm", "fga", "ftm", "fta", "fg3m", "fg3a", "oreb", "dreb", "pf", "plus_minus"):
             assert getattr(ga, stat) == getattr(gb, stat), (gid, stat)
-        assert abs(ga.minutes - gb.minutes) < 1.0  # per-player MIN is a rounded int, batch MIN is float
+        assert abs(ga.minutes - gb.minutes) < 1.0
     ordered = sort_game_lines(per_player)
     assert ordered[0].game_date == date(2025, 10, 23) and ordered[-1].game_date == date(2026, 4, 12)
     assert all(g.season == "2025-26" and g.player_id == JOKIC for g in ordered)
@@ -81,7 +81,7 @@ def test_sleeper_entry_to_bio_and_fantasy_attributes(fixtures_dir):
     assert bio.roster_status == "ACT" and bio.is_active
     fa = fantasy_attributes_from_entry(jokic)
     assert fa.fantasy_positions == ["C"]
-    assert fa.fantasy_positions_alt == ["C", "PF"]  # metadata variant kept for reference only (decision 7)
+    assert fa.fantasy_positions_alt == ["C", "PF"]
     assert fa.injury_status_raw is None and fa.search_rank == 2 and fa.news_updated is not None
 
     butler = next(e for e in payload.values() if e.get("last_name") == "Butler")
@@ -97,7 +97,7 @@ def test_sleeper_placeholders_are_filtered(fixtures_dir):
     assert defs and dups, "fixture must carry one DEF and one DUP placeholder"
     assert all(is_placeholder(e) and not is_rostered(e) for e in defs + dups)
     assert is_rostered(payload["1658"])
-    assert not is_rostered(payload["1041"])  # Seth Curry: FA, no team
+    assert not is_rostered(payload["1041"])
     assert sum(1 for e in payload.values() if is_rostered(e)) == 20
 
 

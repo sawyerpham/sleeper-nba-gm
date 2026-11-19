@@ -193,7 +193,7 @@ def _roster_specs(positions: list[str]) -> tuple[list[RosterSlotSpec], list[str]
     specs, unknown = [], []
     for slot, n in counts.items():
         if slot in SLOT_ACCEPTS:
-            specs.append(RosterSlotSpec(slot=slot, count=n))  # type: ignore[arg-type]
+            specs.append(RosterSlotSpec(slot=slot, count=n))
         else:
             unknown.append(slot)
     return specs, unknown
@@ -314,7 +314,7 @@ def sleeper_sync(league_id: str, state: AppState = Depends(get_state)) -> dict:
     try:
         details = pull_details(state.platform, state.store, sid)
         for hid in session.league.sleeper_history_league_ids:
-            if load_details(state.store, hid) is None:   # past leagues don't change; Pull now refreshes them anyway
+            if load_details(state.store, hid) is None:
                 pull_details(state.platform, state.store, hid)
     except CallFailed as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Sleeper unavailable: {exc}") from exc
@@ -323,7 +323,7 @@ def sleeper_sync(league_id: str, state: AppState = Depends(get_state)) -> dict:
         proj = state.platform.fetch_projections(session.league.roster_season)
         state.store.write_json(config.projections_rel(session.league.roster_season),
                                {"pulled_at": datetime.now(timezone.utc).isoformat(), "projections": proj}, indent=None)
-        state.load_pool()   # re-reads projections and every session's Sleeper details
+        state.load_pool()
     except (CallFailed, ValueError, AttributeError) as exc:
         changes.append(f"projections not refreshed ({exc})")
     session = _session(state, league_id)
@@ -349,7 +349,7 @@ def sleeper_sync(league_id: str, state: AppState = Depends(get_state)) -> dict:
         changes.append("draft already started: managers and rules were left as they are")
 
     old_name = session.league.name
-    if renamed := state.sync_league_name(league_id):   # before or after the draft
+    if renamed := state.sync_league_name(league_id):
         changes.append(f"league name: {old_name} → {renamed}")
     keepers = current_keepers(session.sleeper_details, session.managers, session.players, session.league.keeper.escalation)
     new_log = [e for e in load_changelog(state.store, sid) if e["id"] not in log_before]

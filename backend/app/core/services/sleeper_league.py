@@ -25,7 +25,7 @@ MAX_SEASONS = 3
 
 def details_rel(sleeper_league_id: str) -> str:
     """Relative path of the cached details for a Sleeper league."""
-    return f"cache/sleeper_details_{sleeper_league_id}.json"  # not sleeper_league_<id>: SleeperProvider.fetch_league owns that name
+    return f"cache/sleeper_details_{sleeper_league_id}.json"
 
 
 def pull_details(platform: Any, store: JsonStore, sleeper_league_id: str) -> dict:
@@ -48,8 +48,7 @@ def pull_details(platform: Any, store: JsonStore, sleeper_league_id: str) -> dic
             "adp": _draft_adp(platform, league, draft, picks),
         })
         league_id = league.get("previous_league_id")
-    if len(seasons) > 1:   # last season's pickups: what a keeper who wasn't bought at that auction costs
-        # ponytail: last season only (26 small calls a pull); older seasons if a league keeps players more than a year
+    if len(seasons) > 1:
         seasons[1]["pickups"] = pickup_prices(_season_transactions(platform, seasons[1]["league"]["league_id"]))
     doc = {"pulled_at": datetime.now(timezone.utc).isoformat(), "seasons": seasons}
     old = load_details(store, sleeper_league_id)
@@ -92,7 +91,7 @@ def _draft_adp(platform: Any, league: dict, draft: dict | None, picks: list[dict
     host = platform.base_url.rsplit("/v1", 1)[0]
     try:
         rows = platform.get_json(f"{host}/projections/nba/{league.get('season')}?season_type=regular") or []
-    except Exception:  # noqa: BLE001 - ADP is a nice-to-have
+    except Exception:
         return {}
     key = "adp_dynasty" if (league.get("settings") or {}).get("type") == 2 else "adp_std"
     picked = {str(p.get("player_id")) for p in picks}
@@ -145,7 +144,6 @@ def tendencies(details: dict | None) -> dict[str, dict]:
     out = {}
     for uid, buys in by_user.items():
         share = shares[uid]
-        # relative to this league: everyone here spends top-heavy, so an absolute cut-off labels them all alike
         style = "star chaser" if share >= median + 0.07 else "spreads money" if share <= median - 0.07 else "typical"
         out[uid] = {
             "season": season["league"].get("season"),
@@ -158,7 +156,7 @@ def tendencies(details: dict | None) -> dict[str, dict]:
     return out
 
 
-FAVORITE_TEAM_MIN = 5   # ponytail: raw count across all drafts; 3–4 of one team happens by chance in ~30 picks
+FAVORITE_TEAM_MIN = 5
 
 
 def draft_habits(all_details: list[dict]) -> dict[str, dict]:
@@ -170,7 +168,7 @@ def draft_habits(all_details: list[dict]) -> dict[str, dict]:
     reach: dict[str, list[float]] = defaultdict(list)
     drafted: dict[str, dict[str, str]] = defaultdict(dict)
     names: dict[str, str] = {}
-    times: dict[str, Counter] = defaultdict(Counter)    # how many drafts each user took each player in
+    times: dict[str, Counter] = defaultdict(Counter)
     for details in all_details:
         for season in (details or {}).get("seasons", []):
             draft = season.get("draft") or {}
@@ -203,7 +201,7 @@ def draft_habits(all_details: list[dict]) -> dict[str, dict]:
                         if meta.get("position"):
                             early_pos[uid][meta["position"]] += 1
                         if sid in adp and p.get("pick_no"):
-                            reach[uid].append(adp[sid] - p["pick_no"])   # + = taken earlier than usual
+                            reach[uid].append(adp[sid] - p["pick_no"])
                     drafted[uid].setdefault(sid, how(p))
     out = {}
     for uid in set(teams) | set(drafted):
@@ -300,7 +298,7 @@ def current_keepers(
     current = details["seasons"][0]
     prev = last_auction({"seasons": details["seasons"][1:]})
     last_price = {p.get("player_id"): _amount(p) for p in (prev or {}).get("picks", [])}
-    last_price.update((prev or {}).get("pickups") or {})   # picked up after the auction: that price replaces it
+    last_price.update((prev or {}).get("pickups") or {})
     by_sleeper = {r.sleeper_id: r for r in players.values() if r.sleeper_id}
     by_roster = {m.sleeper_roster_id: m for m in managers if m.sleeper_roster_id is not None}
     by_user = {m.sleeper_user_id: m for m in managers if m.sleeper_user_id}
@@ -359,7 +357,7 @@ def _fresh(platform: Any, path: str) -> Any:
     """A live-draft read that skips both caches in the way: Sleeper's CDN caches draft endpoints for 15-30 s (a unique
     query string forces a fresh answer) and the provider's polite 0.6 s gap between calls (meant for NBA.com)."""
     http = getattr(platform, "session", None)
-    if http is None:   # test doubles
+    if http is None:
         return platform.get_json(path)
     resp = http.get(f"{platform.base_url}/{path}", params={"_": int(datetime.now(timezone.utc).timestamp() * 1000)}, timeout=5)
     if resp.status_code == 404:
@@ -378,7 +376,7 @@ def _add_sleeper_only(platform: Any, session: Any, sleeper_id: str) -> PlayerRec
 
     try:
         payload = platform.load_players_payload()[0]
-    except Exception:  # noqa: BLE001 - no player list: the pick stays a hand entry
+    except Exception:
         return None
     entry = payload.get(sleeper_id)
     if not entry:
@@ -405,8 +403,6 @@ def sync_picks(platform: Any, session: Any, sleeper_draft_id: str) -> dict:
     by_sleeper = {r.sleeper_id: r for r in session.players.values() if r.sleeper_id}
     by_user = {m.sleeper_user_id: m for m in session.managers if m.sleeper_user_id}
     by_roster = {m.sleeper_roster_id: m for m in session.managers if m.sleeper_roster_id is not None}
-    # Mock drafts send picks with no picked_by / roster_id, only the seat (draft_slot): seat -> user via
-    # draft_order (that is how you are found), else seat -> roster via slot_to_roster_id.
     seat_user = {int(slot): uid for uid, slot in (draft.get("draft_order") or {}).items()}
     seat_roster = {int(slot): rid for slot, rid in (draft.get("slot_to_roster_id") or {}).items()}
 
@@ -432,8 +428,8 @@ def sync_picks(platform: Any, session: Any, sleeper_draft_id: str) -> dict:
                 errors.append(f"pick {p.get('pick_no')}: {name} {'is not in the player pool (record it by hand)' if rec is None else 'went to a Sleeper team not linked to a manager'}")
                 continue
             try:
-                fair = round(session.recommend(rec.player_id, manager.manager_id).fair_value)   # before he is gone
-            except Exception:  # noqa: BLE001 - the price check is a nice-to-have; never block the pick
+                fair = round(session.recommend(rec.player_id, manager.manager_id).fair_value)
+            except Exception:
                 fair = None
             try:
                 session.engine.pick(rec.player_id, manager.manager_id, max(min_bid, _amount(p)), None)
@@ -449,8 +445,6 @@ def sync_picks(platform: Any, session: Any, sleeper_draft_id: str) -> dict:
     last_picked = draft.get("last_picked")
     now_ms = datetime.now(timezone.utc).timestamp() * 1000
 
-    # The lot in progress: Sleeper's draft metadata carries the nominated player, the high bid and its seat, the
-    # nominating seat and when the clock ends (seen live in a mock auction, 2026-10-14).
     meta = draft.get("metadata") or {}
     live = None
     nominee = by_sleeper.get(str(meta.get("nominated_player_id") or ""))

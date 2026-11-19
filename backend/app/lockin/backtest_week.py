@@ -28,7 +28,7 @@ from .backtest_live import cached
 from .service import SLEEPER, _slot_counts, actual_fp, projected_fp
 from .weekplan import MAX_SWING, MIN_GAMES_FOR_SWING, MIN_SWING, Game, PlanPlayer, plan_week, swing_of, team_total, wait_moments, wait_value, win_chance
 
-MIN_PROJ_MIN = 15.0   # rotation players only: the ones a lineup call is about
+MIN_PROJ_MIN = 15.0
 
 
 def raw_cv(per_game: list[float]) -> float | None:
@@ -49,9 +49,9 @@ def load(league_id: str) -> dict:
     session = build_default_state().get_session(league_id)
     lg = session.league
     year, lid = lg.roster_season.split("-")[0], lg.sleeper_league_id
-    get = lambda name, url: cached(name, lambda: requests.get(url, timeout=30).json())   # noqa: E731
+    get = lambda name, url: cached(name, lambda: requests.get(url, timeout=30).json())
     now = requests.get(f"{SLEEPER}/v1/state/nba", timeout=30).json()["week"]
-    weeks = list(range(1, now))   # finished weeks only: they never change, so they cache
+    weeks = list(range(1, now))
     return {"session": session, "weeks": weeks,
             "schedule": get(f"wk_schedule_{year}_{now}.json", f"{SLEEPER}/schedule/nba/regular/{year}"),
             "league": get(f"wk_league_{lid}_{now}.json", f"{SLEEPER}/v1/league/{lid}"),
@@ -95,7 +95,7 @@ def report_games(rows: list[dict]) -> None:
     for w in sorted({r["week"] for r in played}):
         sub = [r for r in played if r["week"] == w]
         print(f"  week {w}  n={len(sub):5}  {sum(r['fp'] for r in sub) / sum(r['proj'] for r in sub):.3f}")
-    rel = lambda r, swing=1.0: (r["fp"] - k * r["proj"]) / (k * r["proj"] * swing)   # noqa: E731 - miss as a share of the scaled projection
+    rel = lambda r, swing=1.0: (r["fp"] - k * r["proj"]) / (k * r["proj"] * swing)
     print("one-game spread around the scaled projection, as a share of it")
     print(f"  all            n={len(played):5}  bias {sum(rel(r) for r in played) / len(played):+.3f}  spread {rms([rel(r) for r in played]):.3f}   (SWING_CENTER {weekplan.SWING_CENTER:g} should match)")
     hist = [r for r in played if r["cv"] is not None]
@@ -187,12 +187,11 @@ def report_matchups(rows: list[dict]) -> None:
     print(f"  team total: predicted {sum(m for m, _, _ in teams) / len(teams):.1f}  real {sum(r for _, _, r in teams) / len(teams):.1f}  bias {bias:+.1f}")
     print(f"  predicted spread {sum(s for _, s, _ in teams) / len(teams):.1f}  real spread around the prediction {rms([e - bias for e in err]):.1f} (bias removed)")
     print(f"  z = (real - predicted) / predicted spread: spread of z {rms([(e - bias) / s for e, (_, s, _) in zip(err, teams)]):.2f} with the bias removed (1.0 = calibrated), {rms([e / s for e, (_, s, _) in zip(err, teams)]):.2f} as is")
-    # the margin: the two teams' biases cancel, so this is the cleanest read of the win chance's spread
     zm = [((r["pa"] - r["pb"]) - (r["a"][0] - r["b"][0])) / math.sqrt(r["a"][1] + r["b"][1]) for r in rows]
     print(f"  margin z = (real margin - predicted margin) / predicted spread: {rms(zm):.2f}   (1.0 = calibrated)")
     won = [(r["win"], 1.0 if r["pa"] > r["pb"] else 0.0) for r in rows]
     print(f"  win chance: Brier {sum((p - y) ** 2 for p, y in won) / len(won):.3f}   (0.25 = coin flip, lower is better)")
-    fav = [(max(p, 1 - p), y if p >= 0.5 else 1 - y) for p, y in won]   # from the favourite's side
+    fav = [(max(p, 1 - p), y if p >= 0.5 else 1 - y) for p, y in won]
     for lo, hi in ((0.5, 0.6), (0.6, 0.7), (0.7, 0.8), (0.8, 0.9), (0.9, 1.01)):
         sub = [(p, y) for p, y in fav if lo <= p < hi]
         if sub:

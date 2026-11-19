@@ -6,13 +6,9 @@ import SettingsPage from "./SettingsPage.jsx";
 import NotifyPage from "./NotifyPage.jsx";
 import Icon from "./Icon.jsx";
 
-// What every UI's shell shares (src/App.jsx, src/ui-command, src/ui-broadcast): the app state kept in localStorage and the Settings popup.
 
-/** Settings > Appearance > UI: id ("" = New) and label; main.jsx loads the matching App and stylesheet. */
 export const UIS = [["", "New"], ["apple", "Apple"], ["command", "Command Center"], ["broadcast", "Broadcast"]];
-// design presets (themes.css): fonts, surfaces, corners and effects; the first is the default
 const THEMES = [["courtside", "Courtside: broadcast scoreboard"], ["office", "Front Office: analyst terminal"], ["locker", "Locker Room: light"], ["apple", "Apple: light and dark"]];
-// pixelated photos behind the page (public/wallpapers, made by backgroundimages/pixelate.py)
 const WALLPAPERS = [
   ["", "No wallpaper"],
   ["kawhi-dagger", "Kawhi dagger"],
@@ -23,34 +19,23 @@ const WALLPAPERS = [
   ["lebron-block", "LeBron chase-down block"],
   ["lebron-chalk", "LeBron chalk toss"],
 ];
-/** The top-level pages; "settings" is the popup, not a page. */
 export const TABS = [["season", "Season"], ["standings", "League"], ["news", "News"], ["waivers", "Waivers"], ["draft", "Draft"]];
-/** Which Season view each Season-side tab shows. */
 export const SEASON_VIEWS = { season: "week", news: "news", standings: "league", waivers: "waivers" };
 
-/** The UI this page loaded with (see UIS). */
 const UI = (() => { try { return localStorage.getItem("da.ui") || ""; } catch { return ""; } })();
-/** Switch UI: remember the choice and reload, since each UI brings its own global stylesheet. Settings reopens after the reload. */
-const setUi = (v) => { try { localStorage.setItem("da.ui", v); if (v === "apple") localStorage.setItem("da.theme", "apple");   // the Apple UI is built for the Apple theme
+const setUi = (v) => { try { localStorage.setItem("da.ui", v); if (v === "apple") localStorage.setItem("da.theme", "apple");
     sessionStorage.setItem("da.settings", "1"); } catch { } location.reload(); };
-/** True once after a UI switch (setUi): the new UI opens with Settings still showing. */
 const reopenSettings = () => { try { const v = sessionStorage.getItem("da.settings"); sessionStorage.removeItem("da.settings"); return !!v; } catch { return false; } };
 
-/**
- * The app state every shell needs: the open tab, the league (and its name), theme, wallpaper, API health and the Settings popup.
- * Persists the tab, league, theme and wallpaper in localStorage and polls /health every 15 s.
- */
 export function useAppState() {
   const [tab, setTab] = useState(() => {
     const t = localStorage.getItem("da.tab");
-    return !t || ["settings", "data", "league"].includes(t) ? "home" : t;   // Settings is a popup now, not a tab
+    return !t || ["settings", "data", "league"].includes(t) ? "home" : t;
   });
   const [settingsOpen, setSettingsOpen] = useState(reopenSettings);
-  /** Switch tab; "settings" opens the settings popup instead. */
   const goTab = (t) => (t === "settings" ? setSettingsOpen(true) : setTab(t));
   useEffect(() => {
     if (!settingsOpen) return undefined;
-    /** Close the popup on Escape. */
     const k = (e) => e.key === "Escape" && setSettingsOpen(false);
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
@@ -60,7 +45,6 @@ export function useAppState() {
   const [theme, setTheme] = useState(() => THEMES.some(([id]) => id === localStorage.getItem("da.theme")) ? localStorage.getItem("da.theme") : THEMES[0][0]);
   const [health, setHealth] = useState(null);
 
-  /** Select a league (a falsy id clears it) and remember the choice in localStorage. */
   const setLeagueId = useCallback((id) => {
     setLeagueIdState(id || "");
     if (id) localStorage.setItem("da.league", id);
@@ -69,7 +53,6 @@ export function useAppState() {
 
   useEffect(() => { localStorage.setItem("da.tab", tab); }, [tab]);
 
-  // the header shows the chosen league's name (re-read on tab change, so a Sleeper rename picked up by Sync shows up)
   const [leagueName, setLeagueName] = useState("");
   useEffect(() => {
     if (!leagueId) return setLeagueName("");
@@ -78,7 +61,7 @@ export function useAppState() {
 
   useEffect(() => {
     document.documentElement.style.setProperty("--wall", wall ? `url(/wallpapers/${wall}.png)` : "none");
-    document.documentElement.dataset.wall = wall;   // styles.css darkens content panels over a photo
+    document.documentElement.dataset.wall = wall;
     localStorage.setItem("da.wall", wall);
   }, [wall]);
 
@@ -87,16 +70,14 @@ export function useAppState() {
     localStorage.setItem("da.theme", theme);
   }, [theme]);
 
-  // Courtside only: a picked colour replaces its orange --primary (inline style beats the theme rule); "" keeps the default
   const [accent, setAccent] = useState(() => localStorage.getItem("da.accent") || "");
   useEffect(() => {
     const s = document.documentElement.style;
-    if (theme === "courtside" && accent) { s.setProperty("--primary", accent); s.setProperty("--info-t", `color-mix(in srgb, ${accent} 45%, white)`); }   // --info-t: the light tint of it (header icons, chips)
+    if (theme === "courtside" && accent) { s.setProperty("--primary", accent); s.setProperty("--info-t", `color-mix(in srgb, ${accent} 45%, white)`); }
     else { s.removeProperty("--primary"); s.removeProperty("--info-t"); }
     localStorage.setItem("da.accent", accent);
   }, [theme, accent]);
 
-  /** Fetch /health into state; an unreachable API is recorded as { ok: false }. */
   const refreshHealth = useCallback(() => {
     api.get("/health").then(setHealth).catch(() => setHealth({ ok: false }));
   }, []);
@@ -110,7 +91,6 @@ export function useAppState() {
   return { tab, setTab, goTab, settingsOpen, setSettingsOpen, leagueId, setLeagueId, leagueName, wall, setWall, theme, setTheme, accent, setAccent, health, refreshHealth };
 }
 
-/** Courtside's main colour: the picker only changes a local draft (dragging it would re-theme the app on every step); Save applies it. */
 function AccentPick({ app }) {
   const [draft, setDraft] = useState(app.accent || "#f97316");
   return (
@@ -122,7 +102,6 @@ function AccentPick({ app }) {
   );
 }
 
-/** The Settings popup (Appearance: UI, theme, wallpaper; Notifications: the Telegram link and what to push; League: league, its settings, the data pull). `app` is useAppState()'s result. */
 export function SettingsModal({ app }) {
   if (!app.settingsOpen) return null;
   const close = () => app.setSettingsOpen(false);

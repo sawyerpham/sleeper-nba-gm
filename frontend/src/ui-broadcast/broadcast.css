@@ -1,6 +1,5 @@
-@import "../styles.css";   /* the shared components' styles (and the themes); this file only lays out the Broadcast shell */
+@import "../styles.css";
 
-/* ---- network bar ---- */
 .bc-top { position: sticky; top: 0; z-index: 24; height: 56px; display: flex; align-items: stretch; gap: 22px; padding: 0 16px;
   background: var(--panel-solid); box-shadow: 0 1px 0 var(--border), 0 10px 28px -16px color-mix(in srgb, var(--primary) 50%, transparent); }
 .bc-brand { display: flex; align-items: center; gap: 10px; padding: 0; border: 0; background: none; box-shadow: none; color: var(--text);
@@ -18,12 +17,10 @@
 .bc-cog { align-self: center; width: 36px; height: 36px; padding: 0; display: grid; place-items: center; border-radius: 8px; font-size: var(--fs-lg); }
 main.bc-main:has(.bc-season) { padding: 0; max-width: none; margin: 0; }
 
-/* ---- Season page ---- */
 .bc-season { height: calc(100vh - 56px); display: flex; flex-direction: column; gap: 10px; padding: 10px 14px 12px; }
-.bc-season.bc-view-week { padding-bottom: 58px; }   /* the chyron */
+.bc-season.bc-view-week { padding-bottom: 58px; }
 .bc-season .panel { margin-bottom: 0; }
 
-/* score bug */
 .bc-bug { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, auto) minmax(0, 1fr); align-items: stretch;
   border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); background: var(--panel-solid); }
 .bc-bug-team { min-width: 0; display: flex; align-items: center; gap: 14px; padding: 10px 18px; }
@@ -48,7 +45,6 @@ main.bc-main:has(.bc-season) { padding: 0; max-width: none; margin: 0; }
 .bc-next { font-size: var(--fs-2xs); color: var(--muted); white-space: nowrap; }
 .bc-next strong { color: var(--text); }
 
-/* ticker strip + tools */
 .bc-strip { flex: none; display: flex; align-items: center; gap: 14px; min-width: 0; }
 .bc-ticker { flex: 1; min-width: 0; display: flex; align-items: stretch; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--panel-solid); }
 .bc-ticker-label { display: flex; align-items: center; padding: 0 18px 0 12px; background: var(--primary); color: var(--on-primary); font-family: var(--font-display); font-weight: 800;
@@ -69,7 +65,6 @@ main.bc-main:has(.bc-season) { padding: 0; max-width: none; margin: 0; }
 .season-tools-x .season-search :is(.search-wrap, input) { width: 100%; min-width: 0; }
 .season-tools-x .icon-btn { flex: none; width: 36px; height: 36px; padding: 0; display: grid; place-items: center; border-radius: 8px; font-size: var(--fs-lg); }
 
-/* the desk: matrix + analysis */
 .bc-desk { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) var(--side-w); gap: 12px; }
 .bc-analysis { min-height: 0; display: flex; flex-direction: column; }
 .bc-analysis > .panel.scroll { flex: 1; min-height: 0; max-height: none; }
@@ -122,12 +117,10 @@ main.bc-main:has(.bc-season) { padding: 0; max-width: none; margin: 0; }
 .bc-week strong.proj { color: var(--muted); font-weight: 600; }
 .bc-week span { font-size: var(--fs-3xs); color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 
-/* other views */
 .bc-fill { flex: 1; min-height: 0; display: flex; }
 .bc-body { flex: 1; min-height: 0; overflow: auto; }
 .bc-season .waivers { margin-left: 0; }
 
-/* ---- chyron ---- */
 .bc-chyron { position: fixed; left: 0; right: 0; bottom: 0; z-index: 22; height: 46px; display: flex; align-items: stretch; background: var(--panel-solid); border-top: 2px solid var(--border); }
 .bc-chyron.hot { background: color-mix(in srgb, var(--primary) 12%, var(--panel-solid)); }
 .bc-chyron-label { display: flex; align-items: center; padding: 0 28px 0 16px; background: var(--panel-2); color: var(--muted); font-family: var(--font-display); font-weight: 800;
@@ -140,7 +133,6 @@ main.bc-main:has(.bc-season) { padding: 0; max-width: none; margin: 0; }
 .bc-call:hover { filter: none; background: var(--hover); }
 .bc-call strong { font-family: var(--font-num); text-transform: uppercase; }
 
-/* ---- card sheet ---- */
 .bc-sheet-wrap { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(5, 8, 15, 0.72); }
 .bc-sheet { position: relative; width: min(860px, 94vw); height: 88vh; display: flex; flex-direction: column; animation: bc-up 0.2s ease-out; }
 @keyframes bc-up { from { transform: translateY(24px); opacity: 0; } }
@@ -148,7 +140,6 @@ main.bc-main:has(.bc-season) { padding: 0; max-width: none; margin: 0; }
 .card-nav { position: absolute; top: 14px; left: 14px; z-index: 3; display: flex; gap: 4px; }
 .card-nav button { width: 30px; height: 30px; padding: 0; display: grid; place-items: center; }
 
-/* ---- narrower windows ---- */
 @media (max-width: 1199px) {
   .bc-season { height: auto; min-height: calc(100vh - 56px); }
   .bc-bug { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
@@ -168,7 +159,6 @@ main.bc-main:has(.bc-season) { padding: 0; max-width: none; margin: 0; }
   .bc-bug-avatar, .bc-bug-name span { display: none; }
 }
 
-/* ---- League / News / Waivers in Broadcast: big and televised (the look is the theme's, see themes.css) ---- */
 .bc-main .st-table td { padding-block: 14px; font-size: var(--fs-lg); } .bc-main .st-table th { font-size: var(--fs-sm); }
 .bc-main .st-rank b { transform-origin: center; font-size: var(--fs-2xl); }
 .bc-main .st-table .team-logo-sm, .bc-main .st-table img { width: 34px; height: 34px; }
@@ -180,6 +170,5 @@ main.bc-main:has(.bc-season) { padding: 0; max-width: none; margin: 0; }
 .bc-main .wv-table .wv-player strong { font-size: var(--fs-xl); } .bc-main .wv-bid { font-size: var(--fs-xl); padding: 4px 16px; }
 @media (max-width: 1199px) { .bc-main .news-list { grid-template-columns: minmax(0, 1fr); } .bc-main .news-list > .news[data-testid="news-league"] { column-count: 1; } }
 
-/* ---- Team card in Broadcast: a wide sheet, so ranks and the depth chart get TV-sized type and room (the look is the theme's) ---- */
 .bc-sheet .team-ranks { gap: 44px; } .bc-sheet .team-ranks-head { font-size: var(--fs-xl); } .bc-sheet .team-ranks-row { padding-block: 5px; font-size: var(--fs-md); }
 .bc-sheet table.depth-grid td { padding: 8px 12px; font-size: var(--fs-md); } .bc-sheet .dg-cell img { width: 32px; height: 32px; }

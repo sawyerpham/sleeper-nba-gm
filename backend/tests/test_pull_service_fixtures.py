@@ -23,7 +23,7 @@ def test_full_pull_from_fixtures(service):
     """Full pull from fixtures."""
     status = service.run()
     assert status.state == "done", status.error
-    assert service.roster_season == "2026-27" and service.stats_season == "2025-26"  # derived from Sleeper state
+    assert service.roster_season == "2026-27" and service.stats_season == "2025-26"
     assert status.reconcile.counts == {
         "name_team": 15, "name_only": 3, "birthdate": 1, "nba_only": 1, "static_list": 2, "sleeper_only": 1,
     }
@@ -46,12 +46,10 @@ def test_full_pull_from_fixtures(service):
 
     logs = load_game_logs(service.store, "2025-26")
     assert len(logs[JOKIC]) == 65 and logs[JOKIC][0].game_date.isoformat() == "2025-10-23"
-    assert logs[WALKER] == []  # per-player fallback fixture with zero games
+    assert logs[WALKER] == []
     assert DEROZAN in logs and len(logs[DEROZAN]) > 0
     assert ODURO not in logs and BITTLE not in logs
     log_report = next(r for r in status.reports if r.operation == "game_logs")
-    # Players absent from the batch and without a per-player fixture are listed, never silently dropped:
-    # Bittle (rookie), Haliburton (missed 2025-26), Nelson Jr. (rookie). Live, the per-player fallback returns 0 rows.
     assert log_report.failed == {str(BITTLE): "fixture missing", str(HALIBURTON): "fixture missing", str(NELSON_JR): "fixture missing"}
     assert log_report.requested == 22 and log_report.succeeded == 19
 
@@ -60,13 +58,11 @@ def test_full_pull_from_fixtures(service):
     assert overrides[JOKIC].injury_status == "healthy" and overrides[JOKIC].injury_source == "sleeper"
     assert overrides[BUTLER].injury_status == "out_short_term" and overrides[BUTLER].injury_note == "Knee — Surgery"
     assert overrides[BUTLER].injury_sleeper_raw == "Out"
-    # fixture state is the off-season: DTD seeds as healthy, Sleeper's raw tag is kept
     assert overrides[ADAMS].injury_status == "healthy" and overrides[ADAMS].injury_sleeper_raw == "DTD"
     assert overrides[BITTLE].eligibility == [] and overrides[BITTLE].eligibility_source == "none" and overrides[BITTLE].injury_source == "none"
     assert overrides[ODURO].eligibility_source == "sleeper"
     assert status.seeded_overrides == 22
 
-    # every cache file from DESIGN.md 1.8 exists
     for rel in (config.nba_pool_rel("2026-27"), config.game_logs_rel("2025-26"), config.reconcile_rel("2026-27"),
                 config.OVERRIDES_REL, config.player_detail_rel(NELSON_JR)):
         assert service.store.exists(rel), rel
@@ -79,13 +75,13 @@ def test_second_pull_reseeds_from_sleeper_and_keeps_notes(service):
     jokic = overrides[JOKIC]
     jokic.eligibility, jokic.eligibility_source, jokic.notes = ["C", "PF"], "manual", "my note"
     adams = overrides[ADAMS]
-    adams.injury_status, adams.injury_source = "out_season", "sleeper"  # a stale sleeper-sourced value
+    adams.injury_status, adams.injury_source = "out_season", "sleeper"
     save_overrides(service.store, overrides)
 
     assert service.run(skip_game_logs=True).state == "done"
     after = load_overrides(service.store)
     assert after[JOKIC].eligibility == ["C"] and after[JOKIC].eligibility_source == "sleeper" and after[JOKIC].notes == "my note"
-    assert after[ADAMS].injury_status == "healthy" and after[ADAMS].injury_source == "sleeper"  # refreshed (off-season DTD)
+    assert after[ADAMS].injury_status == "healthy" and after[ADAMS].injury_source == "sleeper"
 
 def test_pull_without_sleeper_source_yields_nba_only_records(service):
     """Pull without sleeper source yields nba only records."""

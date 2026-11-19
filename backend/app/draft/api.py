@@ -69,7 +69,7 @@ def sync_from_sleeper(league_id: str, state: AppState = Depends(get_state)) -> d
     result = sync_picks(state.platform, session, did)
     if result["added"]:
         state.save_session(league_id)
-    return {**result, "view": _draft_view(session) if result["added"] else None}   # the view only changes with a pick
+    return {**result, "view": _draft_view(session) if result["added"] else None}
 
 
 @router.post("/draft/start")
@@ -165,11 +165,8 @@ def rankings(
     tier = tiers(session.pool_values())
     left = Counter(tier.get(pid) for pid in session.available_ids())
     size = Counter(tier.values())
-    # The call (buy / star / pricey / cannot), your max and the market price: the same numbers as the spending guide.
-    # Before the draft: Worth at the first nomination (after keepers); Max and the call need the live room.
     live = session.draft.status == "live"
     calls = session.spending_guide(manager_id, call_ids=[r.player_id for r in rows]).calls if live else {}
-    # Why FP/G moved vs last season: data/fpg_reasons.json, written by hand / an LLM pass (optional).
     reasons = state.store.read_json("fpg_reasons.json").get("players", {}) if state.store.exists("fpg_reasons.json") else {}
     from .fit import fit_scores
 

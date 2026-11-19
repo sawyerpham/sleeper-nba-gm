@@ -29,13 +29,13 @@ def test_default_league_has_15_mandatory_and_2_ir_slots():
 @pytest.mark.parametrize(
     "remaining, open_mandatory, min_bid, expected",
     [
-        (200, 15, 1, 186),  # fresh: 200 - 14 reserved
-        (16, 15, 1, 2),     # nearly broke: can bid $2 and still fill 14 slots at $1
-        (15, 15, 1, 1),     # exactly enough for $1 each
-        (14, 15, 1, 0),     # cannot fill roster (should be unreachable if validation holds)
-        (37, 1, 1, 37),     # last slot: everything is spendable
-        (37, 0, 1, 0),      # no open mandatory slot: no bid at all
-        (100, 5, 2, 92),    # min bid $2 reserves $8
+        (200, 15, 1, 186),
+        (16, 15, 1, 2),
+        (15, 15, 1, 1),
+        (14, 15, 1, 0),
+        (37, 1, 1, 37),
+        (37, 0, 1, 0),
+        (100, 5, 2, 92),
     ],
 )
 def test_max_bid_reserves_min_bid_for_every_other_open_slot(remaining, open_mandatory, min_bid, expected):

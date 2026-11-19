@@ -44,9 +44,9 @@ def test_player_value_composition():
     assert value_out == pytest.approx(65.0 * 0.91 * 0.6)
     value_avail, *_ = player_value(rec, override(1, ["C"]), valuation(1, 50.0, 80.0, weeks=10), RankingSettings(availability_weight=1.0))
     assert value_avail == pytest.approx(65.0 * 0.91 * 0.4)
-    assert player_value(rec, override(1, ["C"]), None, r)[0] == 0.0  # no stats -> zero value
+    assert player_value(rec, override(1, ["C"]), None, r)[0] == 0.0
     small = valuation(1, avg=60.0, best=95.0, gp=3)
-    assert player_value(rec, override(1, ["C"]), small, r)[0] < value  # 3-game sample cannot out-rank a full season
+    assert player_value(rec, override(1, ["C"]), small, r)[0] < value
 
 
 def test_rank_order_and_flags():
@@ -56,7 +56,7 @@ def test_rank_order_and_flags():
     rows = rank_players(lg, players, overrides, valuations, my_picks=[], available_ids=list(players))
     names = [r.full_name for r in rows]
     assert names[:3] == ["Ace Center", "Bo Guard", "Cy Wing"]
-    assert names.index("Lou Rookie") > names.index("Gus Bench")  # 3 games, confidence 0.15
+    assert names.index("Lou Rookie") > names.index("Gus Bench")
     rookie = next(r for r in rows if r.full_name == "Lou Rookie")
     assert rookie.confidence == 0.15 and rookie.value == pytest.approx((0.5 * 30 + 0.5 * 70) * 0.15, abs=0.01)
     assert rookie.ceiling_metric == "weekly_best" and rookie.ceiling == 70.0 and rookie.total_fpts == pytest.approx(90.0)
@@ -71,16 +71,15 @@ def test_unrosterable_players_sink_as_roster_fills():
     """Unrosterable players sink as roster fills."""
     players, overrides, valuations = default_world()
     lg = small_league()
-    # my roster: PG, SG, UTIL, BN, BN filled -> only C open
     my_picks = [pick(1, 2, "PG"), pick(2, 5, "SG"), pick(3, 3, "UTIL"), pick(4, 7, "BN"), pick(5, 8, "BN")]
     available = [pid for pid in players if pid not in {2, 5, 3, 7, 8}]
     rows = rank_players(lg, players, overrides, valuations, my_picks, available)
     rosterable = [r.full_name for r in rows if r.rosterable]
-    assert rosterable == ["Ace Center", "Fay Big", "Ike Bench"]  # every C-eligible player, by value
+    assert rosterable == ["Ace Center", "Fay Big", "Ike Bench"]
     assert rows[0].assignable_slot == "C"
     dee = next(r for r in rows if r.full_name == "Dee Point")
     assert not dee.rosterable and dee.rank > len(rosterable)
-    assert dee.value > rows[2].value  # higher value but sunk below every rosterable player
+    assert dee.value > rows[2].value
 
 
 def test_stack_if_added_reflects_my_roster():
@@ -89,8 +88,8 @@ def test_stack_if_added_reflects_my_roster():
     lg = small_league()
     rows = rank_players(lg, players, overrides, valuations, [pick(1, 1, "C")], [2, 3])
     by_name = {r.full_name: r for r in rows}
-    assert by_name["Bo Guard"].stack_if_added == 2   # DEN, same as Ace Center
-    assert by_name["Cy Wing"].stack_if_added == 1    # LAL
+    assert by_name["Bo Guard"].stack_if_added == 2
+    assert by_name["Cy Wing"].stack_if_added == 1
 
 
 def test_override_edit_changes_ranking_immediately():
@@ -104,7 +103,7 @@ def test_override_edit_changes_ranking_immediately():
     assert after[0].full_name == "Bo Guard"
     ace = next(r for r in after if r.full_name == "Ace Center")
     assert ace.value == 0.0 and ace.injury_status == "out_season"
-    overrides[4] = override(4, ["PG", "SF"], source="manual")  # eligibility edit
+    overrides[4] = override(4, ["PG", "SF"], source="manual")
     assert next(r for r in rank_players(lg, players, overrides, valuations, [], [4]) if r.player_id == 4).eligibility == ["PG", "SF"]
 
 
@@ -123,6 +122,5 @@ def test_no_games_last_season_is_not_treated_as_never_available():
     r = RankingSettings(availability_weight=0.3)
     missed_all = valuation(1, 0.0, 0.0, gp=0, weeks=0)
     assert availability_factor(missed_all, r) == 1 - 0.3 * (1 - NO_GAMES_AVAILABILITY)
-    # a veteran who missed last season keeps his 3-season blend (0.5 × 0 + 0.3 × 0.7 + 0.2 × 0.85 = 0.38)
     vet = missed_all.model_copy(update={"availability": 0.38, "availability_seasons": {"2025-26": 0.0, "2024-25": 0.7, "2023-24": 0.85}})
     assert availability_factor(vet, r) == pytest.approx(1 - 0.3 * (1 - 0.38))

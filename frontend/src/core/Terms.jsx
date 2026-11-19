@@ -45,7 +45,6 @@ export const TERMS = {
   keep_call: ["Keep call", "GOOD keep: keeper price is under his draft-start worth by at least $2 and 10%. BAD keep: over by that much. EVEN: between."],
 };
 
-/** Wrap a term from TERMS in a dotted underline whose hover tooltip is its definition. `children` overrides the label. */
 export function Term({ k, children, className = "" }) {
   const [label, tip] = TERMS[k];
   return <span className={`term ${className}`} data-tip={tip}>{children ?? label}</span>;
@@ -53,16 +52,11 @@ export function Term({ k, children, className = "" }) {
 
 const CALLS = { buy: "good", star: "even", pricey: "bad", cannot: "bad" };
 
-/** Verdict badge for a spending call (buy, star, pricey, cannot), coloured by how good the call is, with the call's definition as its tooltip. */
 export function CallBadge({ call }) {
   if (!call) return null;
   return <span className={`verdict ${CALLS[call] || ""}`} data-tip={TERMS[call]?.[1]} data-testid="spend-verdict-badge">{TERMS[call]?.[0] || call}</span>;
 }
 
-/**
- * Where Sleeper's live high bid sits against your numbers for a player.
- * `c` is the spending guide's call. Returns { cls, word, text }: BID (under his Worth), STRETCH (past Worth, under Max and walk-away), STOP (at or past Max or walk-away) or CAN'T.
- */
 export function liveCall(bid, c) {
   if (!c || c.verdict === "cannot") return { cls: "bad", word: "CAN'T", text: "no open spot he fits, or over your cap" };
   const worth = Math.round(c.fair_value), max = c.recommended, stop = Math.min(max, c.walk_away);
@@ -71,10 +65,6 @@ export function liveCall(bid, c) {
   return { cls: "bad", word: "STOP", text: bid >= c.walk_away ? `at or past your walk-away $${c.walk_away}` : `at or past his Max $${max}` };
 }
 
-/**
- * Classify a sale's price against his Worth when he sold (within $2 is about right).
- * Returns { cls, tip }: STEAL ($3+ under), FAIR, OVER ($3-9 over) or WAY OVER ($10+ over); keepers aren't sales and get no tone.
- */
 export function priceTone(price, worth, isKeeper) {
   if (isKeeper || worth == null) return { cls: "", tip: isKeeper ? "keeper price" : "" };
   const d = price - worth, tip = `Worth $${worth} when he sold: ${d > 0 ? `$${d} over` : d < 0 ? `$${-d} under` : "right on it"}.`;
@@ -84,14 +74,12 @@ export function priceTone(price, worth, isKeeper) {
   return { cls: "tone-way", tip: `Way overpaid. ${tip}` };
 }
 
-/** One tooltip for every element with a data-tip attribute: shown instantly on hover, flipped above the element near the bottom edge, clamped to the window, and never clipped by a scrolling panel. */
 export function TipLayer() {
   const [tip, setTip] = useState(null);
   useEffect(() => {
-    /** Show the tooltip for the [data-tip] element under the pointer, or hide it when there is none. */
     const over = (e) => {
       let el = e.target.closest?.("[data-tip]"), text = el?.dataset.tip;
-      if (!text) {   // data-clip: the full text, shown only while the element is cut off with an ellipsis
+      if (!text) {
         const c = e.target.closest?.("[data-clip]");
         if (c && c.scrollWidth > c.clientWidth) { el = c; text = c.dataset.clip; }
       }
@@ -99,7 +87,6 @@ export function TipLayer() {
       const r = el.getBoundingClientRect();
       setTip({ text, x: r.left + r.width / 2, below: r.bottom + 8, above: r.top - 8 });
     };
-    /** Hide the tooltip. */
     const hide = () => setTip(null);
     document.addEventListener("mouseover", over);
     document.addEventListener("scroll", hide, true);

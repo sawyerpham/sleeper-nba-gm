@@ -4,13 +4,8 @@ import { PosTag } from "../core/Pos.jsx";
 import { Term, priceTone } from "../core/Terms.jsx";
 import Icon from "../core/Icon.jsx";
 
-// shown as short / even / deep: the counts add up to the open spots, so the status compares positions with each other
 const STATUS = { scarce: ["bad", "short"], tight: ["even", "even"], plenty: ["good", "deep"] };
 
-/**
- * Position market under the spending guide: per position, demand vs supply, the tier cliff and which rivals are chasing it, then the room trend (recent sales vs their Worth at the time).
- * Data from the backend's engine/market.py.
- */
 export default function MarketPanel({ leagueId, live, refreshKey, onSelect }) {
   const [m, setM] = useState(null);
   const [allSales, setAllSales] = useState(false);

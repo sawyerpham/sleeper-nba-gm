@@ -1,18 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { CANADA, MAP_H, MAP_W, OUTLINE, PINS, STATES } from "./mapData.js";
 
-const LOGO = 30, IMG = 22;   // IMG: the logo inside its disc; bigger spills out of the circle for full-bleed logos (Pacers, Bulls)
-/** Logo offset (dx, dy) from the true location, for teams that share a metro or sit too close; a leader line joins them. */
+const LOGO = 30, IMG = 22;
 const NUDGE = {
   NYK: [-6, -36], BKN: [40, 8], PHI: [30, 24], MIL: [-8, -26], CHI: [-16, 14], DET: [-6, -22], CLE: [18, 12],
   GSW: [-28, 14], SAC: [22, -28], LAL: [-26, 24], LAC: [28, 26],
 };
 const ABBRS = Object.keys(PINS);
 const logo = (a) => `https://sleepercdn.com/images/team_logos/nba/${a.toLowerCase()}.png`;
-/** Curved path between two pins, bowed upward like a flight arc. */
 const arc = ([x1, y1], [x2, y2]) => `M${x1},${y1} Q${(x1 + x2) / 2},${(y1 + y2) / 2 - Math.hypot(x2 - x1, y2 - y1) * 0.3} ${x2},${y2}`;
 
-/** Black-and-white map of the lower 48 plus southern Canada, one logo pin per NBA team, with a random arc "game" flying between two teams every few seconds. */
 export default function TeamMap() {
   const [game, setGame] = useState(null);
   useEffect(() => {

@@ -34,7 +34,7 @@ def map_injury(raw: str | None, injury_map: Mapping[str, InjuryStatus]) -> Injur
 
 
 SHORT_TERM_TAGS = ("DTD", "GTD", "Questionable", "Doubtful")
-POSITION_ORDER = ("PG", "SG", "SF", "PF", "C")   # how positions read everywhere (Sleeper's lists come in any order)
+POSITION_ORDER = ("PG", "SG", "SF", "PF", "C")
 
 
 def ordered_positions(positions) -> list:
@@ -78,7 +78,6 @@ def seed_overrides(
             current.updated_at = now
         result[record.player_id] = current
 
-    # Keep overrides for players no longer in the pool (they may come back after a re-pull).
     for player_id, override in existing.items():
         result.setdefault(player_id, override)
     return result

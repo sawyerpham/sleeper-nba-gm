@@ -86,7 +86,7 @@ def test_stage3_birthdate_tiebreak_resolves_collision_using_lookup():
         [sleeper("20", "Jameer Nelson", None, status="FA", birthdate=date(2001, 8, 7)),
          sleeper("21", "Jameer Nelson", None, status="RET", active=False, birthdate=date(1982, 2, 9))],
     )
-    assert recs[3].match_method == "nba_only"  # no lookup -> unresolved
+    assert recs[3].match_method == "nba_only"
     assert report.collisions[0]["resolved"] is False
 
     recs, report = run(

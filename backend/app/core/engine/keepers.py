@@ -23,7 +23,7 @@ class KeeperCandidate:
     manager_id: str
     player_id: int
     last_price: int
-    keeper_price: int | None = None  # explicit override of the computed price
+    keeper_price: int | None = None
 
 
 @dataclass
@@ -39,7 +39,7 @@ class KeeperEvaluation:
     fair_value: float
     recommended_max: int
     surplus: float
-    verdict: str            # good | even | bad
+    verdict: str
     rank: int | None
     value: float
     max_bid: int
@@ -91,17 +91,7 @@ def evaluate_keepers(session, candidates: Iterable[KeeperCandidate]) -> list[Kee
     return out
 
 
-# next price = the escalation rule applied to his market price now (what you'd likely pay)
-# next worth = fair value of his healthy value a year older, at this year's draft-start $ per point (after keepers):
-#              current injury removed, next_year_factor for his age (31+ loses 3 %/year, 20 and under gains 10 %)
-# call       = verdict_for(next worth - next price): the same GOOD / EVEN / BAD keep as the keeper menu
-# good_up_to = the highest price now that still makes him a GOOD keep next year (None if no price does)
-# stash      = he is out now (hurts this season) but a GOOD keep next year
 OUT_NOW = ("out_short_term", "out_long_term", "out_season")
-# Growth: this season's projection over last season's FP/G (players with 40+ games), against the 0.955 all ages share:
-# 1.08 at 20 (6 players) and 1.07 at 21 (11), then 0.92 / 0.95 / 0.96 at 22 / 23 / 24, level with everyone else. So a
-# season played at 21 or younger is worth about a tenth more than the one before it, and nothing shows after that.
-# ponytail: 17 players; one flat step, fit it per age once more seasons of projections are saved.
 YOUNG_GROWTH, YOUNG_AGE = 1.10, 21
 
 

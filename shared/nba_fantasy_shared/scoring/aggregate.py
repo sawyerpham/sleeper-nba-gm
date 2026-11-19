@@ -132,8 +132,6 @@ def ceiling_value(valuation: PlayerValuation, ranking: RankingSettings) -> float
     return valuation.weekly_best_avg
 
 
-# A player with no games last season (rookie, season-long injury) tells us nothing about how often he plays,
-# so he gets the typical availability of players who did play (median of 8+ FP/G players, 2025-26) instead of 0.
 NO_GAMES_AVAILABILITY = 0.88
 
 
@@ -142,8 +140,6 @@ def availability_factor(valuation: PlayerValuation, ranking: RankingSettings) ->
     w = max(0.0, min(1.0, ranking.availability_weight))
     if w == 0 or valuation.season_weeks == 0:
         return 1.0
-    # No games last season: a veteran's 3-season blend (missed season = 0) still applies; only a player with no
-    # earlier NBA seasons (rookie) falls back to the typical availability.
     no_history = valuation.games_played == 0 and len(valuation.availability_seasons) <= 1
     availability = NO_GAMES_AVAILABILITY if no_history else valuation.availability
     return 1.0 - w * (1.0 - availability)
@@ -156,8 +152,6 @@ def blended_value(valuation: PlayerValuation, ranking: RankingSettings) -> float
     return raw * confidence_factor(valuation.games_played, ranking.min_games_full_confidence) * availability_factor(valuation, ranking)
 
 
-# Availability over three seasons, most recent first: one injured season no longer prices a player like a
-# chronically injured one, while a player who misses time every year stays penalized.
 AVAILABILITY_SEASON_WEIGHTS = (0.5, 0.3, 0.2)
 
 
@@ -171,8 +165,8 @@ def season_week_shares(game_dates: dict[int, list[str]]) -> dict[int, float]:
     return {pid: round(len({week_index(date.fromisoformat(d), start) for d in ds}) / weeks, 3) for pid, ds in game_dates.items()}
 
 
-LOST_SEASON = 0.5    # a season under this share of weeks counts as lost (one big injury)
-DURABLE = 0.8        # ...and is a one-off when his other seasons average at least this
+LOST_SEASON = 0.5
+DURABLE = 0.8
 
 
 def forgiveness(age: float | None) -> float:

@@ -29,7 +29,7 @@ from ..core.engine.bidding import market_rate
 from ..core.engine.ranking import tiers
 
 POSITIONS = roster.POSITION_SLOTS
-GOOD_WORTH = 10   # the sold tracker counts available players still worth at least this
+GOOD_WORTH = 10
 
 
 def _fair(rate, value: float, min_bid: int) -> float:
@@ -75,7 +75,7 @@ def market_board(session, manager_id: str) -> dict:
             counted[ps[0]] += 1
         elif ps:
             multi.append(ps)
-    for ps in multi:   # already best-first
+    for ps in multi:
         home = max(ps, key=lambda pos: needs[pos] - counted[pos])
         counted[home] += 1
         for pos in ps:
@@ -103,7 +103,6 @@ def market_board(session, manager_id: str) -> dict:
                           "best": best.full_name if best else None, "best_fair": fair,
                           "chasers": sorted(chasers, key=lambda c: -c["cap"]), "my_open": opens[manager_id].get(pos, 0)})
 
-    # Room trend: each sale against his Worth at its own moment.
     names = {m.manager_id: m.name for m in session.managers}
     worths = sale_worths(session)
     sales = []
@@ -113,8 +112,6 @@ def market_board(session, manager_id: str) -> dict:
             sales.append({"player_id": p.player_id, "player": rec.full_name if rec else str(p.player_id),
                           "manager": names.get(p.manager_id, p.manager_id), "price": p.price, "fair": fair, "diff": p.price - fair})
     window = sales[-10:]
-    # Sold tracker: auction sales so far, roster spots still open in the room, and how many available players are
-    # still worth GOOD_WORTH+ right now (who the money left is for).
     rate = market_rate(lg, session.managers, session.draft.picks, (r.value for r in rows), pool)
     good_left = sum(1 for r in rows if _fair(rate, r.value, lg.min_bid) >= GOOD_WORTH)
     spots_left = sum(session.engine.budget(m.manager_id).open_mandatory for m in session.managers)

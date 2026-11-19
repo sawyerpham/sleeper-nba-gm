@@ -62,11 +62,10 @@ class RetryPolicy(BaseModel):
     timeout_s: float = 30.0
 
 
-# Exceptions that mean "transient provider problem, retry then skip", never "bug".
 RETRYABLE_EXCEPTIONS: tuple[type[BaseException], ...] = (
-    requests.exceptions.RequestException,  # ReadTimeout, ConnectionError, HTTPError ...
-    ValueError,  # json.JSONDecodeError (403 HTML body) is a ValueError
-    KeyError,  # a result set missing from the response
+    requests.exceptions.RequestException,
+    ValueError,
+    KeyError,
 )
 
 
@@ -118,7 +117,7 @@ class CallRunner:
             self._last_call_at = self._clock()
             try:
                 return fn()
-            except RETRYABLE_EXCEPTIONS as exc:  # noqa: PERF203
+            except RETRYABLE_EXCEPTIONS as exc:
                 last_error = exc
                 log.warning("%s: attempt %d/%d failed: %s: %s", label, attempt, self.policy.max_attempts, type(exc).__name__, exc)
                 if attempt < self.policy.max_attempts:

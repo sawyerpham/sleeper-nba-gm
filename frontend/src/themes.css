@@ -1,9 +1,4 @@
-/* Design presets (Settings > Theme). Each one overrides the tokens in styles.css and restyles a few signature pieces.
-   Every rule is scoped under :root[data-theme="..."], which adds specificity to the base selector it overrides, so
-   these win regardless of file order. Token blocks use html:root[...] to also beat the wallpaper rule in styles.css.
-   Fonts load in index.html. Check a preset with: THEME=<id> node e2e/ui-shots.mjs */
 
-/* ---------- shared by the four designs: the neon layer is the default theme's identity, not theirs ---------- */
 :root:is([data-theme="courtside"], [data-theme="office"], [data-theme="locker"], [data-theme="apple"]) :is(
   .panel h2, .panel h3, .guide-head h3, .guide h4, .gp-section h4, .panel h4[class^="health-"], .wv-head h3, .news-teams h3, .dg-side h3,
   .modal > h3:first-child, .guide-card > .bid-label, .guide-chips .bid-label, header.top nav button, header.top nav button.active,
@@ -14,8 +9,6 @@
   .news-teams h3, .dg-side h3, .modal > h3:first-child):not(.tp-name, :has(img, .headshot)) { color: var(--text); }
 
 
-/* ========== Courtside: broadcast scoreboard ==========
-   Near-black, solid panels, sharp corners, condensed display type for scores and titles, orange broadcast accent. */
 html:root[data-theme="courtside"] {
   --page: #060708; --bg: #060708; --panel: #0e1013; --panel-2: #171a1f; --panel-solid: #0e1013; --header: #0a0b0d; --border: #262b32; --border-inner: #1d2127;
   --input-bg: #0a0b0d; --input-border: #2e343c; --hover: rgba(255, 255, 255, 0.05); --badge: rgba(255, 255, 255, 0.07);
@@ -35,10 +28,9 @@ html:root[data-theme="courtside"] {
 :root[data-theme="courtside"] header.top .icon-btn, :root[data-theme="courtside"] button.neon-arrow { border-radius: 6px; }
 :root[data-theme="courtside"] :is(.panel > h3, .panel > h2, .guide-head h3, .news-teams h3, .wv-head h3):not(.tp-name, :has(img, .headshot)) {
   text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; font-size: var(--fs-xl); }
-:root[data-theme="courtside"] :is(.panel > h3, .panel > h2, .guide-head h3, .news-teams h3, .wv-head h3):not(.tp-name, :has(img, .headshot))::before {   /* the section marker: a small rotated square, not a colored edge */
+:root[data-theme="courtside"] :is(.panel > h3, .panel > h2, .guide-head h3, .news-teams h3, .wv-head h3):not(.tp-name, :has(img, .headshot))::before {
   content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 10px; vertical-align: 0.08em; background: var(--primary); transform: rotate(45deg); border-radius: 1px; }
 :root[data-theme="courtside"] :is(.bid-label, .sp-head, th) { font-family: var(--font-display); letter-spacing: 0.06em; font-size: var(--fs-xs); }
-/* the scoreboard: both managers as broadcast score bugs, you in orange, the opponent in yellow */
 :root[data-theme="courtside"] .matchup .mu-team { border-radius: 4px; background: linear-gradient(180deg, #15181d, #0c0e11); border: 1px solid color-mix(in srgb, var(--primary) 50%, var(--border)); }
 :root[data-theme="courtside"] .matchup .mu-team.right { border-color: color-mix(in srgb, var(--accent2) 50%, var(--border)); }
 :root[data-theme="courtside"] .matchup .mc-points { font-weight: 800; font-size: clamp(30px, 2.4vw, 46px); letter-spacing: -0.01em; }
@@ -51,8 +43,6 @@ html:root[data-theme="courtside"] {
 :root[data-theme="courtside"] .profile-tabs button { text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; font-size: var(--fs-md); border-radius: 4px; }
 
 
-/* ========== Front Office: analyst terminal ==========
-   Quiet greys, one muted indigo accent, hairlines instead of boxes, monospaced figures, tighter spacing. */
 html:root[data-theme="office"] {
   --page: #0a0b0d; --bg: #0a0b0d; --panel: #101114; --panel-2: #15171b; --panel-solid: #101114; --header: #0a0b0d; --border: #24272c; --border-inner: #1b1e22;
   --input-bg: #0c0d10; --input-border: #2b2e34; --hover: rgba(255, 255, 255, 0.035); --badge: rgba(255, 255, 255, 0.05);
@@ -61,7 +51,7 @@ html:root[data-theme="office"] {
   --font-num: "JetBrains Mono", ui-monospace, "Cascadia Mono", monospace;
   --radius: 8px; --shadow: none;
 }
-:root[data-theme="office"] :where(.panel) { padding: 14px 16px; }   /* :where keeps this at base specificity, so the card panels' room for the arrows and close button (padding-top in each UI) still wins */
+:root[data-theme="office"] :where(.panel) { padding: 14px 16px; }
 :root[data-theme="office"] header.top .brand .logo { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
 :root[data-theme="office"] header.top nav { background: transparent; padding: 0; gap: 2px; }
 :root[data-theme="office"] header.top nav button { color: var(--muted); border-radius: 6px; }
@@ -70,7 +60,6 @@ html:root[data-theme="office"] {
 :root[data-theme="office"] .season-week { color: var(--text); font-weight: 600; }
 :root[data-theme="office"] header.top .icon-btn { color: var(--muted); }
 :root[data-theme="office"] header.top .icon-btn:hover:not(:disabled) { color: var(--text); }
-/* titles become small uppercase section labels: the numbers carry the page */
 :root[data-theme="office"] :is(.panel > h3, .panel > h2, .guide-head h3, .news-teams h3, .wv-head h3):not(.tp-name, :has(img, .headshot)) {
   font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: var(--muted); }
 :root[data-theme="office"] .matchup .mu-team { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; }
@@ -80,16 +69,12 @@ html:root[data-theme="office"] {
 :root[data-theme="office"] :is(.mu-card, .game-chip, .timeline, .sec, .guide-card, .sp-game, .sp-stat) { border-radius: 6px; }
 :root[data-theme="office"] .game-chip { background: transparent; }
 :root[data-theme="office"] .gch-fp { letter-spacing: -0.04em; }
-/* tabs as an underlined strip instead of a filled bar */
 :root[data-theme="office"] .profile-tabs { background: transparent; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; padding: 0; }
 :root[data-theme="office"] .profile-tabs button { border-radius: 0; color: var(--muted); }
 :root[data-theme="office"] .profile-tabs button.active { background: color-mix(in srgb, var(--primary) 16%, transparent); color: var(--text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 50%, transparent); }
 :root[data-theme="office"] :is(.sp-fp span, .hub-win strong) { font-weight: 600; letter-spacing: -0.03em; }
 
 
-/* ========== Locker Room: light ==========
-   White cards on a soft grey page, rounded corners, soft shadows, darker data colours so they read on white.
-   The wallpaper photo is off here: a pixelated photo behind white cards fights the light look. */
 html:root[data-theme="locker"] {
   --page: #eceff3; --bg: #f2f4f7; --panel: #ffffff; --panel-2: #f3f5f8; --panel-solid: #ffffff; --header: rgba(255, 255, 255, 0.9); --border: #e1e5eb; --border-inner: #eceff3;
   --input-bg: #ffffff; --input-border: #d4d9e1; --hover: rgba(15, 23, 42, 0.04); --selected: color-mix(in srgb, var(--primary) 10%, transparent);
@@ -107,7 +92,6 @@ html:root[data-theme="locker"] {
 }
 :root[data-theme="locker"] body::before { display: none; }
 :root[data-theme="locker"] * { scrollbar-color: rgba(15, 23, 42, 0.25) transparent; }
-/* the dark theme's legibility outlines and dark badge underlays are for dark pages only */
 :root[data-theme="locker"] :is(.pos-c, .pos-rank, .teammate-rank, .room-slot-pos, .player-sub, .trend, .fit-num, .bid-label, .muted) { text-shadow: none; }
 :root[data-theme="locker"] :is(.badge, .verdict, .tier-cell, .tier-tag, .role-tag, .inj, .toast-tag, .chips .chip) { box-shadow: none; }
 :root[data-theme="locker"] :is(.tier-cell, .tier-tag) { color: hsl(var(--h, 230) 70% 34%); background: hsl(var(--h, 230) 75% 50% / 0.13); }
@@ -137,9 +121,6 @@ html:root[data-theme="locker"] {
 :root[data-theme="locker"] .modal-backdrop { background: rgba(15, 23, 42, 0.35); }
 
 
-/* ========== Apple: light and dark, follows the system ==========
-   The theme the Apple UI (ui-apple) is built for: SF type, system blue, frosted glass over a soft gradient, large radii and
-   hairline separators. Light by default, dark when the OS asks for it. The wallpaper photo is off, as in Locker Room. */
 html:root[data-theme="apple"] {
   --page: #f2f2f7; --bg: #f2f2f7; --panel: rgba(255, 255, 255, 0.72); --panel-2: rgba(120, 120, 128, 0.10); --panel-solid: #ffffff; --header: rgba(246, 246, 250, 0.72);
   --border: rgba(60, 60, 67, 0.14); --border-inner: rgba(60, 60, 67, 0.08); --input-bg: rgba(120, 120, 128, 0.10); --input-border: rgba(60, 60, 67, 0.18);
@@ -183,7 +164,6 @@ html:root[data-theme="apple"] {
 :root[data-theme="apple"] :is(.bid-label, .sp-head, th) { text-transform: none; letter-spacing: 0; font-weight: 600; }
 :root[data-theme="apple"] th { background: transparent; backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); }
 :root[data-theme="apple"] .panel { border-color: var(--border-inner); }
-/* controls: capsule buttons, filled inputs without outlines, the focus ring is the system blue halo */
 :root[data-theme="apple"] button { border-radius: 999px; border-color: transparent; background: var(--panel-2); font-weight: 500; transition: background 0.15s, transform 0.1s; }
 :root[data-theme="apple"] button:hover { filter: none; background: color-mix(in srgb, var(--text) 12%, transparent); }
 :root[data-theme="apple"] button:active:not(:disabled) { transform: scale(0.97); }
@@ -212,17 +192,10 @@ html:root[data-theme="apple"] {
 :root[data-theme="apple"] .log-box.even { background: #ffd60a; } :root[data-theme="apple"] .log-box.down { background: #ff6b5e; }
 
 
-/* ================================================================================================================
-   League standings + Teams Report, News and Waivers, per theme.
-   Themes own the paint (colour, type, shape, ornaments); each UI's stylesheet owns the layout (columns, density, sizes).
-   Hooks: .st-table .st-row.st-N (--pct = win share) .st-rank b .st-team; .tr-team; .news-item .news-time .news-title; .wv-* and a
-   row counter on the Waivers table (numbers the claims).
-   ================================================================================================================ */
 .wv-table tbody { counter-reset: claim; }
 .wv-table tbody tr { counter-increment: claim; }
 .wv-table tbody td:first-child .wv-player::before { content: counter(claim); flex: none; min-width: 1.4em; text-align: center; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; }
 
-/* ---------- Courtside: the scoreboard ---------- */
 :root[data-theme="courtside"] :is(.st-table, .wv-table) { border-collapse: separate; border-spacing: 0 4px; }
 :root[data-theme="courtside"] :is(.st-table, .wv-table) thead th { background: var(--primary); color: #111; border: 0; font-family: var(--font-display); font-size: var(--fs-sm); letter-spacing: 0.08em; text-transform: uppercase; }
 :root[data-theme="courtside"] :is(.st-table, .wv-table) thead th:first-child { border-radius: 4px 0 0 4px; }
@@ -252,7 +225,7 @@ html:root[data-theme="apple"] {
 :root[data-theme="courtside"] .tr-counts .health-q { background: var(--accent2); color: #111; }
 :root[data-theme="courtside"] .news-item { position: relative; padding: 10px 12px; margin-bottom: 4px; border: 0; border-radius: 4px; background: var(--panel-2); }
 :root[data-theme="courtside"] .news-item.injury { background: color-mix(in srgb, var(--danger) 12%, var(--panel-2)); }
-:root[data-theme="courtside"] .news-item.injury::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; border-radius: 4px 0 0 4px; background: var(--danger); }   /* only injury notes keep the edge: red out, yellow GTD / DTD / Q */
+:root[data-theme="courtside"] .news-item.injury::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; border-radius: 4px 0 0 4px; background: var(--danger); }
 :root[data-theme="courtside"] .news-item.injury.doubt { background: color-mix(in srgb, var(--accent2) 10%, var(--panel-2)); }
 :root[data-theme="courtside"] .news-item.injury.doubt::before { background: var(--accent2); }
 :root[data-theme="courtside"] .news-title { font-family: var(--font-display); font-size: var(--fs-xl); font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; line-height: 1.15; }
@@ -260,7 +233,6 @@ html:root[data-theme="apple"] {
 :root[data-theme="courtside"] .news-filters { border-top: 3px solid var(--primary); }
 :root[data-theme="courtside"] .news > summary h3 { text-transform: uppercase; letter-spacing: 0.04em; font-size: var(--fs-xl); }
 
-/* ---------- Front Office: the terminal ---------- */
 :root[data-theme="office"] :is(.st-table, .wv-table, .tr-team, .news-item) { font-family: var(--font-num); }
 :root[data-theme="office"] :is(.st-table, .wv-table) thead th { background: transparent; border-bottom: 1px solid var(--primary); color: var(--muted); font-weight: 500; font-size: var(--fs-2xs); letter-spacing: 0.1em; text-transform: uppercase; }
 :root[data-theme="office"] :is(.st-row td, .wv-table tbody td) { border-bottom: 1px solid var(--border-inner); font-size: var(--fs-sm); }
@@ -285,7 +257,6 @@ html:root[data-theme="apple"] {
 :root[data-theme="office"] .news-story { font-size: var(--fs-xs); }
 :root[data-theme="office"] .news-filters { border-bottom: 1px solid var(--primary); }
 
-/* ---------- Locker Room: soft cards ---------- */
 :root[data-theme="locker"] :is(.st-table, .wv-table) { border-collapse: separate; border-spacing: 0 8px; }
 :root[data-theme="locker"] :is(.st-table, .wv-table) thead th { background: transparent; border: 0; padding-bottom: 0; color: var(--muted); font-weight: 700; }
 :root[data-theme="locker"] :is(.st-row, .wv-table tbody tr) td { background: #fff; border: 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
@@ -309,7 +280,6 @@ html:root[data-theme="apple"] {
 :root[data-theme="locker"] .news-time { padding: 1px 9px; border-radius: 999px; background: var(--panel-2); }
 :root[data-theme="locker"] .news-title { font-size: var(--fs-lg); font-weight: 700; margin-top: 4px; }
 
-/* ---------- Apple: grouped lists ---------- */
 :root[data-theme="apple"] :is(.st-table, .wv-table) thead th { background: transparent; border-bottom: 1px solid var(--border); color: var(--muted); font-size: var(--fs-xs); }
 :root[data-theme="apple"] :is(.st-row td, .wv-table tbody td) { border-bottom: 1px solid var(--border-inner); }
 :root[data-theme="apple"] :is(.st-row:last-child td, .wv-table tbody tr:last-child td) { border-bottom: 0; }
@@ -332,13 +302,7 @@ html:root[data-theme="apple"] {
 :root[data-theme="apple"] .news-filters { border-radius: 18px; }
 
 
-/* ================================================================================================================
-   Team card: the rank lists (Offense / Defense) and the depth chart, per theme. The same hooks drive the Team card's Roster tab,
-   a player's team view and the Draft page. Hooks: .team-ranks-head / -row (--rk: 1 best .. 0 worst, the rank strength; the ordinal
-   itself is coloured by the rank scale), table.depth-grid .dg-row .dg-pos .dg-cell(.self) .dg-name. Layout per UI is in each UI's stylesheet.
-   ================================================================================================================ */
 
-/* ---------- Courtside: scoreboard strips ---------- */
 :root[data-theme="courtside"] .team-ranks-head { font-family: var(--font-display); font-size: var(--fs-xl); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 3px solid var(--primary); padding-bottom: 2px; margin-bottom: 4px; }
 :root[data-theme="courtside"] .team-ranks-head strong { font-size: var(--fs-2xl); }
 :root[data-theme="courtside"] .team-ranks-row { margin-bottom: 3px; padding: 3px 8px; border-radius: 3px; background: var(--panel-2); font-family: var(--font-display); font-size: var(--fs-md); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600;
@@ -353,7 +317,6 @@ html:root[data-theme="apple"] {
 :root[data-theme="courtside"] table.depth-grid td.dg-cell:not(:nth-child(2)) { color: var(--muted); }
 :root[data-theme="courtside"] .dg-cell.self { background: color-mix(in srgb, var(--primary) 22%, var(--panel-2)) !important; color: var(--text) !important; border-radius: 3px; }
 
-/* ---------- Front Office: the terminal ---------- */
 :root[data-theme="office"] :is(.team-ranks, table.depth-grid) { font-family: var(--font-num); }
 :root[data-theme="office"] .team-ranks-head { border-bottom: 1px solid var(--primary); font-size: var(--fs-xs); font-weight: 500; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
 :root[data-theme="office"] .team-ranks-head > span::before { content: "[ "; opacity: 0.5; } :root[data-theme="office"] .team-ranks-head > span::after { content: " ]"; opacity: 0.5; }
@@ -361,12 +324,11 @@ html:root[data-theme="apple"] {
   background-image: linear-gradient(var(--primary), var(--primary)); background-repeat: no-repeat; background-position: left bottom; background-size: calc(var(--rk) * 100%) 1px; }
 :root[data-theme="office"] .team-ranks-row strong { font-weight: 500; }
 :root[data-theme="office"] table.depth-grid th { background: transparent; border-bottom: 1px solid var(--primary); color: var(--muted); font-weight: 500; font-size: var(--fs-2xs); letter-spacing: 0.1em; text-transform: uppercase; }
-:root[data-theme="office"] table.depth-grid td { border-bottom: 1px solid var(--border-inner); font-size: var(--fs-3xs); padding-inline: 2px; }   /* monospace names are wide: smaller type and headshots keep the third column inside the panel */
+:root[data-theme="office"] table.depth-grid td { border-bottom: 1px solid var(--border-inner); font-size: var(--fs-3xs); padding-inline: 2px; }
 :root[data-theme="office"] .dg-cell img { width: 16px; height: 16px; }
 :root[data-theme="office"] table.depth-grid td:nth-child(2) { font-weight: 700; } :root[data-theme="office"] table.depth-grid td:last-child { color: var(--muted); }
 :root[data-theme="office"] .dg-cell.self { background: transparent; border-radius: 0; box-shadow: inset 2px 0 0 var(--primary); color: var(--info-t); }
 
-/* ---------- Locker Room: soft cards ---------- */
 :root[data-theme="locker"] .team-ranks-side { padding: 10px 14px; border: 1px solid var(--border); border-radius: 16px; background: #fff; box-shadow: var(--shadow); }
 :root[data-theme="locker"] .team-ranks-head { font-size: var(--fs-lg); border-bottom: 0; padding-bottom: 6px; }
 :root[data-theme="locker"] .team-ranks-row { padding: 4px 0; border-top: 1px solid var(--border-inner); }
@@ -377,7 +339,6 @@ html:root[data-theme="apple"] {
 :root[data-theme="locker"] table.depth-grid td.dg-pos { background: transparent; box-shadow: none; padding-inline: 2px; }
 :root[data-theme="locker"] .dg-cell.self { background: var(--primary-soft) !important; box-shadow: inset 0 0 0 1px var(--primary) !important; }
 
-/* ---------- Apple: grouped lists and capsules ---------- */
 :root[data-theme="apple"] .team-ranks-side { padding: 6px 14px 8px; border-radius: 16px; background: var(--panel-2); }
 :root[data-theme="apple"] .team-ranks-head { font-size: var(--fs-md); border-bottom: 1px solid var(--border); padding: 6px 0; }
 :root[data-theme="apple"] .team-ranks-row { padding: 6px 0; border-bottom: 1px solid var(--border-inner); } :root[data-theme="apple"] .team-ranks-row:last-child { border-bottom: 0; }

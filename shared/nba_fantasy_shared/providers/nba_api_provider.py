@@ -396,7 +396,6 @@ class NbaApiProvider:
         bios = [bio_from_playerindex_row(r, fetched_at) for r in rows]
         emit(on_progress, 1, 2, "nba_api LeagueDashPlayerBioStats")
 
-        # Age: try the roster season first (populated once the season starts), else previous season + 1.
         age_season, offset = roster_season, 0
         try:
             age_rows = self._normalized(
@@ -457,7 +456,6 @@ class NbaApiProvider:
                 continue
             grouped.setdefault(line.player_id, []).append(line)
 
-        # Per-player fallback only for requested players the batch did not cover.
         missing = [pid for pid in wanted if pid not in grouped]
         done = 1
         emit(on_progress, done, len(wanted) + 1, f"batch covered {len(wanted) - len(missing)} / {len(wanted)}")
@@ -495,8 +493,6 @@ class NbaApiProvider:
             f"CommonPlayerInfo({player_id})",
             lambda: commonplayerinfo.CommonPlayerInfo(player_id=player_id, timeout=self._timeout()),
         )
-        # Players with no NBA games yet (rookies, two-ways) get a response without any result set
-        # from playercareerstats (observed: KeyError 'resultSet' for 1642392). Bio still counts.
         try:
             career = self._normalized(
                 f"PlayerCareerStats({player_id})",

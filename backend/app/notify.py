@@ -27,12 +27,12 @@ from .core.api.deps import get_state
 log = logging.getLogger(__name__)
 ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 POLL_S = 60
-MOVE_LEAD_MIN = 30   # a lineup move is pushed this long before the tip it must beat (like a LOCK reminder)
-PREFS_FILE = "notify_prefs.json"   # Settings > Notifications, in the data directory
+MOVE_LEAD_MIN = 30
+PREFS_FILE = "notify_prefs.json"
 TELEGRAM = "https://api.telegram.org/bot{}/{}"
-STATUS_TTL = 600   # seconds the bot's and chat's names from Telegram are kept (the Settings page polls them)
-DOUBT_TAGS = {"GTD", "DTD", "Questionable", "Doubtful"}   # Sleeper's tags: might not play
-OUT_TAGS = {"Out", "Suspended", "Sus", "IR"}            # Sleeper's tags: won't play
+STATUS_TTL = 600
+DOUBT_TAGS = {"GTD", "DTD", "Questionable", "Doubtful"}
+OUT_TAGS = {"Out", "Suspended", "Sus", "IR"}
 _UNSEEN = object()
 
 
@@ -188,7 +188,7 @@ def status_lines(prev: dict, players: dict, mine: list[str]) -> list[dict]:
         else:
             continue
         name, note = p.get("name", sid), p.get("injury_note") or ""
-        reason = "" if note == tag else note.removeprefix(f"{tag}: ")   # the note is "Out: Knee - Sprain" (week_view)
+        reason = "" if note == tag else note.removeprefix(f"{tag}: ")
         text = f"{name} cleared to play (was {old})" if change == "cleared" else f"{name} is now {tag}" + (f": {reason}" if reason else "")
         lines.append({"kind": "status", "change": change, "sid": sid, "name": name, "backup_sid": tag or "ok", "alarm": "now", "text": text})
     return lines
@@ -223,7 +223,7 @@ def watch_once(state, sent: set[str], tags: dict | None = None) -> None:
             session = _session(state, lid)
             view = week_view(session, http_fetch(state.platform), None)
             plan = team_plan(session, view, None, read_locks(state.store, lid, view["week"]))
-        except Exception as exc:   # a league with no Sleeper link, or Sleeper down: skip this round
+        except Exception as exc:
             log.info("watch skipped %s: %s", lid, exc)
             continue
         today, now = plan.get("today") or {}, datetime.now(timezone.utc)
@@ -248,7 +248,6 @@ def start_watcher(state) -> None:
         return
     path = state.store.root / "cache" / "notified.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    # the servers usually run hidden (start.ps1): keep the watcher's own log on disk
     handler = logging.FileHandler(path.parent / "notify.log", encoding="utf-8")
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
     log.addHandler(handler)
@@ -257,7 +256,7 @@ def start_watcher(state) -> None:
         sent = set(json.loads(path.read_text(encoding="utf-8")))
     except (OSError, ValueError):
         sent = set()
-    tags: dict = {}   # injury tags seen last poll, per league: status changes are relative to this process's first poll
+    tags: dict = {}
 
     def loop() -> None:
         """Poll forever, saving the sent keys after each round."""

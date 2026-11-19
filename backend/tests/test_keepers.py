@@ -24,7 +24,7 @@ def test_escalation_is_editable_or_disabled():
     """Escalation is editable or disabled."""
     assert KeeperEscalation(step_dollars=10, increase_per_step=2).price(25) == 29
     assert KeeperEscalation(enabled=False).price(17) == 17
-    assert LeagueSettings(league_id="L", name="L").keeper.escalation.price(17) == 20  # default rule
+    assert LeagueSettings(league_id="L", name="L").keeper.escalation.price(17) == 20
 
 
 @pytest.mark.parametrize("surplus, fair, expected", [(8, 28, "good"), (2, 15, "good"), (1.5, 15, "even"), (-1, 15, "even"),
@@ -81,10 +81,9 @@ def test_next_years_value_ages_him_even_when_a_projection_keeps_this_years_free_
     assert r.projection_weight == 1.0 and r.age_penalty_start == 31
     assert next_year_factor(33, r) == pytest.approx(age_multiplier(34, r) / age_multiplier(33, r)) == pytest.approx(0.91 / 0.94)
     assert next_year_factor(31, r) == pytest.approx(0.97)
-    assert next_year_factor(30, r) == 1.0 and next_year_factor(26, r) == 1.0   # next season is still at or under the start age
-    assert next_year_factor(41, r) == 1.0                                      # past the 25 % cap: nothing more to lose
+    assert next_year_factor(30, r) == 1.0 and next_year_factor(26, r) == 1.0
+    assert next_year_factor(41, r) == 1.0
     assert next_year_factor(None, r) == 1.0
-    # growth: only while next season is one he plays at 21 or younger
     assert next_year_factor(19.6, r) == YOUNG_GROWTH and next_year_factor(20.9, r) == YOUNG_GROWTH
     assert next_year_factor(21.0, r) == 1.0 and next_year_factor(23, r) == 1.0
 

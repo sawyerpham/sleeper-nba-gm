@@ -33,7 +33,6 @@ log = logging.getLogger(__name__)
 
 API_VERSION = "0.1.0"
 DEFAULT_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000"]
-# The built frontend (frontend/dist from `npm run build`; the Docker image): served at / by this process when it exists.
 STATIC_DIR = Path(os.environ.get("STATIC_DIR", config.BACKEND_ROOT.parent / "frontend" / "dist"))
 
 
@@ -90,7 +89,7 @@ def create_app(state: AppState | None = None) -> FastAPI:
         """Turn a second concurrent pull into a 409 response."""
         return JSONResponse(status_code=409, content={"detail": str(exc)})
 
-    if STATIC_DIR.is_dir():   # after the API routes: anything not under /api is the app (index.html at /)
+    if STATIC_DIR.is_dir():
         app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")
     return app
 

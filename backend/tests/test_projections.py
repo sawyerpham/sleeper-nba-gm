@@ -18,12 +18,11 @@ def test_projection_blends_with_last_season_and_scales_ceiling():
     scoring = ScoringSettings()
     rec = proj_record(1, pts=40.0)
     proj = 40.0 * scoring.base.pts
-    v = valuation(1, avg=proj / 2, best=proj, gp=65)          # last season was half the projection
+    v = valuation(1, avg=proj / 2, best=proj, gp=65)
     avg, ceiling = expected_fpts(rec, v, RankingSettings(projection_weight=0.75), scoring)
     expected = 0.75 * (proj + v.bonus_fpts_per_game) + 0.25 * v.avg_fpts
     assert avg == pytest.approx(expected)
     assert ceiling == pytest.approx(v.weekly_best_avg * expected / v.avg_fpts)
-    # weight 0 = last season only; no scoring = projection ignored
     assert expected_fpts(rec, v, RankingSettings(projection_weight=0.0), scoring)[0] == pytest.approx(v.avg_fpts)
     assert expected_fpts(rec, v, RankingSettings(), None)[0] == v.avg_fpts
 
@@ -64,6 +63,6 @@ def test_age_penalty_only_hits_the_last_season_share_when_projected():
     v = valuation(3, avg=10.0, best=20.0, gp=65)
     r = RankingSettings(projection_weight=0.75)
     *_, age, _ = player_value(old, override(3, ["SF"]), v, r, scoring)
-    assert age == pytest.approx(1 - 0.25 * 0.25)            # max 25 % penalty × 25 % last-season share
+    assert age == pytest.approx(1 - 0.25 * 0.25)
     *_, age_unprojected, _ = player_value(record(4, "Old Other", age=41.0), override(4, ["SF"]), v, r, scoring)
     assert age_unprojected == pytest.approx(0.75)

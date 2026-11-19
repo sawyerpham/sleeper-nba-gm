@@ -43,11 +43,11 @@ class RankedPlayer:
     avg_fpts: float
     proj_fpts: float | None
     last_fpts: float
-    proj_min: float | None      # Sleeper's projected minutes per game
-    last_min: float | None      # last season's minutes per game
-    owned_pct: float | None     # % of Sleeper leagues with him on a roster
-    schedule_factor: float      # Lock-In schedule vs an average team (1.0 = average)
-    scarcity: float             # FP added (or taken) for position scarcity
+    proj_min: float | None
+    last_min: float | None
+    owned_pct: float | None
+    schedule_factor: float
+    scarcity: float
     best_game_fpts: float
     weekly_best_avg: float
     top_quarter_avg: float
@@ -88,11 +88,8 @@ def age_multiplier(age: float | None, ranking: RankingSettings) -> float:
     return 1.0 - penalty
 
 
-# Sleeper projection stat keys -> GameLine attribute names used by the scoring formula.
 PROJECTION_KEYS = {"pts": "pts", "reb": "reb", "ast": "ast", "stl": "stl", "blk": "blk", "tov": "to",
                    "fgm": "fgm", "fga": "fga", "ftm": "ftm", "fg3m": "tpm"}
-# ponytail: one league-wide ceiling/avg ratio for players with no game logs (median weekly-best ÷ FP/G of
-# 40+ game players, 2025-26); per-position ratios if it matters.
 NO_HISTORY_CEILING_RATIO = 1.26
 
 
@@ -132,9 +129,8 @@ def _expected_fpts(
     return avg, ceiling_value(valuation, ranking) * avg / last
 
 
-# Expected best of N games, in standard deviations above a player's mean (max of N normal draws).
 BEST_OF_N = {1: 0.0, 2: 0.564, 3: 0.846, 4: 1.029, 5: 1.163, 6: 1.267}
-PLAYOFF_WEEK_WEIGHT = 2.0   # a fantasy playoff week decides more than a regular-season week
+PLAYOFF_WEEK_WEIGHT = 2.0
 
 
 def schedule_factors(games: Mapping[str, Mapping[str, int]], weeks: Iterable[int], playoff_weeks: Iterable[int] = ()) -> dict[str, float]:
@@ -180,7 +176,6 @@ def scarcity_bonus(
         open_ = [s for s in roster.candidate_slots(eligibility.get(pid, [])) if remaining.get(s, 0) > 0]
         if not open_:
             continue
-        # Position slots before UTIL, then the emptiest one, so a PG/SG fills whichever guard spot is shorter.
         slot = max(open_, key=lambda s: (s != "UTIL", remaining[s] / total[s]))
         remaining[slot] -= 1
         placed.add(pid)
@@ -213,13 +208,11 @@ def player_value(
     if valuation is None:
         confidence, avail = (1.0 if has_projection else 0.0), 1.0
     else:
-        # A projection already accounts for a short sample, so it lifts the games-played discount.
         confidence = 1.0 if has_projection else confidence_factor(valuation.games_played, ranking.min_games_full_confidence)
         avail = availability_factor(valuation, ranking)
     inj = injury_multiplier(override.injury_status if override else "healthy", ranking)
     age = age_multiplier(record.bio.age, ranking)
     if has_projection:
-        # The projection already prices in age; the penalty only applies to the last-season share of FP/G.
         w = min(1.0, max(0.0, ranking.projection_weight)) if valuation is not None else 1.0
         age = 1.0 - (1.0 - age) * (1.0 - w)
     return blended * confidence * avail * inj * age, blended, confidence, inj, age, avail
@@ -241,7 +234,7 @@ def pool_values(
     }
 
 
-TIER_DROP = 0.94  # a new tier starts once a player is 6 % below the best player of the current tier
+TIER_DROP = 0.94
 
 
 def tiers(values: Mapping[int, float], drop: float = TIER_DROP) -> dict[int, int]:

@@ -20,18 +20,18 @@ def test_expected_max_and_wait_value_math():
     """Expected max and wait value math."""
     assert expected_max(0, 1, 0) == pytest.approx(0.3989, abs=1e-4)
     assert expected_max(10, 0, 12) == 12
-    assert wait_value(future(20), 0.3, "healthy") == pytest.approx(0.97 * 20 * PROJ_SCALE)   # last game: just its (scaled) projection
+    assert wait_value(future(20), 0.3, "healthy") == pytest.approx(0.97 * 20 * PROJ_SCALE)
     two = wait_value(future(20, 20), 0.3, "healthy")
-    assert two > 20 * PROJ_SCALE                                                         # two chances beat one
-    assert wait_value(future(20, 20), 0.3, "out_long_term") == 0                        # never plays: worth 0
-    assert wait_value(future(20), 0.3, "day_to_day") == pytest.approx(0.6 * 20 * PROJ_SCALE)   # GTD last game: a DNP counts 0
+    assert two > 20 * PROJ_SCALE
+    assert wait_value(future(20, 20), 0.3, "out_long_term") == 0
+    assert wait_value(future(20), 0.3, "day_to_day") == pytest.approx(0.6 * 20 * PROJ_SCALE)
 
 
 def test_pg_sg_locks_in_the_sg_slot_so_both_great_pgs_still_fit():
     """Pg sg locks in the sg slot so both great pgs still fit."""
     pg1 = pp("pg1", ["PG"], "BN", future(20, 20))
     pg2 = pp("pg2", ["PG"], "BN", future(20, 20))
-    combo = pp("combo", ["PG", "SG"], "PG", [Game("2026-10-21", 15, fp=19.0, started=True)])   # done for the week
+    combo = pp("combo", ["PG", "SG"], "PG", [Game("2026-10-21", 15, fp=19.0, started=True)])
     sg = pp("sg", ["SG"], "SG", future(8))
     plan = plan_week([pg1, pg2, combo, sg], SLOTS)
     assert combo.x == 19.0 and combo.action == "LOCK" and combo.seat == "SG"
@@ -62,18 +62,18 @@ def test_locked_players_keep_their_slot_and_others_fill_around_them():
     b = pp("b", ["PG"], "BN", future(10))
     plan = plan_week([locked, a, b], SLOTS)
     assert locked.action == "LOCKED" and locked.seat == "PG"
-    assert a.seat == "PG" and b.seat is None and b.action == "BENCH"     # only one PG slot was left
+    assert a.seat == "PG" and b.seat is None and b.action == "BENCH"
     assert plan.expected == pytest.approx(25 + a.w, abs=0.2)
 
 
 def test_swing_comes_from_his_own_games():
     """Swing comes from his own games."""
     from app.lockin.weekplan import SWING_CENTER, SWING_SHRINK
-    pulled = lambda own: SWING_CENTER + SWING_SHRINK * (own - SWING_CENTER)   # his own spread, pulled toward the league's
-    assert swing_of([10.0] * 20) == pytest.approx(pulled(0.12))           # perfectly steady: the floor
-    assert swing_of([5.0, 25.0] * 10) == pytest.approx(pulled(0.6))       # wild: the ceiling
-    assert swing_of([8.0, 12.0] * 10) == pytest.approx(pulled(0.2))       # his own std / mean in between
-    assert swing_of([10.0] * 5) == SWING_CENTER                           # too few games: the league's
+    pulled = lambda own: SWING_CENTER + SWING_SHRINK * (own - SWING_CENTER)
+    assert swing_of([10.0] * 20) == pytest.approx(pulled(0.12))
+    assert swing_of([5.0, 25.0] * 10) == pytest.approx(pulled(0.6))
+    assert swing_of([8.0, 12.0] * 10) == pytest.approx(pulled(0.2))
+    assert swing_of([10.0] * 5) == SWING_CENTER
 
 
 def test_today_starts_whoever_plays_today_and_keeps_lock_candidates():
@@ -81,19 +81,19 @@ def test_today_starts_whoever_plays_today_and_keeps_lock_candidates():
     from app.lockin.weekplan import plan_today
 
     today = "2026-10-21"
-    star = pp("star", ["PG"], "PG", [Game("2026-10-20", 20, fp=9.0, started=True), Game("2026-10-23", 20)])   # bad game, plays Fri
-    hot = pp("hot", ["PG", "SG"], "SG", [Game("2026-10-20", 12, fp=30.0, started=True)] + future(12))       # lockable 30
-    flier = pp("flier", ["PG"], "BN", [Game(today, 11, tip="2026-10-22T00:00Z")])                         # plays tonight
+    star = pp("star", ["PG"], "PG", [Game("2026-10-20", 20, fp=9.0, started=True), Game("2026-10-23", 20)])
+    hot = pp("hot", ["PG", "SG"], "SG", [Game("2026-10-20", 12, fp=30.0, started=True)] + future(12))
+    flier = pp("flier", ["PG"], "BN", [Game(today, 11, tip="2026-10-22T00:00Z")])
     sg = pp("sg", ["SG"], "SG", [Game("2026-10-24", 10)])
     players = [star, hot, flier, sg]
     one_each = {"PG": 1, "SG": 1}
     plan_week(players, one_each)
     assert hot.action == "LOCK" and star.action == "PASS" and star.seat == "PG" and hot.seat == "SG"
     t = plan_today(players, one_each, today)
-    assert t.seats == {"PG": ["flier"], "SG": ["hot"]}            # tonight's game gets the PG slot; the lock stays in
+    assert t.seats == {"PG": ["flier"], "SG": ["hot"]}
     moved = {m["sid"]: (m["from"], m["to"]) for m in t.moves}
     assert moved["flier"] == ("BN", "PG") and moved["star"] == ("PG", "BN") and moved["flier"] and "hot" not in moved
-    assert star.seat == "PG"                                       # the week plan's seats are left alone
+    assert star.seat == "PG"
 
 
 def test_today_never_moves_a_player_mid_game_and_flags_swaps_and_gtd():
@@ -108,13 +108,13 @@ def test_today_never_moves_a_player_mid_game_and_flags_swaps_and_gtd():
     one_each = {"PG": 1, "SG": 1}
     plan_week(players, one_each)
     t = plan_today(players, one_each, today)
-    assert "live" in t.seats["PG"]                                                    # in progress: stays put
+    assert "live" in t.seats["PG"]
     kinds = {w["kind"] for w in t.watch}
     assert {"gtd", "swap"} <= kinds
     swap = next(w for w in t.watch if w["kind"] == "swap")
     assert swap["name"] == "early" and swap["backup"] == "late" and swap["by"] == "2026-10-22T02:00Z" and swap["bar"] > 0
 
-    late.injury = "out_short_term"   # ruled OUT: never offered as anyone's backup
+    late.injury = "out_short_term"
     plan_week(players, one_each)
     assert not [w for w in plan_today(players, one_each, today).watch if w.get("backup") == "late"]
 
@@ -124,10 +124,10 @@ def test_live_estimate_projects_the_rest_of_his_game():
     from app.lockin.weekplan import live_estimate
 
     half = Game("2026-10-21", 16.0, fp=10.0, started=True, live=True, min=17.0, proj_min=34.0, period=3, clock=720.0)
-    est = live_estimate(half)                       # halftime, on pace: a bit under double (fewer minutes left)
+    est = live_estimate(half)
     assert 16 < est < 20
     cold = Game("2026-10-21", 16.0, fp=2.0, started=True, live=True, min=17.0, proj_min=34.0, period=3, clock=720.0)
-    assert live_estimate(cold) < est - 5            # a cold half drags the estimate down
+    assert live_estimate(cold) < est - 5
     done = Game("2026-10-21", 16.0, fp=25.0, started=True, final=True, min=36.0)
     assert live_estimate(done) == 25.0 and live_estimate(Game("2026-10-21", 16.0)) is None
 
@@ -143,11 +143,10 @@ def test_six_pm_player_starts_over_a_645_one_and_the_live_game_decides_the_swap(
     players = [early, late]
     plan_week(players, one)
     t = plan_today(players, one, today)
-    assert t.seats == {"SG": ["early"]}                                   # earlier tip first, despite the lower projection
+    assert t.seats == {"SG": ["early"]}
     w = next(x for x in t.watch if x["kind"] == "swap")
     assert w["decision"] == "PENDING" and w["backup"] == "late" and w["alarm"] == "2026-10-21T23:40Z"
 
-    # 6:40: early is ice cold in the 2nd quarter -> SWAP; on fire -> KEEP
     for fp_now, want in ((1.0, "SWAP"), (14.0, "KEEP")):
         early.games[0] = Game(today, 10, fp=fp_now, started=True, live=True, tip="2026-10-21T23:00Z", min=10, proj_min=30, period=2, clock=600)
         early.slot = "SG"
@@ -167,7 +166,7 @@ def test_a_live_starter_headed_past_the_backups_projection_keeps_his_slot():
     sharpe = pp("sharpe", ["C"], "BN", [Game(today, 12, tip="2026-10-21T23:30Z", proj_min=30)])
     call = swap_call(ok, sharpe, today)
     assert 12 < call["est"] < call["swap"] and call["decision"] == "KEEP", call
-    ok.games[0].fp = 1.0                                                   # ice cold: headed well below 12
+    ok.games[0].fp = 1.0
     assert swap_call(ok, sharpe, today)["decision"] == "SWAP"
 
 
@@ -175,8 +174,6 @@ def test_the_starter_headed_lowest_tonight_sits_for_the_later_player_not_the_one
     """The starter headed lowest tonight sits for the later player not the one with weaker later games."""
     from app.lockin.weekplan import plan_today
 
-    # Wiggins: 4.1 with 6 min left in Q4 but good later games; Grant: 6.0 late in Q3, weak later games.
-    # Benching either gives up only tonight's game, so the one headed lower (Wiggins) sits for Sabonis.
     today = "2026-10-21"
     wig = pp("wiggins", ["SF", "PF"], "PF", [Game(today, 8.5, fp=4.1, started=True, live=True, tip="2026-10-21T23:30Z",
                                                   min=30, proj_min=32, period=4, clock=360)] + future(8.3, 8.0))
@@ -188,13 +185,12 @@ def test_the_starter_headed_lowest_tonight_sits_for_the_later_player_not_the_one
     t = plan_today(players, pf, today, now="2026-10-22T00:30Z")
     w = next(x for x in t.watch if x["kind"] == "swap")
     assert (w["decision"], w["name"], w["backup"]) == ("SWAP", "wiggins", "sabonis")
-    assert t.moves == []   # hours before Sabonis's tip: the call can still turn, so the lineup waits for the check-in
-    # at the check-in, the lineup makes the swap while Wiggins is still playing (Sabonis tips before his game ends)
+    assert t.moves == []
     t = plan_today(players, pf, today, now="2026-10-22T02:15Z")
     assert sorted(t.seats["PF"]) == ["grant", "sabonis"]
     assert {m["sid"]: (m["from"], m["to"]) for m in t.moves} == {"wiggins": ("PF", "BN"), "sabonis": ("BN", "PF")}
 
-    for g in wig.games[:1] + grant.games[:1]:   # the timeline's check after their games: free to move, same scores
+    for g in wig.games[:1] + grant.games[:1]:
         g.live = False
     plan_week(players, pf)
     assert sorted(plan_today(players, pf, today, now="2026-10-22T02:15Z").seats["PF"]) == ["grant", "sabonis"]
@@ -205,22 +201,22 @@ def test_a_finished_week_auto_locks_the_last_game_of_every_unlocked_starter():
     counts his last game: 0 when he sat it out. Sleeper's final count wins over your answers."""
     from app.lockin.service import _plan_players
 
-    g = lambda d, fp: {"date": d, "fp": fp, "proj": 10.0, "tip": None, "state": "post", "b2b": False}   # noqa: E731
+    g = lambda d, fp: {"date": d, "fp": fp, "proj": 10.0, "tip": None, "state": "post", "b2b": False}
     view = {"dates": ["2026-10-26", "2026-11-01"], "today": "2026-11-02", "now": None, "roster_positions": ["PG", "C", "BN"],
             "players": {s: {"player_id": None, "name": s, "pos": ["PG", "C"], "injury": "healthy", "games": gs}
                         for s, gs in (("a", [g("2026-10-26", 20.0), g("2026-11-01", 8.0)]),
                                       ("b", [g("2026-10-26", 12.0), g("2026-11-01", None)]),
                                       ("c", [g("2026-10-26", 30.0)]))},
             "matchups": [[{"roster_id": 1, "starters": ["a", "b"], "players": ["a", "b", "c"], "players_points": {}}]]}
-    team = {"roster_id": 1, "is_user": True, "starters": ["c", "a"], "players": ["a", "c"], "reserve": []}   # today's lineup
+    team = {"roster_id": 1, "is_user": True, "starters": ["c", "a"], "players": ["a", "c"], "reserve": []}
     session = type("S", (), {"valuations": {}})()
     players, locks, _ = _plan_players(session, view, team, {})
     by = {p.sid: p for p in players}
-    assert (by["a"].slot, by["b"].slot, by["c"].slot) == ("PG", "C", "BN")   # the week's lineup, dropped b included
-    assert (by["a"].locked, by["b"].locked, by["c"].locked) == (8.0, 0.0, None)   # last games; b sat his out
+    assert (by["a"].slot, by["b"].slot, by["c"].slot) == ("PG", "C", "BN")
+    assert (by["a"].locked, by["b"].locked, by["c"].locked) == (8.0, 0.0, None)
     view["matchups"][0][0]["players_points"] = {"a": 20.0}
     players, _, _ = _plan_players(session, view, team, {"a": "2026-11-01"})
-    assert next(p for p in players if p.sid == "a").locked == 20.0           # Sleeper's final count beats your answer
+    assert next(p for p in players if p.sid == "a").locked == 20.0
 
 
 def test_an_out_starter_sitting_out_his_live_game_is_benched_now():
@@ -245,7 +241,6 @@ def test_every_later_bench_player_is_watched_and_targets_the_starter_the_swap_is
     from app.lockin.weekplan import plan_today
 
     today = "2026-10-21"
-    # a projects more tonight but has good games to come: benching him costs little. b's game tonight is his last.
     a = pp("a", ["SG"], "SG", [Game(today, 12, tip="2026-10-21T23:00Z")] + future(12, 12))
     b = pp("b", ["SG"], "SG", [Game(today, 9, tip="2026-10-21T23:00Z")])
     g = pp("grimes", ["SG"], "BN", [Game(today, 6.5, tip="2026-10-22T02:00Z")])
@@ -254,7 +249,7 @@ def test_every_later_bench_player_is_watched_and_targets_the_starter_the_swap_is
     t = plan_today(players, sg, today, now="2026-10-21T22:00Z")
     w = next(x for x in t.watch if x["kind"] == "swap")
     assert (w["backup"], w["name"], w["decision"]) == ("grimes", "a", "PENDING") and t.moves == []
-    t = plan_today(players, sg, today, now="2026-10-22T01:45Z")   # the check-in: the arrow goes to a
+    t = plan_today(players, sg, today, now="2026-10-22T01:45Z")
     assert {m["sid"]: m["to"] for m in t.moves} == {"a": "BN", "grimes": "SG"}
 
 
@@ -262,15 +257,15 @@ def test_a_day_without_games_seats_by_next_tip():
     """A day without games seats by next tip."""
     from app.lockin.weekplan import plan_today
 
-    a = pp("a", ["C"], "C", [Game("2026-10-21", 10, tip="2026-10-21T23:00:00Z")])   # no game on the 20th
-    b = pp("b", ["C"], "BN", [Game("2026-10-21", 14, tip="2026-10-21T23:30:00Z")])  # bigger, but tips later
+    a = pp("a", ["C"], "C", [Game("2026-10-21", 10, tip="2026-10-21T23:00:00Z")])
+    b = pp("b", ["C"], "BN", [Game("2026-10-21", 14, tip="2026-10-21T23:30:00Z")])
     plan_week([a, b], {"C": 1})
-    assert b.seat == "C"                                       # the week plan prefers b ...
-    assert plan_today([a, b], {"C": 1}, "2026-10-20").moves == []   # ... but a plays first: he keeps the slot
+    assert b.seat == "C"
+    assert plan_today([a, b], {"C": 1}, "2026-10-20").moves == []
 
-    c = pp("c", ["C"], "BN", [Game("2026-10-21", 9, tip="2026-10-21T22:00:00Z")])   # on the bench, plays first
+    c = pp("c", ["C"], "BN", [Game("2026-10-21", 9, tip="2026-10-21T22:00:00Z")])
     moves = {m["sid"]: m["to"] for m in plan_today([a, c], {"C": 1}, "2026-10-20").moves}
-    assert moves == {"c": "C", "a": "BN"}                      # set now, not on c's game day
+    assert moves == {"c": "C", "a": "BN"}
 
 
 def test_tips_within_15_minutes_start_the_bigger_projection_and_get_no_swap_check():
@@ -279,22 +274,21 @@ def test_tips_within_15_minutes_start_the_bigger_projection_and_get_no_swap_chec
 
     today = "2026-10-21"
     six = pp("six", ["SG"], "BN", [Game(today, 9, tip="2026-10-21T23:00Z")])
-    six10 = pp("six10", ["SG"], "BN", [Game(today, 14, tip="2026-10-21T23:10Z")])     # 10 min later, projects more
-    seven = pp("seven", ["SG"], "BN", [Game(today, 20, tip="2026-10-22T00:00Z")])     # an hour later
+    six10 = pp("six10", ["SG"], "BN", [Game(today, 14, tip="2026-10-21T23:10Z")])
+    seven = pp("seven", ["SG"], "BN", [Game(today, 20, tip="2026-10-22T00:00Z")])
     one = {"SG": 1}
     players = [six, six10, seven]
     plan_week(players, one)
     t = plan_today(players, one, today)
-    assert t.seats == {"SG": ["six10"]}                       # 6:00 and 6:10 are one group: the bigger projection starts
+    assert t.seats == {"SG": ["six10"]}
     swap = [w for w in t.watch if w["kind"] == "swap"]
-    assert [w["backup"] for w in swap] == ["seven"]           # the 7:00 player is watched; the 6:00 one isn't (too close)
+    assert [w["backup"] for w in swap] == ["seven"]
 
 
 def test_lock_or_wait_by_the_chance_to_win_your_scenario():
     """Lock or wait by the chance to win your scenario."""
     from app.lockin.weekplan import decide_by_win_chance
 
-    # everyone else locked at 100; the great player's unlocked game is 15; his last game is projected 20
     def team():
         """A team with a locked player, a star with one played and one future game, and fillers for the swap tests."""
         done = pp("done", ["PG"], "PG", [], locked=100.0)
@@ -302,13 +296,13 @@ def test_lock_or_wait_by_the_chance_to_win_your_scenario():
         plan_week([done, star], SLOTS)
         return done, star
     done, star = team()
-    decide_by_win_chance([done, star], (113.0, 0.0))      # they finish at 113 for sure: locking 15 (115) wins
+    decide_by_win_chance([done, star], (113.0, 0.0))
     assert star.action == "LOCK" and star.win_lock == 1.0 and star.win_wait < 1.0
     done, star = team()
-    decide_by_win_chance([done, star], (120.0, 0.0))      # they finish at 120: 115 can't win, the 20-proj game can
+    decide_by_win_chance([done, star], (120.0, 0.0))
     assert star.action == "PASS" and star.win_lock == 0.0 and star.win_wait > 0.2
     done, star = team()
-    decide_by_win_chance([done, star], (113.0, 64.0))     # their total is uncertain (±8): both chances in between
+    decide_by_win_chance([done, star], (113.0, 64.0))
     assert 0 < star.win_lock < 1 and 0 < star.win_wait < 1 and "to win" in star.why
 
 
@@ -321,11 +315,11 @@ def test_a_starter_the_plan_benches_still_gets_a_win_chance_for_locking():
     better = pp("better", ["C"], "BN", future(14))
     players = [starter, better]
     plan_week(players, one)
-    assert starter.seat is None and starter.x == 10.0 and starter.x_final   # benched by the plan, yet lockable
+    assert starter.seat is None and starter.x == 10.0 and starter.x_final
     plan_chance = decide_by_win_chance(players, (12.0, 4.0))
     locked = bench_lock_chance(starter, players, one, "C", (12.0, 4.0))
-    assert 0 < locked < plan_chance                    # a sure 10 vs their ~12 loses more often than the 14-proj player
-    assert starter.seat is None and starter.locked is None and better.seat == "C"   # the originals are untouched
+    assert 0 < locked < plan_chance
+    assert starter.seat is None and starter.locked is None and better.seat == "C"
 
 
 def test_late_scratch_alarms_now_and_close_projections_go_to_the_earlier_tip():
@@ -340,12 +334,12 @@ def test_late_scratch_alarms_now_and_close_projections_go_to_the_earlier_tip():
     t = plan_today(players, {"SG": 1}, today)
     out = next(w for w in t.watch if w["kind"] == "out")
     assert out["name"] == "scr" and out["backup"] == "sub" and out["alarm"] == "now"
-    assert t.seats == {"SG": ["sub"]}                                 # an OUT player never gets the slot
+    assert t.seats == {"SG": ["sub"]}
 
     a = pp("a", ["SG"], "BN", [Game(today, 12.0, tip="2026-10-21T23:00Z")])
-    b = pp("b", ["SG"], "BN", [Game(today, 12.8, tip="2026-10-21T23:10Z")])   # 10 min later, only 0.8 more
+    b = pp("b", ["SG"], "BN", [Game(today, 12.8, tip="2026-10-21T23:10Z")])
     plan_week([a, b], {"SG": 1})
-    assert plan_today([a, b], {"SG": 1}, today).seats == {"SG": ["a"]}   # near tie: the earlier tip
+    assert plan_today([a, b], {"SG": 1}, today).seats == {"SG": ["a"]}
 
 
 def test_an_idle_starter_who_already_played_keeps_his_slot_for_the_lock():
@@ -353,19 +347,19 @@ def test_an_idle_starter_who_already_played_keeps_his_slot_for_the_lock():
     from app.lockin.weekplan import plan_today
 
     s = pp("s", ["PG"], "PG", [Game("2026-10-20", 15, tip="2026-10-21T01:30:00Z"), Game("2026-10-22", 15, tip="2026-10-23T01:30:00Z")])
-    h = pp("h", ["PG"], "BN", [Game("2026-10-22", 11, tip="2026-10-22T23:00:00Z")])   # tips first on the 22nd
+    h = pp("h", ["PG"], "BN", [Game("2026-10-22", 11, tip="2026-10-22T23:00:00Z")])
     plan_week([s, h], {"PG": 1})
-    assert plan_today([s, h], {"PG": 1}, "2026-10-21").moves == []   # nobody plays the 21st: s keeps the PG slot
+    assert plan_today([s, h], {"PG": 1}, "2026-10-21").moves == []
     moves = {m["sid"]: m["to"] for m in plan_today([s, h], {"PG": 1}, "2026-10-22").moves}
-    assert moves == {"h": "PG", "s": "BN"}                             # on game day the earlier tip starts (rule 1)
+    assert moves == {"h": "PG", "s": "BN"}
 
 
 def test_beat_chance_is_one_minus_every_game_missing():
     """Beat chance is one minus every game missing."""
     from app.lockin.weekplan import beat_chance
-    assert beat_chance(17.5, [], 0.3, "healthy") == 0                            # no games left: can't beat it
+    assert beat_chance(17.5, [], 0.3, "healthy") == 0
     one = beat_chance(14.6 * PROJ_SCALE, future(14.6), 0.3, "healthy")
-    assert one == pytest.approx(0.97 * 0.5)                                       # projection = score: a coin flip if he plays
+    assert one == pytest.approx(0.97 * 0.5)
     two = beat_chance(17.5, future(13.7, 14.6), 0.3, "healthy")
     assert 0.15 < two < 0.4 and two > beat_chance(17.5, future(14.6), 0.3, "healthy")
     assert beat_chance(17.5, future(13.7, 14.6), 0.3, "out_long_term") == 0
@@ -375,23 +369,21 @@ def test_safe_locks_every_game_risky_waits_on_every_later_one():
     """Safe locks every game risky waits on every later one."""
     from app.lockin.weekplan import scenario_total
 
-    a = pp("a", ["PG"], "PG", [], x=17.5, x_final=True, w=15.5, w_var=20.0, swing=0.3, seat="PG")   # can lock 17.5 or wait ~15.5
-    done = pp("done", ["PG"], "PG", [], x=9.0, x_final=True, w=0.0, swing=0.3, seat="PG")   # no games left: locks either way
-    assert scenario_total([a, done], True) == (26.5, 0.0)                  # certain
+    a = pp("a", ["PG"], "PG", [], x=17.5, x_final=True, w=15.5, w_var=20.0, swing=0.3, seat="PG")
+    done = pp("done", ["PG"], "PG", [], x=9.0, x_final=True, w=0.0, swing=0.3, seat="PG")
+    assert scenario_total([a, done], True) == (26.5, 0.0)
     mean, var = scenario_total([a, done], False)
-    assert mean == 24.5 and var > 0                                        # waits on a's later games, with their spread
+    assert mean == 24.5 and var > 0
 
 
 def test_an_open_slot_counts_spare_bench_players_games_not_just_his_own():
     """An open slot counts spare bench players games not just his own."""
     from app.lockin.weekplan import open_slot
 
-    # Jaquez can lock 9.7; his own later game is only ~7. A spare forward on the bench plays a 12-proj game Friday:
-    # left open, his slot can take that, so it's worth more than his own games alone.
     jaq = pp("jaquez", ["SG", "SF"], "SF", [Game("2026-10-23", 7.0)], seat="SF")
     spare = pp("spare", ["SF", "PF"], "BN", [Game("2026-10-23", 12.0), Game("2026-10-24", 8.0)])
-    c_only = pp("big", ["C"], "BN", [Game("2026-10-23", 20.0)])                      # can't play SF: no help
-    starter = pp("coward", ["SG", "SF"], "SF", [Game("2026-10-24", 15.0)], seat="SF")  # has his own slot: no help
+    c_only = pp("big", ["C"], "BN", [Game("2026-10-23", 20.0)])
+    starter = pp("coward", ["SG", "SF"], "SF", [Game("2026-10-24", 15.0)], seat="SF")
     w, src, *_ = open_slot(jaq, [jaq, spare, c_only, starter])
     assert src == [("2026-10-23", "spare"), ("2026-10-24", "spare")] and w > 12 * PROJ_SCALE
 
@@ -406,19 +398,17 @@ def test_an_open_slot_gets_an_early_bench_look_before_his_own_later_game_that_da
     alone, *_ = open_slot(kes, [kes])
     w, src, *_ = open_slot(kes, [kes, sharpe])
     assert src == [("2026-11-04", "sharpe"), ("2026-11-04", "kessler")] and w > alone
-    sharpe.games[0].tip = "2026-11-05T02:50Z"                      # 10 min before his: no time to judge, one look
+    sharpe.games[0].tip = "2026-11-05T02:50Z"
     assert open_slot(kes, [kes, sharpe])[1] == [("2026-11-04", "kessler")]
 
 
 def test_a_back_to_backs_second_night_is_worth_less_to_wait_on():
     """A back to backs second night is worth less to wait on."""
-    # RotoWire: rest days land on back-to-backs, and an unlocked player's final game counts even at zero
     rested = wait_value([Game("2026-10-24", 15.0, b2b=True)], 0.3, "healthy")
     fresh = wait_value([Game("2026-10-24", 15.0)], 0.3, "healthy")
-    assert rested < fresh and rested == pytest.approx(15.0 * PROJ_SCALE * 0.97 * 0.95)   # sitting the final game leaves 0
+    assert rested < fresh and rested == pytest.approx(15.0 * PROJ_SCALE * 0.97 * 0.95)
     old = wait_value([Game("2026-10-24", 15.0, b2b=True, vet=True)], 0.3, "healthy")
-    assert old == pytest.approx(15.0 * PROJ_SCALE * 0.97 * 0.85)                          # 31 and up sit second nights more
-    # a healthy player's later games: 0.93 each (he played the game before), his next one 0.97
+    assert old == pytest.approx(15.0 * PROJ_SCALE * 0.97 * 0.85)
     two = wait_value([Game("2026-10-24", 0.0), Game("2026-10-26", 15.0)], 0.3, "healthy")
     assert two == pytest.approx(15.0 * PROJ_SCALE * 0.93)
 
@@ -427,37 +417,35 @@ def test_lock_a_pf_c_player_at_pf_when_the_centers_need_the_c_slots():
     """Lock a pf c player at pf when the centers need the c slots."""
     from app.lockin.weekplan import lock_slots
 
-    # Sabonis can lock at PF or C; two C-only players need both C slots, while a forward could take the PF slot
     sab = pp("sabonis", ["PF", "C"], "PF", [], x=14.9, value=15.0, seat="PF")
     c1 = pp("kessler", ["C"], "C", [], value=13.0, seat="C")
     c2 = pp("okongwu", ["C"], "BN", [], value=11.0)
     f = pp("watson", ["SF", "PF"], "BN", [], value=9.0)
     slots = {"PF": 1, "C": 2}
     best = lock_slots(sab, [sab, c1, c2, f], slots)
-    assert [o["slot"] for o in best] == ["PF", "C"]       # at C he'd push Okongwu out (11) for Watson's PF (9)
+    assert [o["slot"] for o in best] == ["PF", "C"]
     assert best[0]["team"] - best[1]["team"] == pytest.approx(2.0)
-    assert sab.slot == "PF" and c2.slot == "BN"           # the lineup it tried is undone
+    assert sab.slot == "PF" and c2.slot == "BN"
 
 
 def test_a_game_still_in_progress_gets_no_lock_call():
     """A game still in progress gets no lock call."""
-    # a big night that isn't over yet: nothing to lock until it's final
     live = pp("a", ["PG"], "PG", [Game("2026-10-23", 10.0, fp=25.0, started=True, live=True, period=3, clock=300),
                                     Game("2026-10-25", 10.0)])
     plan_week([live], {"PG": 1})
     assert live.x == 25.0 and not live.x_final and live.action == "LIVE"
     live.games[0] = Game("2026-10-23", 10.0, fp=25.0, started=True, final=True)
     plan_week([live], {"PG": 1})
-    assert live.x_final and live.action == "LOCK"   # once final: 25 beats waiting on a 10-proj game
+    assert live.x_final and live.action == "LOCK"
 
 
 def test_a_starters_game_in_progress_counts_where_its_headed_not_his_points_so_far():
     """A starters game in progress counts where its headed not his points so far."""
     today = "2026-10-24"
-    tipped = pp("harden", ["PG"], "PG", [Game(today, 10.7, started=True, live=True)])            # just tipped, no stats yet
+    tipped = pp("harden", ["PG"], "PG", [Game(today, 10.7, started=True, live=True)])
     cold = pp("wiggins", ["PF"], "PF", [Game(today, 8.1, fp=3.0, started=True, live=True, min=20, proj_min=32,
                                              period=3, clock=550)])
-    benched = pp("watson", ["PF"], "BN", [Game(today, 8.2, started=True, live=True)])            # on the bench: can't count
+    benched = pp("watson", ["PF"], "BN", [Game(today, 8.2, started=True, live=True)])
     plan = plan_week([tipped, cold, benched], {"PG": 1, "PF": 1})
     assert tipped.value == pytest.approx(10.7 * PROJ_SCALE) and tipped.seat == "PG"
     assert 3.0 < cold.value < 8.1 and cold.seat == "PF"
@@ -471,10 +459,10 @@ def test_win_chance_counts_a_live_game_at_its_projected_finish():
 
     today = "2026-10-24"
     live = pp("sharpe", ["C"], "C", [Game(today, 10.4, fp=6.0, started=True, live=True, min=15, proj_min=26,
-                                         period=3, clock=600)])                  # no games after tonight
+                                         period=3, clock=600)])
     plan_week([live], {"C": 1})
     mean, _ = slot_spread(live, lock=False)
-    assert live.slot_w is None and mean == pytest.approx(live.value) and mean > 6.0   # not 0 for a slot with nothing left
+    assert live.slot_w is None and mean == pytest.approx(live.value) and mean > 6.0
 
 
 def test_one_games_variance_is_the_mix_of_playing_and_sitting():
@@ -486,9 +474,9 @@ def test_one_games_variance_is_the_mix_of_playing_and_sitting():
     for injury, p in (("healthy", 0.97), ("day_to_day", 0.6)):
         mean, var, zero = wait_moments(future(20), 0.3, injury)
         assert mean == pytest.approx(p * mu) and var == pytest.approx(p * (sigma ** 2 + mu ** 2) - (p * mu) ** 2)
-        assert zero == pytest.approx(1 - p)                                # he sits: the slot gets nothing
+        assert zero == pytest.approx(1 - p)
     assert wait_moments(future(20), 0.3, "day_to_day")[1] > 2 * wait_moments(future(20), 0.3, "healthy")[1]
-    assert wait_moments(future(20), 0.3, "out_long_term") == (0.0, 0.0, 1.0)   # never plays: a certain 0
+    assert wait_moments(future(20), 0.3, "out_long_term") == (0.0, 0.0, 1.0)
 
 
 def test_wait_moments_match_the_lock_rule_played_out():
@@ -499,7 +487,7 @@ def test_wait_moments_match_the_lock_rule_played_out():
 
     games, swing, injury = [Game("2026-10-22", 14.0), Game("2026-10-23", 18.0, b2b=True), Game("2026-10-25", 16.0)], 0.45, "day_to_day"
     dists = [(*game_dist(g, swing), play_chance(g, injury, i == 0)) for i, g in enumerate(games)]
-    bar = [_moments(dists[i + 1:])[0] for i in range(len(games))]   # what the games after each are worth
+    bar = [_moments(dists[i + 1:])[0] for i in range(len(games))]
     rng, runs, got = random.Random(7), 40_000, []
     for _ in range(runs):
         banked = 0.0
@@ -537,7 +525,7 @@ def test_overtime_is_still_a_live_game():
 
     ot = Game("2026-10-24", 20.0, fp=24.0, started=True, live=True, min=38, proj_min=34, period=5, clock=240)
     assert live_estimate(ot) > 24.0 and game_dist(ot, 0.4)[1] > 0
-    assert 0 < beat_chance(25.0, [ot], 0.4, "healthy") < 1       # a 25 he hasn't reached yet is neither sure nor out
+    assert 0 < beat_chance(25.0, [ot], 0.4, "healthy") < 1
     assert game_dist(Game("2026-10-24", 20.0, fp=24.0, started=True, live=True, min=43, proj_min=34, period=5, clock=0), 0.4)[1] == 0
 
 
@@ -549,19 +537,17 @@ def test_swap_and_keep_are_valued_the_same_way():
     s = pp("starter", ["PG"], "PG", [Game(today, 14.0, tip="2026-10-24T23:00Z"), Game(later, 12.0)], swing=0.4)
     b = pp("backup", ["PG"], "BN", [Game(today, 14.0, tip="2026-10-25T02:00Z")], swing=0.4)
     call = swap_call(s, b, today)
-    assert call["decision"] == "PENDING" and call["gain"] == 0          # same game, same fallback: nothing to gain
+    assert call["decision"] == "PENDING" and call["gain"] == 0
     b.games[0].proj = 17.0
-    assert swap_call(s, b, today)["gain"] > 0                             # the better game is the gain, on one baseline
+    assert swap_call(s, b, today)["gain"] > 0
 
-    # under way and headed for ~his later games' value: keeping is worth more than either number alone, because the
-    # game can still beat the fallback (it used to count max(pace, bar), a point, against a swap priced with upside)
     s.games[0] = Game(today, 14.0, fp=5.5, started=True, live=True, min=17, proj_min=34, period=3, clock=720, tip="2026-10-24T23:00Z")
     live = swap_call(s, b, today)
     assert live["keep"] > max(live["est"], live["bar"]) and live["keep_var"] > 0
-    assert live["gain"] == pytest.approx(live["swap"] - live["keep"], abs=0.11)   # gain and the call share a baseline
+    assert live["gain"] == pytest.approx(live["swap"] - live["keep"], abs=0.11)
     s.games[0] = Game(today, 14.0, fp=11.0, started=True, final=True, tip="2026-10-24T23:00Z")
     over = swap_call(s, b, today)
-    assert over["keep"] == pytest.approx(max(11.0, over["bar"]), abs=0.05)   # final: a known score, no upside left
+    assert over["keep"] == pytest.approx(max(11.0, over["bar"]), abs=0.05)
 
 
 def test_waiting_on_one_questionable_game_counts_the_zero_apart():
@@ -569,10 +555,9 @@ def test_waiting_on_one_questionable_game_counts_the_zero_apart():
     clears 5, so waiting wins about 57 %. One bell curve through the 0 and the score said 71 %."""
     from app.lockin.weekplan import decide_by_win_chance
 
-    # locking his 3 loses to their 5 for sure; left open, his slot takes his questionable game tomorrow instead
     q = pp("q", ["PG"], "PG", [Game("2026-10-23", 9.0, fp=3.0, started=True, final=True), Game("2026-10-24", 20.0)], injury="day_to_day")
     plan_week([q], {"PG": 1})
-    assert q.slot_zero == pytest.approx(0.4)                    # the open slot knows he is questionable
+    assert q.slot_zero == pytest.approx(0.4)
     decide_by_win_chance([q], (5.0, 0.0))
     assert q.win_lock == 0.0 and q.win_wait == pytest.approx(0.567, abs=0.01) and q.action == "PASS"
 
@@ -582,7 +567,7 @@ def test_a_tipped_game_he_isnt_in_counts_for_nothing():
     today = "2026-10-24"
     out = pp("out", ["PG"], "PG", [Game(today, 18.0, started=True, live=True, period=1, clock=600)], injury="out_short_term")
     dnp = pp("dnp", ["SG"], "SG", [Game(today, 12.0, started=True, live=True, period=3, clock=600)])
-    fine = pp("fine", ["PG"], "PG", [Game(today, 10.0, started=True, live=True, period=1, clock=700)])   # just tipped
+    fine = pp("fine", ["PG"], "PG", [Game(today, 10.0, started=True, live=True, period=1, clock=700)])
     plan_week([out, dnp, fine], SLOTS)
     assert out.value == 0 and dnp.value == 0
     assert fine.value == pytest.approx(10.0 * PROJ_SCALE)

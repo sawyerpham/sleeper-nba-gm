@@ -1,9 +1,3 @@
-// Screenshots of every main screen in one UI, for before / after comparison during the redesign.
-// Prereqs: backend on :8000 and the Vite dev server on :5173, and a league with a Sleeper link.
-// Run:     node e2e/ui-shots.mjs [new|command|broadcast] [width] [height]   (env: DA_URL, DA_LEAGUE, DA_BROWSER)
-// Output:  e2e/screenshots/ui-<ui>-<width>/<screen>.png (gitignored)
-// DUMP=<label> also writes every element's computed style per screen to e2e/screenshots/styles-<label>.json;
-// node e2e/ui-shots.mjs --diff a b compares two dumps (a pure CSS refactor must show no differences).
 
 import fs from "node:fs";
 import { chromium } from "playwright";
@@ -14,7 +8,7 @@ if (process.argv[2] === "--diff") {
   for (const screen of Object.keys(a)) {
     const A = a[screen], B = b[screen] || {};
     for (const k of new Set([...Object.keys(A), ...Object.keys(B)])) {
-      if (k.includes("tl-past")) continue;   // the live clock bar grows between runs
+      if (k.includes("tl-past")) continue;
       if (A[k] !== B[k] && n++ < 40) console.log(`${screen} ${k}
   - ${A[k]}
   + ${B[k]}`);
@@ -29,8 +23,8 @@ const PROPS = ["display", "position", "color", "background-color", "background-i
   "padding", "margin", "border", "border-radius", "box-shadow", "gap", "opacity", "text-transform", "width", "height", "grid-template-columns", "flex", "cursor", "filter", "backdrop-filter"];
 const BASE = process.env.DA_URL || "http://localhost:5173";
 const LEAGUE = process.env.DA_LEAGUE || "tobedecided";
-const WALL = process.env.WALL || "";   // a wallpaper id (App.jsx WALLPAPERS) to test contrast over a photo
-const THEME = process.env.THEME || "courtside";   // a theme id (App.jsx THEMES)
+const WALL = process.env.WALL || "";
+const THEME = process.env.THEME || "courtside";
 const OUT = `e2e/screenshots/ui-${ui}-${w}${process.env.SCHEME ? "-" + process.env.SCHEME : ""}${WALL ? "-" + WALL : ""}${THEME ? "-" + THEME : ""}`;
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -40,7 +34,6 @@ page.setDefaultTimeout(30000);
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 
-/** Open the app on a tab with this UI and league, wait for `ready` (a test id) and let fonts and images settle. */
 async function open(tab, ready) {
   await page.goto(BASE);
   await page.evaluate(([t, l, u, w, th]) => { localStorage.setItem("da.tab", t); localStorage.setItem("da.league", l); localStorage.setItem("da.ui", u === "new" ? "" : u); localStorage.setItem("da.wall", w); localStorage.setItem("da.theme", th); }, [tab, LEAGUE, ui, WALL, THEME]);
@@ -48,12 +41,10 @@ async function open(tab, ready) {
   if (ready) await (ready.startsWith("[") ? page.locator(ready) : page.getByTestId(ready)).first().waitFor();
   await page.waitForTimeout(1200);
 }
-/** Screenshot the viewport as <name>.png. */
 const shot = async (name) => {
   await page.screenshot({ path: `${OUT}/${name}.png` });
   if (DUMP) dump[name] = await page.evaluate((props) => {
     const out = {};
-    /** A stable path for an element: tag, classes and index among its siblings, from the root. */
     const path = (el) => el.parentElement ? `${path(el.parentElement)}>${el.tagName.toLowerCase()}${el.className && typeof el.className === "string" ? "." + el.className.trim().split(/\s+/).join(".") : ""}:${[...el.parentElement.children].indexOf(el)}` : "html";
     for (const el of document.querySelectorAll("body *")) {
       if (el.closest("svg") && el.tagName !== "svg") continue;
@@ -66,7 +57,7 @@ const shot = async (name) => {
 
 try {
   await open("home", "home"); await shot("01-home");
-  await open("season", '[data-testid^="open-"]'); await shot("02-week");   // any player row: every UI has them
+  await open("season", '[data-testid^="open-"]'); await shot("02-week");
   await page.locator('[data-testid^="open-"]').first().click();
   await page.getByTestId("season-summary").waitFor(); await page.waitForTimeout(800); await shot("03-player-card");
   await page.locator(".profile-tabs button").nth(1).click(); await page.waitForTimeout(800); await shot("04-player-gamelog");

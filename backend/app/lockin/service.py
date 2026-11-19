@@ -22,33 +22,29 @@ from nba_fantasy_shared.reconcile.names import normalize_name
 from nba_fantasy_shared.scoring import base_points
 from nba_fantasy_shared.scoring.formula import score_game
 
-CT = ZoneInfo("America/Chicago")   # default; each league picks its own (LeagueSettings.timezone)
+CT = ZoneInfo("America/Chicago")
 
 
 def league_tz(lg) -> ZoneInfo:
     """The league's time zone (America/Chicago when unset or unknown)."""
     try:
         return ZoneInfo(getattr(lg, "timezone", None) or "America/Chicago")
-    except Exception:   # an unknown zone name: fall back rather than break the page
+    except Exception:
         return CT
 SLEEPER = "https://api.sleeper.app"
 ESPN_SCOREBOARD = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates={}"
-LIVE_TTL, WEEK_TTL, DAY_TTL = 90, 30 * 60, 6 * 3600    # seconds: game-day data / projections / schedule
-ESPN_TEAM = {"GS": "GSW", "NO": "NOP", "NY": "NYK", "SA": "SAS", "UTAH": "UTA", "WSH": "WAS"}   # ESPN -> Sleeper codes
-# Sleeper stat keys -> GameLine fields (the box score feed uses the same keys as the projections).
+LIVE_TTL, WEEK_TTL, DAY_TTL = 90, 30 * 60, 6 * 3600
+ESPN_TEAM = {"GS": "GSW", "NO": "NOP", "NY": "NYK", "SA": "SAS", "UTAH": "UTA", "WSH": "WAS"}
 STAT_KEYS = {"pts": "pts", "reb": "reb", "ast": "ast", "stl": "stl", "blk": "blk", "tov": "to",
              "fgm": "fgm", "fga": "fga", "ftm": "ftm", "fta": "fta", "fg3m": "tpm", "fg3a": "tpa",
              "oreb": "oreb", "dreb": "dreb", "pf": "pf", "plus_minus": "plus_minus"}
 
-# Retired players: no games, always 0, whatever Sleeper's feed says (Sleeper still lists Westbrook as an active FA).
-# Anyone Sleeper itself marks RET is treated the same way.
-RETIRED = {"1434"}   # Russell Westbrook
+RETIRED = {"1434"}
 
-# Sleeper injury tags -> the site's statuses (engine/weekplan.py PLAY_CHANCE).
 SLEEPER_INJURY = {"GTD": "day_to_day", "DTD": "day_to_day", "Questionable": "day_to_day", "Doubtful": "day_to_day",
                   "Probable": "healthy", "Out": "out_short_term", "Suspended": "out_short_term", "Sus": "out_short_term",
                   "IR": "out_long_term"}
-LOCKS_FILE = "season_locks.json"   # your "I locked it" answers: {league: {week: {sleeper id: game date or ""}}}
+LOCKS_FILE = "season_locks.json"
 
 Fetch = Callable[[str, int], Any]
 _cache: dict[str, tuple[float, Any]] = {}
@@ -65,7 +61,7 @@ def http_fetch(platform: Any) -> Fetch:
         data = None if resp.status_code == 404 else (resp.raise_for_status() or resp.json())
         _cache[url] = (time.monotonic(), data)
         return data
-    fetch.platform = platform   # week_view adds rostered players the pool left out from Sleeper's (cached) player list
+    fetch.platform = platform
     return fetch
 
 
@@ -125,8 +121,8 @@ def espn_day(fetch: Fetch, day: str, today: date) -> dict[str, dict]:
     return out
 
 
-BOX_KEYS = ("pts", "reb", "ast", "blk", "fgm", "fga", "ftm", "fta", "to", "pf")   # Sleeper's per-game stat keys
-SLEEPER_FLIP_HOUR = 4   # ponytail: guessed hour (ET) Sleeper's lineup day rolls over; set it from the measured flip
+BOX_KEYS = ("pts", "reb", "ast", "blk", "fgm", "fga", "ftm", "fta", "to", "pf")
+SLEEPER_FLIP_HOUR = 4
 
 
 def week_view(session, fetch: Fetch, week: int | None = None, today: date | None = None, extra: tuple[str, ...] = ()) -> dict:
@@ -136,25 +132,21 @@ def week_view(session, fetch: Fetch, week: int | None = None, today: date | None
     lg = session.league
     if not lg.sleeper_league_id:
         raise ValueError("league is not linked to Sleeper (Settings)")
-    preview = today is not None   # a fixed day (tests, previews): no wall clock
+    preview = today is not None
     tz = league_tz(lg)
     year, today = lg.roster_season.split("-")[0], today or today_ct(tz)
     schedule = fetch(f"{SLEEPER}/schedule/nba/regular/{year}", DAY_TTL) or []
     weeks = week_dates(schedule)
     week = week or current_week(weeks, today)
     dates = weeks.get(week, [])
-    # every (date, team) with a game all season: a game is the second night of a back-to-back when his team also
-    # played the day before (Monday's look back into last week too)
     played_on = {(g["date"], g[side]["team"]) for g in schedule for side in ("home", "away")}
-    b2b = lambda d, team: ((date.fromisoformat(d) - timedelta(days=1)).isoformat(), team) in played_on   # noqa: E731
-    plays = {}   # (date, team) -> opponent, from Sleeper's schedule
+    b2b = lambda d, team: ((date.fromisoformat(d) - timedelta(days=1)).isoformat(), team) in played_on
+    plays = {}
     for g in schedule:
         if int(g["week"]) == week:
             plays[(g["date"], g["home"]["team"])] = g["away"]["team"]
             plays[(g["date"], g["away"]["team"])] = g["home"]["team"]
     lid = lg.sleeper_league_id
-    # every request below is independent: warm the cache in parallel, the reads after it then hit it (a failed
-    # prefetch is retried, and raises, at its read)
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(16) as pool:
         days = {d: pool.submit(espn_day, fetch, d, today) for d in dates}
@@ -172,8 +164,7 @@ def week_view(session, fetch: Fetch, week: int | None = None, today: date | None
         if pl.get("injury_status"):
             note = " - ".join(x for x in (pl.get("injury_body_part"), pl.get("injury_notes")) if x)
             injury[str(e["player_id"])] = (SLEEPER_INJURY.get(pl["injury_status"], "day_to_day"), f"{pl['injury_status']}: {note}".rstrip(": "))
-            injury_tags[str(e["player_id"])] = pl["injury_status"]   # Sleeper's own tag (GTD, DTD, Out, ...) for display
-    # the projections' copy of the tag is WEEK_TTL old: Sleeper's player list (INJURY_TTL, the Teams Report's feed) is the fresher source
+            injury_tags[str(e["player_id"])] = pl["injury_status"]
     live = fetch(SLEEPER_PLAYERS, INJURY_TTL) or {}
     for sid in {k[0] for k in proj}:
         pl = live.get(sid)
@@ -193,7 +184,6 @@ def week_view(session, fetch: Fetch, week: int | None = None, today: date | None
     positions = league.get("roster_positions") or []
     reserve_slots = (league.get("settings") or {}).get("reserve_slots", 0)
     ls = league.get("settings") or {}
-    # The league's waiver rules, from Sleeper; None when Sleeper didn't send them (the Waivers tab says so).
     waiver = {"type": WAIVER_TYPES.get(ls["waiver_type"], "unknown"), "budget": ls.get("waiver_budget"),
               "min_bid": ls.get("waiver_bid_min", 1), "daily": bool(ls.get("daily_waivers"))} if "waiver_type" in ls else None
     faab_budget = (waiver or {}).get("budget") or FAAB_TOTAL
@@ -202,7 +192,7 @@ def week_view(session, fetch: Fetch, week: int | None = None, today: date | None
     matchups = fetch(f"{SLEEPER}/v1/league/{lid}/matchups/{week}", LIVE_TTL) or []
     by_roster = {m.sleeper_roster_id: m for m in session.managers if m.sleeper_roster_id is not None}
 
-    teams, nicks = [], {}   # nicks: sid -> the nickname his manager gave him on Sleeper
+    teams, nicks = [], {}
     for r in rosters:
         s, m = r.get("settings") or {}, by_roster.get(r["roster_id"])
         u = users.get(r.get("owner_id")) or {}
@@ -211,13 +201,12 @@ def week_view(session, fetch: Fetch, week: int | None = None, today: date | None
         nicks.update({k[7:]: v.strip() for k, v in (r.get("metadata") or {}).items()
                       if k.startswith("p_nick_") and k[7:] in own and isinstance(v, str) and v.strip()})
         teams.append({"roster_id": r["roster_id"], "manager_id": m.manager_id if m else None,
-                      # the Sleeper team name when the manager set one, else his username
                       "name": um.get("team_name") or u.get("display_name") or (m.name if m else f"Team {r['roster_id']}"),
                       "user": u.get("display_name"),
                       "avatar": um.get("avatar") or (f"https://sleepercdn.com/avatars/thumbs/{u['avatar']}" if u.get("avatar") else None),
                       "is_user": bool(m and m.is_user), "wins": s.get("wins", 0), "losses": s.get("losses", 0),
                       "ties": s.get("ties", 0),
-                      "last": ((r.get("metadata") or {}).get("record") or "")[-1:] or None,   # Sleeper's "WLW..." record: latest result
+                      "last": ((r.get("metadata") or {}).get("record") or "")[-1:] or None,
                       "fpts": round(s.get("fpts", 0) + s.get("fpts_decimal", 0) / 100, 2),
                       "faab_used": s.get("waiver_budget_used", 0),
                       "players": r.get("players") or [], "starters": r.get("starters") or [], "reserve": r.get("reserve") or []})
@@ -228,10 +217,9 @@ def week_view(session, fetch: Fetch, week: int | None = None, today: date | None
         pairs.setdefault(m.get("matchup_id") or -m["roster_id"], []).append(side)
 
     by_sleeper = {r.sleeper_id: r for r in session.players.values() if r.sleeper_id}
-    # + everyone on a team's roster that week (a past week shows the lineup it had, players dropped since included)
     rostered = {sid for t in teams for sid in t["players"]} | set(extra) | {sid for m in matchups for sid in m.get("players") or []}
     from ..core.services.sleeper_league import _add_sleeper_only
-    for sid in rostered - by_sleeper.keys():   # rostered but not in the pool (retired / FA at pull time): name, positions, status
+    for sid in rostered - by_sleeper.keys():
         rec = _add_sleeper_only(getattr(fetch, "platform", None), session, sid)
         if rec:
             by_sleeper[sid] = rec
@@ -249,24 +237,22 @@ def week_view(session, fetch: Fetch, week: int | None = None, today: date | None
             if opp is None:
                 continue
             tip, p, st = tips.get(d, {}).get(team, {}), proj.get((sid, d)), stats.get((sid, d))
-            played = bool(st and (st.get("sp") or st.get("gp")))   # live games count too: the feed updates in-game
+            played = bool(st and (st.get("sp") or st.get("gp")))
             games.append({"date": d, "opp": opp, "home": tip.get("home"), "tip": tip.get("tip"), "state": tip.get("state", "pre"),
                           "detail": tip.get("detail", ""), "proj": round(projected_fp(p, lg.scoring, bonus), 2) if p else None,
                           "fp": round(actual_fp(st, lg.scoring), 2) if played else None,
                           "min": round(float(st.get("sp") or 0) / 60, 1) if played else None,
                           "proj_min": round(float(p.get("sp") or 0) / 60, 1) if p else None,
                           "period": tip.get("period", 0), "clock": tip.get("clock", 0.0),
-                          "score": tip.get("score"), "opp_score": tip.get("opp_score"),   # the game's score (live or final)
-                          "b2b": b2b(d, team), "event": tip.get("event"),   # ESPN's game id (the game card on the right)
-                          # his box score (live games too), for the game card's hover
+                          "score": tip.get("score"), "opp_score": tip.get("opp_score"),
+                          "b2b": b2b(d, team), "event": tip.get("event"),
                           "box": {k: int(st.get(k) or 0) for k in BOX_KEYS} if played else None})
             g = games[-1]
-            if g["state"] == "in" and played:   # where his game will likely finish (the chip colours his projection by it)
+            if g["state"] == "in" and played:
                 g["pace"] = round(live_estimate(Game(date=d, proj=g["proj"], fp=g["fp"], started=True, live=True, min=g["min"],
                                                      proj_min=g["proj_min"], period=g["period"], clock=g["clock"])), 2)
-        inj, note = injury.get(sid, ("healthy", ""))   # Sleeper's live tag; none = healthy
+        inj, note = injury.get(sid, ("healthy", ""))
         vet = bool(rec and rec.bio.age and rec.bio.age >= VET_AGE)
-        # each final game: the chance one of his unfinished games this week beats it (the chip's hover)
         left = [Game(date=g["date"], proj=g["proj"], fp=g["fp"], started=g["state"] != "pre", live=g["state"] == "in",
                      min=g["min"], proj_min=g["proj_min"], period=g["period"], clock=g["clock"], b2b=g["b2b"], vet=vet) for g in games if g["state"] != "post"]
         swing = swing_of(val.per_game_fpts if val else [])
@@ -281,11 +267,7 @@ def week_view(session, fetch: Fetch, week: int | None = None, today: date | None
     team_games: dict[str, int] = {}
     for (d, team) in plays:
         team_games[team] = team_games.get(team, 0) + 1
-    # The lineup day: today until all of today's games are over, then the next game day. The rules re-run on every
-    # request against the clock, so the page is always "what to do now".
     iso = today.isoformat()
-    # The Sleeper gap: Sleeper's API serves one day's lineup at a time and keeps serving that day's after its games
-    # are over (until it flips to the next day), so the next day's lineup a manager may already have set is unseen.
     sday = (datetime.now(ZoneInfo("America/New_York")) - timedelta(hours=SLEEPER_FLIP_HOUR)).date().isoformat()
     gap = not preview and bool(tips.get(sday)) and all(t["state"] == "post" for t in tips[sday].values())
     day = iso if preview else next((d for d in dates if d > iso or (d == iso and (not tips[d] or any(t["state"] != "post" for t in tips[d].values())))), None)
@@ -299,7 +281,6 @@ def week_view(session, fetch: Fetch, week: int | None = None, today: date | None
 
 
 ESPN_SUMMARY = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event={}"
-# ESPN box score columns (statistics[0].keys) -> Sleeper stat keys, so actual_fp scores them with the league's formula
 ESPN_BOX = {"points": "pts", "rebounds": "reb", "assists": "ast", "steals": "stl", "blocks": "blk", "turnovers": "to",
             "offensiveRebounds": "oreb", "defensiveRebounds": "dreb", "fouls": "pf", "plusMinus": "plus_minus"}
 ESPN_PAIRS = {"fieldGoalsMade-fieldGoalsAttempted": ("fgm", "fga"), "threePointFieldGoalsMade-threePointFieldGoalsAttempted": ("tpm", "tpa"),
@@ -353,8 +334,7 @@ def game_detail(session, fetch: Fetch, event: str) -> dict:
     teams = []
     for c in comp.get("competitors") or []:
         abbr = ESPN_TEAM.get(c["team"]["abbreviation"], c["team"]["abbreviation"])
-        t = box.get(abbr) or {}   # no box score before the tip
-        # ESPN's names -> our player ids (any player, rostered or not, opens his profile); his own team's wins a shared name
+        t = box.get(abbr) or {}
         ids = {normalize_name(r.full_name): pid for pid, r in sorted(session.players.items(), key=lambda x: x[1].team_abbr == abbr)}
         block = (t.get("statistics") or [{}])[0]
         keys, played, dnp = block.get("keys") or [], [], []
@@ -380,7 +360,7 @@ def game_detail(session, fetch: Fetch, event: str) -> dict:
                       "record": next((r.get("summary") for r in c.get("record") or [] if r.get("type") == "total"), None),
                       "players": played, "dnp": dnp, "ranks": team_ranks(rows, abbr, done),
                       "depth_grid": depth_grid(session, sorted(by_team.get(abbr, []), reverse=True), inj=hurt)})
-    teams.sort(key=lambda t: t["home"])   # away first, home second ("LAC @ LAL")
+    teams.sort(key=lambda t: t["home"])
     return {"event": event, "tip": comp.get("date"), "state": st.get("state"), "detail": st.get("shortDetail"), "teams": teams}
 
 
@@ -391,7 +371,6 @@ def best_games(session, fetch: Fetch, week: int | None = None, n: int = 10, toda
     lg = session.league
     year, today = lg.roster_season.split("-")[0], today or today_ct(league_tz(lg))
     week = week or current_week(week_dates(fetch(f"{SLEEPER}/schedule/nba/regular/{year}", DAY_TTL) or []), today)
-    # the feed also has a team-total row per team and game ("TEAM_CLE", position TEAM): players only
     rows = [e for e in fetch(f"{SLEEPER}/stats/nba/{year}/{week}?season_type=regular", LIVE_TTL) or []
             if not str(e["player_id"]).startswith("TEAM_") and ((e.get("stats") or {}).get("sp") or (e.get("stats") or {}).get("gp"))]
     top = sorted(((actual_fp(e["stats"], lg.scoring), e) for e in rows), key=lambda x: -x[0])[:n]
@@ -444,7 +423,7 @@ def write_lock(store, league_id: str, week: int, sid: str, game_date: str | None
     store.write_json(LOCKS_FILE, data)
 
 
-WATCH_FILE = "season_watched.json"   # players you watch: {league: [player id, ...]}
+WATCH_FILE = "season_watched.json"
 
 
 def read_watch(store, league_id: str) -> list[int]:
@@ -476,13 +455,12 @@ def _plan_players(session, view: dict, team: dict, manual: dict[str, str]):
 
     positions = view["roster_positions"]
     side = next((m for pair in view["matchups"] for m in pair if m["roster_id"] == team["roster_id"]), {}) or {}
-    # a finished week: the roster and lineup it had (Sleeper's matchup), not today's
     over = bool(view["dates"]) and view["today"] > view["dates"][-1] and bool(side.get("players"))
     starters, roster_ids, reserve = (side["starters"] or [], side["players"], []) if over else (team["starters"], team["players"], team["reserve"])
     slot_of = {sid: positions[i] for i, sid in enumerate(starters) if i < len(positions) and sid and sid != "0"}
     counted = side.get("players_points") or {}
     now = datetime.fromisoformat(view["now"]) if view.get("now") else None
-    def tipped(g: dict) -> bool:   # the clock says he has tipped off (ESPN's state can lag a minute or two)
+    def tipped(g: dict) -> bool:
         """Whether the clock says the game has tipped (ESPN's state can lag a minute or two)."""
         return bool(now and g["tip"] and datetime.fromisoformat(g["tip"].replace("Z", "+00:00")) <= now)
     out, locks = [], {}
@@ -498,16 +476,12 @@ def _plan_players(session, view: dict, team: dict, manual: dict[str, str]):
                  for g in p["games"]]
         swing = swing_of(val.per_game_fpts) if val else swing_of([])
         status, when = detect_lock(counted.get(sid), p["games"], manual.get(sid)) if slot not in ("BN", "IR") else ("no", None)
-        if status == "maybe" and not team.get("is_user"):   # rivals: Sleeper can't tell yet, so guess locked when it's
-            # the right call (beats waiting for his later games); your own locks you know (the ✓ / your answers).
-            # Only a final game can be locked: one still in progress is just counting so far.
+        if status == "maybe" and not team.get("is_user"):
             then = next(g for g in p["games"] if g["date"] == when)
             final = then["state"] == "post"
             status = "guess" if final and then["fp"] >= wait_value([g for g in games if not g.started], swing, p["injury"]) else "maybe"
         locked = next((g["fp"] for g in p["games"] if g["date"] == when), None) if status in ("locked", "guess") else None
         if over and slot not in ("BN", "IR"):
-            # the week is over: Sleeper's final count wins over your answers; the game it matches (latest), else
-            # his last game (nothing locked, a DNP counts 0)
             pts = counted.get(sid)
             same = [g for g in p["games"] if pts is not None and g["fp"] is not None and abs(g["fp"] - pts) < 0.06]
             last = (same or p["games"] or [None])[-1]
@@ -519,11 +493,11 @@ def _plan_players(session, view: dict, team: dict, manual: dict[str, str]):
     return out, locks, side
 
 
-LOCK_REMINDER_MIN = 30   # a LOCK call still not locked: alarm this long before his next tip (the window closes there)
-GAME_MINUTES = 135       # ponytail: a game runs ~2 h 15 m; overtime runs longer, use ESPN's final status if that bites
+LOCK_REMINDER_MIN = 30
+GAME_MINUTES = 135
 
 
-def _team_tag(team: dict) -> dict:   # what the frontend's TeamName shows
+def _team_tag(team: dict) -> dict:
     """A team's identity fields as the frontend's TeamName shows them."""
     return {k: team.get(k) for k in ("roster_id", "name", "user", "avatar", "wins", "losses", "last")}
 
@@ -539,7 +513,7 @@ def week_timeline(players, counts: dict[str, int], view: dict, today_seats: dict
 
     tz = ZoneInfo(view.get("tz") or "America/Chicago")
     first = date.fromisoformat(view["dates"][0])
-    start = datetime.combine(first - timedelta(days=first.weekday()), datetime.min.time(), tz)   # Monday 12 AM, league time
+    start = datetime.combine(first - timedelta(days=first.weekday()), datetime.min.time(), tz)
     end = start + timedelta(days=7)
     if not view.get("day") or not view["dates"]:
         return {"start": start.isoformat(), "end": end.isoformat(), "segments": []}
@@ -554,7 +528,7 @@ def week_timeline(players, counts: dict[str, int], view: dict, today_seats: dict
         """The player ids seated in a starting slot."""
         return {sid for ids in seats.values() for sid in ids}
 
-    def next_day() -> str | None:   # the date of the next game still to tip
+    def next_day() -> str | None:
         """The date of the next game still to tip."""
         g = min((g for p in active for g in p.games if not g.started), key=lambda g: (g.date, g.tip or "~"), default=None)
         return g.date if g else None
@@ -565,18 +539,18 @@ def week_timeline(players, counts: dict[str, int], view: dict, today_seats: dict
     lead, length = timedelta(minutes=CHECK_LEAD_MIN), timedelta(minutes=GAME_MINUTES)
     for t in tips:
         check = t - lead
-        for p in players:   # at the check: earlier games have started; still in progress = can't be moved
+        for p in players:
             for g in p.games:
                 if g.tip and at(g.tip) <= check:
                     g.started, g.live = True, check < at(g.tip) + length
-            if p.slot != "IR" and p.locked is None:   # start from the previous segment's lineup
+            if p.slot != "IR" and p.locked is None:
                 p.slot = next((s for s, ids in seats.items() if p.sid in ids), "BN")
         d = next_day()
         if d is None:
             break
         nxt = plan_today(players, counts, d, check.isoformat()).seats
         tipping = {p.sid for p in active for g in p.games if g.tip and at(g.tip) == t}
-        if (starters(nxt) - starters(seats)) & tipping:   # someone moves in for this tip: check in now, every swap at once
+        if (starters(nxt) - starters(seats)) & tipping:
             segments[-1]["to"] = check.astimezone(tz).isoformat()
             seats = nxt
             segments.append({"date": d, "seats": seats})
@@ -584,7 +558,7 @@ def week_timeline(players, counts: dict[str, int], view: dict, today_seats: dict
         p.slot = slots[p.sid]
         for g in p.games:
             g.started, g.live = saved[id(g)]
-    segments[-1]["to"] = end.isoformat()   # the last lineup stands until the week is over
+    segments[-1]["to"] = end.isoformat()
     return {"start": start.isoformat(), "end": end.isoformat(), "segments": segments}
 
 
@@ -612,17 +586,16 @@ def team_plan(session, view: dict, roster_id: int | None = None, manual: dict[st
     chance, theirs, outlook = None, None, None
     if other:
         oteam = next(t for t in view["teams"] if t["roster_id"] == other["roster_id"])
-        oplayers, olocks, _ = _plan_players(session, view, oteam, manual or {})   # your answers about their locks too
+        oplayers, olocks, _ = _plan_players(session, view, oteam, manual or {})
         oplan = plan_week(oplayers, counts)
         theirs = team_total(oplayers)
-        chance = decide_by_win_chance(players, theirs)   # LOCK / PASS by the chance to win, not expected points
-        for q in players:   # a starter the plan benches can still lock his final game: win % locked vs the plan
+        chance = decide_by_win_chance(players, theirs)
+        for q in players:
             if q.seat is None and q.locked is None and q.x is not None and q.x_final:
                 q.lock_at = lock_slots(q, players, counts)
                 if q.lock_at:
                     q.win_lock = bench_lock_chance(q, players, counts, q.lock_at[0]["slot"], theirs)
                     q.win_wait = chance
-        # this week's advice: the chance to win locking everything you can now (safe) vs waiting on later games (risky)
         outlook = {"safe": round(win_chance(scenario_total(players, True), theirs), 3),
                    "risky": round(win_chance(scenario_total(players, False), theirs), 3)}
         opp = {**_team_tag(oteam),
@@ -631,18 +604,16 @@ def team_plan(session, view: dict, roster_id: int | None = None, manual: dict[st
                "games_left": sum(1 for q in oplayers if q.slot != "IR" for g in q.games if not g.started),
                "players": [_player_out(q, olocks) for q in sorted(oplan.players, key=lambda q: (q.seat is None, -q.value))]}
 
-    for q in players:   # every lockable game: which slot to lock him in (the one leaving the rest of the lineup most)
+    for q in players:
         if q.seat and q.x is not None and q.x_final and q.locked is None:
             q.lock_at = lock_slots(q, players, counts)
             if theirs and q.win_lock is not None and q.lock_at:
-                # the win chance locked in each slot: win_lock assumes the best one; a worse slot costs the rest of
-                # the lineup (best team - that slot's team), e.g. locking where he sits instead of moving him first
                 mean, var = team_total(players, skip=q)
                 for o in q.lock_at:
                     o["win"] = round(win_chance((mean + q.x - (q.lock_at[0]["team"] - o["team"]), var), theirs), 3)
     today = view.get("day", view["today"])
     t = plan_today(players, counts, today, view.get("now")) if today in view["dates"] else None
-    if t and theirs:   # KEEP / SWAP by the chance to win as well
+    if t and theirs:
         for w in t.watch:
             if w["kind"] == "swap" and w["decision"] in ("KEEP", "SWAP"):
                 both = swap_win_chance(players, w["sid"], w, theirs)
@@ -650,7 +621,6 @@ def team_plan(session, view: dict, roster_id: int | None = None, manual: dict[st
                     w["win_keep"], w["win_swap"] = round(both[0], 3), round(both[1], 3)
                     w["decision"] = "SWAP" if both[1] > both[0] else "KEEP"
                     w["text"] += f" Win chance: keep {both[0]:.0%} · swap {both[1]:.0%}."
-    # LOCK calls not locked yet: remind before his next tip, when the window closes
     reminders = []
     for q in players:
         if q.action == "LOCK" and q.locked is None:
@@ -660,16 +630,15 @@ def team_plan(session, view: dict, roster_id: int | None = None, manual: dict[st
                                   "alarm": _minus_minutes(nxt.tip, LOCK_REMINDER_MIN), "decision": "LOCK",
                                   "text": f"Lock {q.name} ({q.x:.1f}) in the {q.seat} slot before his next tip: {q.why}."})
     timeline = week_timeline(players, counts, view, t.seats if t else None) if view["dates"] else None
-    if opp:   # their best lineup over the week too: the matchup draws their swap arrows, mirrored on the right
+    if opp:
         ot = plan_today(oplayers, counts, today, view.get("now")) if today in view["dates"] else None
         opp["today"] = {"date": today, "seats": ot.seats} if ot else None
         opp["timeline"] = week_timeline(oplayers, counts, view, ot.seats if ot else None) if view["dates"] else None
-    out_now = ("out_short_term", "out_long_term")   # what the league lets you put on IR (Sleeper: Out / IR)
+    out_now = ("out_short_term", "out_long_term")
     active = [q for q in players if q.slot != "IR"]
     healthy_ir = [q.name for q in players if q.slot == "IR" and q.injury not in out_now]
     ir_open = max(0, view.get("reserve_slots", 0) - sum(1 for q in players if q.slot == "IR"))
     roster_state = {"active": len(active), "limit": len(view["roster_positions"]), "ir_open": ir_open,
-                    # a healthy player on IR counts as a 16th man: Sleeper freezes the lineup and locks until you drop
                     "illegal": healthy_ir if len(active) + len(healthy_ir) > len(view["roster_positions"]) else [],
                     "ir_candidates": [q.name for q in active if q.injury in out_now] if ir_open else []}
     return {**_team_tag(team),
@@ -697,8 +666,8 @@ def _player_out(q, locks: dict) -> dict:
 
 
 SLEEPER_PLAYERS = SLEEPER + "/v1/players/nba"
-INJURY_TTL = 10 * 60   # Sleeper's player list (every player's injury tag) is re-read this often: the depth charts stay live
-OUT_TAGS = {"Out", "IR", "Sus", "Doubtful"}   # red; any other tag (Questionable, GTD, DTD, Probable) is yellow
+INJURY_TTL = 10 * 60
+OUT_TAGS = {"Out", "IR", "Sus", "Doubtful"}
 
 
 def sleeper_injuries(fetch: Fetch) -> dict[str, dict]:
@@ -708,7 +677,7 @@ def sleeper_injuries(fetch: Fetch) -> dict[str, dict]:
     charts' names and fills the Team card's Injuries tab and the News tab's teams report; {} if Sleeper fails."""
     try:
         feed = fetch(SLEEPER_PLAYERS, INJURY_TTL) or {}
-    except Exception:   # a depth chart must still show without it
+    except Exception:
         return {}
     return {sid: {"sid": sid, "name": p.get("full_name") or f"{p.get('first_name', '')} {p.get('last_name', '')}".strip(),
                   "team": p["team"], "pos": p.get("fantasy_positions") or [], "status": p["injury_status"],
@@ -772,7 +741,7 @@ def team_player_stats(session, rows: list[dict], done: set[str], abbr: str) -> l
     by_sid = {r.sleeper_id: (pid, r) for pid, r in session.players.items() if r.sleeper_id}
     out = []
     for sid, s in sums.items():
-        if sid not in by_sid:   # not in the player pool: no name or position to show
+        if sid not in by_sid:
             continue
         pid, r = by_sid[sid]
         ov = session.overrides.get(pid)
@@ -801,13 +770,11 @@ def team_news(session, fetch: Fetch, abbr: str) -> list[dict]:
     return sorted(out, key=lambda n: n["published"] or "", reverse=True)
 
 
-SLEEPER_NEWS = "https://api.sleeper.com/players/nba/{}/news"   # undocumented: the feed the Sleeper app shows
+SLEEPER_NEWS = "https://api.sleeper.com/players/nba/{}/news"
 NEWS_TTL = 15 * 60
 GAME_LOG = 10
 
 
-# RotoWire tags the player's condition after his name, "Edey (ankle)"; rest and personal days aren't injuries.
-# ponytail: keyword heuristic, a note on a healthy player that recaps an old injury also counts
 INJURY_TAG = re.compile(r"\((?!rest\)|personal\))[a-z][a-z /-]*\)")
 INJURY_WORD = re.compile(r"injur|illness|sore|sprain|strain|tear\b|torn|surgery|fractur|concussion|achilles|out indefinitely", re.I)
 
@@ -816,7 +783,7 @@ def player_news(fetch: Fetch, sid: str) -> list[dict]:
     """Latest fantasy notes (RotoWire, FantasyPros) on one player, from the feed the Sleeper app shows; [] if it fails."""
     try:
         feed = fetch(SLEEPER_NEWS.format(sid), NEWS_TTL) or []
-    except Exception:   # undocumented endpoint: one bad player must not sink the whole tab
+    except Exception:
         return []
     out = []
     for a in feed:
@@ -854,8 +821,8 @@ def season_news(view: dict, fetch: Fetch, free: list[str] = (), watch: list[str]
     with ThreadPoolExecutor(16) as ex:
         every = [n for ns in ex.map(notes, sids) for n in ns]
     every.sort(key=lambda n: n.get("published") or "", reverse=True)
-    side = lambda n: "free" if n["sid"] not in owner else "mine" if owner[n["sid"]]["is_user"] else "league"   # noqa: E731
-    return {k: [n for n in every if side(n) == k] for k in ("mine", "league", "free")}   # all of them: the tab filters
+    side = lambda n: "free" if n["sid"] not in owner else "mine" if owner[n["sid"]]["is_user"] else "league"
+    return {k: [n for n in every if side(n) == k] for k in ("mine", "league", "free")}
 
 
 SLEEPER_TRENDING = SLEEPER + "/v1/players/nba/trending/{}?lookback_hours=24&limit=25"
@@ -867,7 +834,7 @@ def trending(fetch: Fetch) -> list[str]:
     for kind in ("drop", "add"):
         try:
             out += [str(t["player_id"]) for t in fetch(SLEEPER_TRENDING.format(kind), WEEK_TTL) or []]
-        except Exception:   # news without free agents beats no news
+        except Exception:
             pass
     return out
 
@@ -892,7 +859,7 @@ def acquisitions(session, fetch: Fetch, view: dict, sid: str) -> list[dict]:
     """How he changed hands this season: the draft (auction price, keeper flag) from Sleeper's draft picks, then every
     completed transaction in order: waiver claims (FAAB bid), free-agent pickups, trades (to whom) and drops."""
     lid = session.league.sleeper_league_id
-    team = {t["roster_id"]: t.get("user") or t["name"] for t in view["teams"]}   # usernames, not team names
+    team = {t["roster_id"]: t.get("user") or t["name"] for t in view["teams"]}
     out = []
     league = fetch(f"{SLEEPER}/v1/league/{lid}", WEEK_TTL) or {}
     draft_id = league.get("draft_id")
@@ -900,7 +867,7 @@ def acquisitions(session, fetch: Fetch, view: dict, sid: str) -> list[dict]:
     for pk in (fetch(f"{SLEEPER}/v1/draft/{draft_id}/picks", DAY_TTL) or []) if draft_id else []:
         if pk.get("player_id") == sid:
             amount = (pk.get("metadata") or {}).get("amount")
-            if pk.get("is_keeper"):   # a keeper: what he went for in last season's draft first
+            if pk.get("is_keeper"):
                 out += _last_season_draft(fetch, league.get("previous_league_id"), sid)
             out.append({"kind": "keeper" if pk.get("is_keeper") else "drafted", "team": team.get(pk.get("roster_id")),
                         "price": int(amount) if amount else None, "when": drafted_at})
@@ -911,8 +878,7 @@ def acquisitions(session, fetch: Fetch, view: dict, sid: str) -> list[dict]:
         adds, drops = t.get("adds") or {}, t.get("drops") or {}
         if t.get("status") != "complete" or sid not in adds and sid not in drops:
             continue
-        if sid in adds:   # a trade both adds and drops him: "traded to" the team that got him
-            # ponytail: waiver_bid is Sleeper's documented field; no claim had run yet to confirm it (2026-10-16)
+        if sid in adds:
             bid = (t.get("settings") or {}).get("waiver_bid") if t.get("type") == "waiver" else None
             kind = {"waiver": "claimed", "free_agent": "picked up", "trade": "traded to"}.get(t.get("type"), "added")
             out.append({"kind": kind, "team": team.get(adds[sid]), "price": bid, "when": t.get("status_updated")})
@@ -921,7 +887,7 @@ def acquisitions(session, fetch: Fetch, view: dict, sid: str) -> list[dict]:
     return out
 
 
-TEAM_STATS = ("pts", "reb", "ast", "blk", "stl", "tpm", "fga", "to")   # the team ranks' stats (Sleeper's keys)
+TEAM_STATS = ("pts", "reb", "ast", "blk", "stl", "tpm", "fga", "to")
 
 
 def team_ranks(rows: list[dict], team: str, done: set[str]) -> dict | None:
@@ -935,7 +901,7 @@ def team_ranks(rows: list[dict], team: str, done: set[str]) -> dict | None:
     for e in rows:
         if not str(e.get("player_id", "")).startswith("TEAM_") or not e.get("opponent") or e.get("game_id") not in done:
             continue
-        for side, t in (("offense", e["team"]), ("defense", e["opponent"])):   # his box score is what the opponent allowed
+        for side, t in (("offense", e["team"]), ("defense", e["opponent"])):
             s = sums[side].setdefault(t, {})
             for k in TEAM_STATS:
                 s[k] = s.get(k, 0.0) + float((e.get("stats") or {}).get(k) or 0)
@@ -947,10 +913,10 @@ def team_ranks(rows: list[dict], team: str, done: set[str]) -> dict | None:
         per = {t: {k: v / games[side][t] for k, v in s.items()} for t, s in sums[side].items()}
         out[side] = {}
         for k in TEAM_STATS:
-            more_is_better = (k == "to") == (side == "defense")   # offense: more, but fewer turnovers; defense: the reverse
+            more_is_better = (k == "to") == (side == "defense")
             mine = per[team][k]
             better = sum(1 for t in per if (per[t][k] > mine if more_is_better else per[t][k] < mine))
-            out[side][k] = {"v": round(mine, 1), "rank": better + 1}   # ties share a rank
+            out[side][k] = {"v": round(mine, 1), "rank": better + 1}
     return out
 
 
@@ -965,7 +931,7 @@ def season_player(session, fetch: Fetch, player_id: int, week: int | None = None
     me = view["players"].get(sid, {})
 
     year, log = session.league.roster_season.split("-")[0], []
-    for w in range(view["week"], 0, -1):   # walk back through the season's box scores
+    for w in range(view["week"], 0, -1):
         ttl = LIVE_TTL if w == view["week"] else DAY_TTL
         rows = [e for e in fetch(f"{SLEEPER}/stats/nba/{year}/{w}?season_type=regular", ttl) or []
                 if str(e.get("player_id")) == sid and (e.get("stats") or {}).get("sp")]
@@ -978,8 +944,6 @@ def season_player(session, fetch: Fetch, player_id: int, week: int | None = None
         if len(log) >= GAME_LOG:
             break
 
-    # every game his team plays this season (Sleeper's schedule), his box score where he played (the weeks' logs above
-    # only go back GAME_LOG games, so this reads every past week): the Game log tab, and the Summary's averages
     team_abbr = me.get("team") or rec.team_abbr
     played, season_rows = {}, []
     for w in range(1, view["week"] + 1):
@@ -1003,16 +967,14 @@ def season_player(session, fetch: Fetch, player_id: int, week: int | None = None
                         "pm": int(st.get("plus_minus") or 0)})
         season_log.append(row)
     games_played = [r for r in season_log if "fp" in r]
-    done = [r for r in games_played if r["status"] == "complete"]   # averages: finished games only (not a half-played one)
+    done = [r for r in games_played if r["status"] == "complete"]
     averages = {k: round(sum(r[k] for r in done) / len(done), 2 if k == "fp" else 1) for k in ("min", "pts", "reb", "ast", "stl", "blk", "to", "fp")} \
         if done else None
-    # his latest game (live or last final), with both teams' scores; this week's from ESPN (quarter + clock)
     last = games_played[-1] if games_played else None
     if last:
         wk = next((x for x in me.get("games", []) if x["date"] == last["date"]), None)
         last = {**last, "team": team_abbr, "state": wk["state"] if wk else "post", "detail": wk.get("detail") if wk else "Final",
                 "team_pts": (wk or {}).get("score") or last["team_pts"], "opp_pts": (wk or {}).get("opp_score") or last["opp_pts"],
-                # ESPN's game id, so the box opens that game's card: this week's games carry it, older ones from that day's scoreboard
                 "event": (wk or {}).get("event") or (espn_day(fetch, last["date"], date.fromisoformat(view["today"])).get(team_abbr) or {}).get("event")}
     research = (fetch(f"{SLEEPER}/players/nba/research/regular/{year}/{view['week']}", WEEK_TTL) or {}).get(sid) or {}
 
@@ -1036,22 +998,21 @@ def season_player(session, fetch: Fetch, player_id: int, week: int | None = None
             "news": player_news(fetch, sid)}
 
 
-FAAB_TOTAL = 100   # fallback only: the budget comes from the league's settings (waiver_budget)
-WAIVER_TYPES = {0: "rolling", 1: "reverse standings", 2: "FAAB"}   # Sleeper settings.waiver_type
+FAAB_TOTAL = 100
+WAIVER_TYPES = {0: "rolling", 1: "reverse standings", 2: "FAAB"}
 WAIVER_SHOW = 12
-BID_CAP = 0.25   # one claim never takes more than a quarter of what is left
+BID_CAP = 0.25
 
 
 def faab_bid(up: float, faab_left: int, weeks_left: int, min_bid: int = 1, demand: float = 1.0) -> int:
     """Suggested blind bid: FAAB left paced over the weeks left, so a typical upgrade (2 value points) costs about one
     week's share, scaled by his upgrade over your weakest player and by `demand` (0-1, waiver_demand), capped at
     BID_CAP of what is left."""
-    # ponytail: no data on rivals' bids, so it is a guide, not a price
     pace = faab_left / max(1, weeks_left)
     return min(faab_left, max(min_bid, min(round(faab_left * BID_CAP), round(pace * max(0.0, up) / 2 * demand))))
 
 
-FPG_PRIOR_GAMES = 10   # ponytail: a guess at how many games it takes for his own FP/G to weigh as much as the projection
+FPG_PRIOR_GAMES = 10
 
 
 def steady_fpg(season: dict | None, proj: float | None) -> float:
@@ -1074,7 +1035,6 @@ def waiver_demand(fpg: float, drop_fpg: float) -> float:
     return 1.0 if drop_fpg <= 0 else min(1.0, max(0.0, (fpg / drop_fpg - 1.25) / 0.5))
 
 
-# Out / IR and the latest notes say surgery, a tear or an open timeline: he won't help this season, so no claim
 LONG_OUT = re.compile(r"surger|indefinite|season-ending|for the season|torn|\btear\b|ruptur|\bACL\b|achilles", re.I)
 
 
@@ -1083,8 +1043,6 @@ def long_out(fetch: Fetch, sid: str, tag: str | None) -> bool:
     return tag in ("Out", "IR") and any(LONG_OUT.search(f"{n['headline']} {n['story']}") for n in player_news(fetch, sid)[:3])
 
 
-# When claims process: the league's waiver_days / waiver_hour (League tab settings); Sleeper's daily_waivers_days bitmask
-# is undocumented, so the days are set by hand
 DAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 AVG_STATS = ("pts", "reb", "ast", "stl", "blk", "tpm", "to")
 
@@ -1129,7 +1087,7 @@ def waivers(session, fetch: Fetch, view: dict) -> dict:
     lands = run.date().isoformat()
     year, week = session.league.roster_season.split("-")[0], view["week"]
     schedule = fetch(f"{SLEEPER}/schedule/nba/regular/{year}", DAY_TTL) or []
-    after: dict[tuple[str, int], int] = {}   # (team, week) -> his games on or after the day he lands
+    after: dict[tuple[str, int], int] = {}
     for g in schedule:
         if g["date"] >= lands and int(g["week"]) in (week, week + 1):
             for side in ("home", "away"):
@@ -1147,7 +1105,7 @@ def waivers(session, fetch: Fetch, view: dict) -> dict:
     budget = view.get("faab_budget", FAAB_TOTAL)
     faab = waiver["type"] == "FAAB"
     faab_left = budget - (me.get("faab_used") or 0)
-    floor = drop.value if drop else 0.0   # only real upgrades over your weakest player
+    floor = drop.value if drop else 0.0
     tags = view.get("injury_tags", {})
     shown = []
     for pid in sorted((pid for pid in fa_ids if pid in rows and rows[pid].value > floor), key=lambda pid: -rows[pid].value):
@@ -1160,7 +1118,7 @@ def waivers(session, fetch: Fetch, view: dict) -> dict:
     done = {g.get("game_id") for g in schedule if g.get("status") == "complete"}
     avg = season_averages(stat_rows, {rows[pid].sleeper_id for pid in shown} | ({drop.sleeper_id} if drop else set()),
                           done, session.league.scoring)
-    fpg = lambda r: steady_fpg(avg.get(r.sleeper_id), r.proj_fpts)   # noqa: E731
+    fpg = lambda r: steady_fpg(avg.get(r.sleeper_id), r.proj_fpts)
     drop_fpg = fpg(drop) if drop else 0.0
     weeks_left = max((int(g["week"]) for g in schedule), default=week) - week + 1
     out = []

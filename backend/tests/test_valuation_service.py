@@ -38,7 +38,7 @@ def test_compute_caches_by_scoring_hash_and_recomputes_on_scoring_change(store):
     second = service.compute(doubled)
     assert second[JOKIC].avg_fpts > first[JOKIC].avg_fpts
     assert store.exists(config.valuations_rel("2025-26", doubled.scoring_hash()))
-    assert service.load_cached(default)[JOKIC].avg_fpts == first[JOKIC].avg_fpts  # old cache untouched
+    assert service.load_cached(default)[JOKIC].avg_fpts == first[JOKIC].avg_fpts
 
 
 def test_force_recompute_rewrites_cache(store):

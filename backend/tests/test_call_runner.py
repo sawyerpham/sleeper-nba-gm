@@ -43,7 +43,7 @@ def test_retries_transient_errors_then_succeeds():
     assert runner.call("flaky", flaky) == "ok"
     assert attempts["n"] == 3
     assert runner.calls == 3
-    assert clock.sleeps == [0.5, 1.0]  # backoff between retries
+    assert clock.sleeps == [0.5, 1.0]
 
 
 def test_gives_up_after_max_attempts_with_call_failed():
@@ -52,7 +52,7 @@ def test_gives_up_after_max_attempts_with_call_failed():
 
     def always_403_html():
         """Fails the way a 403 HTML body does (a ValueError from json parsing)."""
-        raise ValueError("Expecting value: line 1 column 1")  # json.loads on an HTML body
+        raise ValueError("Expecting value: line 1 column 1")
 
     with pytest.raises(CallFailed) as info:
         runner.call("commonplayerinfo", always_403_html)
@@ -77,6 +77,6 @@ def test_enforces_minimum_delay_between_calls():
     """Enforces minimum delay between calls."""
     runner, clock = make_runner(delay_s=0.6)
     runner.call("a", lambda: 1)
-    clock.t += 0.2  # only 0.2s passed since the last call
+    clock.t += 0.2
     runner.call("b", lambda: 2)
     assert clock.sleeps == [pytest.approx(0.4)]

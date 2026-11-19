@@ -16,9 +16,8 @@ from typing import Mapping
 
 from ..models.scoring import BaseScoring, BonusRule, ScoringSettings
 
-PROVISIONAL = False   # verified on a real NBA league (see module doc)
+PROVISIONAL = False
 
-# Sleeper key -> BaseScoring field.
 BASE_KEYS: dict[str, str] = {
     "pts": "pts",
     "reb": "reb",
@@ -32,15 +31,12 @@ BASE_KEYS: dict[str, str] = {
     "tpm": "fg3m",
 }
 
-# Recognised Sleeper NBA categories that ScoringSettings does not model (SPEC.md scores 10 base stats).
 UNSUPPORTED_KEYS: frozenset[str] = frozenset(
     {"fta", "tpa", "oreb", "dreb", "pf", "min", "fgmi", "ftmi", "tpmi", "dd", "qd", "ejection", "tech", "flagrant", "ff", "tf"}
 )
 
 TRIPLE_DOUBLE_KEY = "td"
 
-# bonus_pt_40 / bonus_ast_15 / bonus_reb_20 / bonus_stl_5 ... -> stat_threshold rules
-# A real NBA league (2026-10-11) names them with a "p" suffix: bonus_pt_40p, bonus_ast_15p, bonus_reb_20p.
 _BONUS_PATTERN = re.compile(r"^bonus_(pt|pts|reb|ast|stl|blk)_(\d+)p?$")
 _BONUS_STAT = {"pt": "pts", "pts": "pts", "reb": "reb", "ast": "ast", "stl": "stl", "blk": "blk"}
 
@@ -57,7 +53,7 @@ EXPECTED_KEYS: tuple[str, ...] = tuple(BASE_KEYS) + (
 class SleeperScoringMapResult:
     """The result of mapping a Sleeper league's scoring: the ScoringSettings plus what was applied and everything that couldn't be (unknown keys, unsupported non-zero categories, missing expected keys)."""
     settings: ScoringSettings
-    applied: dict[str, str] = field(default_factory=dict)          # sleeper key -> "base.pts" / "bonus.pts_40"
+    applied: dict[str, str] = field(default_factory=dict)
     unknown_keys: list[str] = field(default_factory=list)
     unsupported_nonzero: dict[str, float] = field(default_factory=dict)
     missing_expected: list[str] = field(default_factory=list)
@@ -106,9 +102,7 @@ def map_sleeper_scoring(scoring_settings: Mapping[str, float]) -> SleeperScoring
             continue
         result.unknown_keys.append(key)
 
-    # a real league names the bonuses bonus_pt_40p ...: either spelling counts
     result.missing_expected = [k for k in EXPECTED_KEYS if k not in scoring_settings and f"{k}p" not in scoring_settings]
-    # Keep the SPEC rule order for the well-known bonuses so hashes stay stable across sources.
     order = {"triple_double": 0, "pts_40": 1, "pts_50": 2, "ast_15": 3, "reb_20": 4}
     bonuses.sort(key=lambda r: (order.get(r.id, 99), r.id))
     result.settings = ScoringSettings(base=base, bonuses=bonuses, source="sleeper")

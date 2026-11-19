@@ -3,7 +3,6 @@ import { api } from "../api.js";
 import { PosTag } from "../core/Pos.jsx";
 import { Term, TERMS, priceTone } from "../core/Terms.jsx";
 
-/** Your roster beside the live block: every spot (filled or open) with its price coloured against Worth, plus your money, cap and estimated weekly score. Reads the same /room data as the Managers page. */
 export default function MyTeam({ leagueId, rosterSlots, refreshKey }) {
   const [me, setMe] = useState(null);
   useEffect(() => {

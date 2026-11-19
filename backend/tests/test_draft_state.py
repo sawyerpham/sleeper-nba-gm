@@ -53,7 +53,7 @@ def test_keepers_disabled_rejects_keepers_and_keeper_cost_obeys_reservation():
         engine(keeper=KeeperSettings(enabled=False)).start([KeeperAssignment("m1", 1, 5)])
     e = engine()
     with pytest.raises(DraftError, match="exceeds the cap"):
-        e.start([KeeperAssignment("m1", 1, 46)])  # 50 - 5 reserved = 45 max
+        e.start([KeeperAssignment("m1", 1, 46)])
     assert e.draft.status == "setup"
 
 
@@ -111,11 +111,11 @@ def test_rotation_skips_managers_who_cannot_draft():
     e = engine()
     e.start()
     for pid in (1, 2, 3, 4, 5, 6):
-        e.pick(pid, "m2", 1)  # m2 fills all 6 mandatory slots
+        e.pick(pid, "m2", 1)
     assert not e.can_draft("m2")
     assert e.next_nominator() == "m1"
     e.pick(7, "m1", 1)
-    assert e.next_nominator() == "m3"  # m2 skipped
+    assert e.next_nominator() == "m3"
     e.pick(8, "m3", 1)
     assert e.next_nominator() == "m1"
 
@@ -124,20 +124,20 @@ def test_reorder_mid_draft_keeps_the_current_nominator_and_make_next_skips_ahead
     """Reorder mid draft keeps the current nominator and make next skips ahead."""
     e = engine()
     e.start()
-    e.pick(1, "m1", 5)  # m1 nominated -> m2 is next
+    e.pick(1, "m1", 5)
     assert e.next_nominator() == "m2"
-    e.set_nomination_order(["m3", "m2", "m1"])  # reorder on the fly: m2 still nominates next
+    e.set_nomination_order(["m3", "m2", "m1"])
     assert e.next_nominator() == "m2"
     e.pick(2, "m2", 5)
-    assert e.next_nominator() == "m1"  # then the new rotation continues: m3 m2 m1 -> after m2 comes m1
-    e.set_next_nominator("m3")  # the room skipped ahead
+    assert e.next_nominator() == "m1"
+    e.set_next_nominator("m3")
     assert e.next_nominator() == "m3"
     e.pick(3, "m3", 5)
     assert e.next_nominator() == "m2"
     with pytest.raises(DraftError, match="unknown manager"):
         e.set_next_nominator("m9")
     for pid in (4, 5, 6, 7, 8):
-        e.pick(pid, "m1", 1)  # fill m1 (6 slots incl. pick 1)
+        e.pick(pid, "m1", 1)
     with pytest.raises(DraftError, match="cannot draft"):
         e.set_next_nominator("m1")
 
@@ -176,8 +176,8 @@ def test_pick_validations():
     with pytest.raises(DraftError, match="already drafted"):
         e.pick(1, "m2", 5)
     with pytest.raises(DraftError, match="no open C"):
-        e.pick(6, "m1", 1, slot="C")  # C already used by player 1
-    p = e.pick(6, "m1", 1)  # C/PF player: C full -> UTIL
+        e.pick(6, "m1", 1, slot="C")
+    p = e.pick(6, "m1", 1)
     assert p.slot == "UTIL"
 
 
@@ -197,7 +197,7 @@ def test_pick_fails_when_no_slot_fits():
 def test_reservation_rule_holds_for_every_manager_through_a_full_draft():
     """Each manager always bids its max; nobody ever gets stuck unable to fill a mandatory slot."""
     e = engine()
-    for pid in range(13, 21):  # 3 managers × 6 slots need 18 players; the default world has 12
+    for pid in range(13, 21):
         e.players[pid] = record(pid, f"Spare {pid}", "UTA")
         e.overrides[pid] = override(pid, ["PG", "SG", "SF", "PF", "C"])
     e.start([KeeperAssignment("m1", 1, 20)])
@@ -248,7 +248,7 @@ def test_reassign_slot():
     """Reassign slot."""
     e = engine()
     e.start()
-    p = e.pick(2, "m1", 5)  # PG/SG -> PG
+    p = e.pick(2, "m1", 5)
     assert p.slot == "PG"
     assert e.reassign_slot(p.pick_number, "BN").slot == "BN"
     assert e.open_slots("m1")["PG"] == 1
@@ -273,11 +273,11 @@ def test_progress_and_keeper_records():
 def live_engine() -> DraftEngine:
     """A started engine with the first center kept by m1 for $20."""
     e = engine()
-    e.start([KeeperAssignment("m1", 1, 20)])   # Ace Center kept by m1 for $20 (C)
+    e.start([KeeperAssignment("m1", 1, 20)])
     e.nominate(2)
-    e.pick(2, "m2", 15)                        # Bo Guard -> m2 $15 (PG)
+    e.pick(2, "m2", 15)
     e.nominate(3)
-    e.pick(3, "m3", 10)                        # Cy Wing -> m3 $10 (UTIL)
+    e.pick(3, "m3", 10)
     return e
 
 
@@ -288,7 +288,7 @@ def test_edit_pick_moves_a_pick_to_another_manager_with_an_auto_slot():
     assert (p.manager_id, p.price, p.slot, p.pick_number) == ("m3", 15, "PG", 2)
     assert e.budget("m2").remaining == 50 and e.budget("m3").remaining == 25
     assert [x.manager_id for x in e.draft.picks] == ["m1", "m3", "m3"]
-    assert e.draft.nomination_pointer == 2  # unchanged: the same number of auction picks happened
+    assert e.draft.nomination_pointer == 2
 
 
 def test_edit_pick_changes_price_and_slot_for_the_same_manager():
@@ -304,7 +304,7 @@ def test_edit_pick_enforces_the_reservation_rule_for_the_new_manager():
     """Edit pick enforces the reservation rule for the new manager."""
     e = live_engine()
     with pytest.raises(DraftError, match="exceeds the cap"):
-        e.edit_pick(2, manager_id="m3", price=37)   # m3: $40 left, 5 open slots after this pick -> max $36
+        e.edit_pick(2, manager_id="m3", price=37)
     e.edit_pick(2, manager_id="m3", price=36)
     assert e.budget("m3").remaining == 4 and e.budget("m3").max_bid == 1
 
@@ -313,7 +313,7 @@ def test_edit_pick_rejects_a_slot_that_does_not_fit_and_unknown_picks():
     """Edit pick rejects a slot that does not fit and unknown picks."""
     e = live_engine()
     with pytest.raises(DraftError, match="not eligible"):
-        e.edit_pick(2, slot="C")   # Bo Guard is PG/SG
+        e.edit_pick(2, slot="C")
     with pytest.raises(DraftError, match="no pick #9"):
         e.edit_pick(9, price=5)
     assert e.draft.picks[1].slot == "PG" and e.draft.picks[1].price == 15
@@ -335,7 +335,7 @@ def test_remove_pick_renumbers_frees_the_player_and_steps_the_pointer_back():
     assert removed.player_id == 2 and e.is_available(2)
     assert [(p.pick_number, p.player_id) for p in e.draft.picks] == [(1, 1), (2, 3)]
     assert e.budget("m2").remaining == 50 and e.draft.nomination_pointer == 1
-    e.remove_pick(1)   # keepers can be removed too; the pointer only tracks auction picks
+    e.remove_pick(1)
     assert [(p.pick_number, p.player_id) for p in e.draft.picks] == [(1, 3)] and e.draft.nomination_pointer == 1
     with pytest.raises(DraftError, match="no pick #5"):
         e.remove_pick(5)
@@ -351,10 +351,10 @@ def test_make_room_slides_a_multi_position_player_to_the_open_slot():
     elig = {1: ["PG"], 2: ["SG", "SF"]}
     picks = [Pick(pick_number=1, player_id=1, manager_id="m1", price=5, slot="PG", timestamp=NOW),
              Pick(pick_number=2, player_id=2, manager_id="m1", price=5, slot="SG", timestamp=NOW)]
-    assert roster.assign_slot(lg, picks, ["PG", "SG"]) is None            # SF is open, but a PG/SG can't play it
+    assert roster.assign_slot(lg, picks, ["PG", "SG"]) is None
     slot, moves = roster.make_room(lg, picks, ["PG", "SG"], elig.get)
-    assert slot == "SG" and [(m.player_id, to) for m, to in moves] == [(2, "SF")]   # the SG/SF slides over
-    assert roster.make_room(lg, picks, ["C"], elig.get) is None           # nobody can free a C spot
+    assert slot == "SG" and [(m.player_id, to) for m, to in moves] == [(2, "SF")]
+    assert roster.make_room(lg, picks, ["C"], elig.get) is None
 
 
 def test_make_room_chains_moves_and_benches_the_newcomer_first():
@@ -363,7 +363,6 @@ def test_make_room_chains_moves_and_benches_the_newcomer_first():
     from nba_fantasy_shared.models.draft import Pick
     from nba_fantasy_shared.models.league import RosterSlotSpec
 
-    # Chris Paul's case: only C is open. PF/C slides to C, the bench SF/PF moves up to PF, the PG takes the bench.
     lg = small_league(roster_slots=[RosterSlotSpec(slot="PG", count=1), RosterSlotSpec(slot="PF", count=1),
                                     RosterSlotSpec(slot="C", count=1), RosterSlotSpec(slot="BN", count=1)])
     elig = {1: ["PG"], 2: ["PF", "C"], 3: ["SF", "PF"]}

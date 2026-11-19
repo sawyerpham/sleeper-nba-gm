@@ -22,7 +22,6 @@ class RosterSlotSpec(BaseModel):
 
 def default_roster_slots() -> list[RosterSlotSpec]:
     """The default roster: 5 position slots, 2 UTIL, 8 bench and 2 IR."""
-    # Decision 3: 7 starters (PG SG SF PF C UTIL UTIL), 8 bench, 2 IR.
     return [
         RosterSlotSpec(slot="PG", count=1),
         RosterSlotSpec(slot="SG", count=1),
@@ -74,7 +73,6 @@ def default_injury_multipliers() -> dict[str, float]:
 
 def default_sleeper_injury_map() -> dict[str, InjuryStatus]:
     """Default mapping from Sleeper's injury tags to this app's injury statuses."""
-    # Decision 9: Sleeper carries no duration, "Out" seeds as short term.
     return {"DTD": "day_to_day", "Out": "out_short_term", "IR": "out_long_term"}
 
 
@@ -92,7 +90,7 @@ class RankingSettings(BaseModel):
     weight_avg: float = 0.5
     weight_ceiling: float = 0.5
     ceiling_metric: CeilingMetric = "weekly_best"
-    availability_weight: float = 0.0                   # 0 = ignore missed weeks; 1 = scale fully by weeks played
+    availability_weight: float = 0.0
     injury_multipliers: dict[str, float] = Field(default_factory=default_injury_multipliers)
     sleeper_injury_map: dict[str, InjuryStatus] = Field(default_factory=default_sleeper_injury_map)
     age_penalty_start: int = 31
@@ -100,17 +98,9 @@ class RankingSettings(BaseModel):
     age_penalty_max: float = 0.25
     min_games_full_confidence: int = 20
     hide_unrosterable: bool = True
-    # Share of FP/G taken from Sleeper's season projection (role, minutes, new team); the rest is last season.
-    # 1 = projection only (user's call, 2026-10-11); players Sleeper does not project still use last season.
     projection_weight: float = 1.0
-    # Bench spots per team that get real auction money; the rest are treated as $1 fills. Calibrated to
-    # the league's 2025 auction (stars $90–105, #84 ≈ $6, 55 picks at $1).
     priced_bench_slots: int = 2
-    # Lock-In: more games in a week = more chances at a big night. 1 = scale the weekly-best ceiling by the
-    # team's games per week this season (fantasy playoff weeks count double); 0 = ignore the schedule.
     schedule_weight: float = 1.0
-    # Position scarcity: 1 = value measured against the replacement player at the player's scarcest
-    # position (after every team fills its starters) instead of one league-wide level; 0 = off.
     scarcity_weight: float = 1.0
 
 
@@ -137,15 +127,14 @@ class LeagueSettings(BaseModel):
     name: str
     platform: Literal["sleeper"] = "sleeper"
     sleeper_league_id: str | None = None
-    sleeper_draft_id: str | None = None   # live-sync override (e.g. a Sleeper mock draft); default: the league's draft
-    # Other Sleeper leagues with the same people (any format), pulled only to learn how each manager drafts.
+    sleeper_draft_id: str | None = None
     sleeper_history_league_ids: list[str] = Field(default_factory=list)
     roster_season: str = "2026-27"
     stats_season: str = "2025-26"
     game_mode: GameMode = "lock_in"
-    timezone: str = "America/Chicago"   # IANA zone every in-season time is shown in (and "today" is judged by)
-    waiver_days: list[int] = Field(default_factory=lambda: [5, 6])   # days waiver claims process (Mon = 0): Sat, Sun
-    waiver_hour: int = 2                # ...at this hour, league time
+    timezone: str = "America/Chicago"
+    waiver_days: list[int] = Field(default_factory=lambda: [5, 6])
+    waiver_hour: int = 2
     scoring_format: ScoringFormat = "h2h_points"
     draft_type: DraftType = "auction"
     nomination_order_type: NominationOrder = "fixed_rotation"
@@ -166,7 +155,7 @@ class LeagueSettings(BaseModel):
 
         try:
             ZoneInfo(v)
-        except Exception as exc:   # ZoneInfoNotFoundError is not a ValueError: make it a validation error (400)
+        except Exception as exc:
             raise ValueError(f"unknown time zone {v!r}") from exc
         return v
 

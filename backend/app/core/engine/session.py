@@ -36,7 +36,7 @@ class ManagerSummary:
     stack: dict[str, int]
     is_next_nominator: bool
     behavior: dict
-    tendency: dict | None = None   # how they spent in last season's Sleeper auction
+    tendency: dict | None = None
 
 
 @dataclass
@@ -50,9 +50,9 @@ class DraftSession:
     overrides: dict[int, PlayerOverrides]
     valuations: dict[int, PlayerValuation]
     now: Callable[[], datetime] = utcnow
-    sleeper_details: dict | None = None   # cached Sleeper league details (see services/sleeper_league.py)
-    sleeper_history: list[dict] = field(default_factory=list)   # extra leagues, for draft habits only
-    schedule_games: dict[str, dict[str, int]] = field(default_factory=dict)   # team -> NBA week -> games
+    sleeper_details: dict | None = None
+    sleeper_history: list[dict] = field(default_factory=list)
+    schedule_games: dict[str, dict[str, int]] = field(default_factory=dict)
     _pool_values: dict[int, float] | None = field(default=None, init=False, repr=False)
     _schedule: dict[str, float] | None = field(default=None, init=False, repr=False)
     _scarcity: dict[int, float] = field(default_factory=dict, init=False, repr=False)
@@ -115,7 +115,7 @@ class DraftSession:
 
     def rank(self, my_picks, available_ids) -> list[RankedPlayer]:
         """Rank the available players for the given picks (computes the position-scarcity bonuses first)."""
-        self.pool_values()   # fills the scarcity bonuses
+        self.pool_values()
         return rank_players(self.league, self.players, self.overrides, self.valuations, my_picks, available_ids,
                             self.schedule(), self._scarcity)
 
@@ -202,7 +202,6 @@ class DraftSession:
             d = drafts.get(m.sleeper_user_id) or {}
             t["favorite_teams"] = d.get("favorite_teams", [])
             t["lean"] = d.get("lean")
-            # our player id -> where they drafted him before ("2025 tobedecided.: $51")
             t["drafted_before"] = {str(by_sleeper[s]): how for s, how in d.get("drafted", {}).items() if s in by_sleeper}
             return t
         out = []
@@ -292,7 +291,6 @@ class DraftSession:
         merged_players = dict(players)
         merged_overrides = dict(overrides)
         merged_valuations = dict(valuations)
-        # Drafted players snapshotted in the document win over missing pool entries (pool may have re-pulled).
         for key, exported in doc.players.items():
             pid = int(key)
             merged_players.setdefault(pid, exported.record)

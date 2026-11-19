@@ -67,7 +67,7 @@ def fetch_transactions(platform: Any, league_id: str) -> list[dict]:
     if hasattr(platform, "fetch_platform_state"):
         try:
             week = platform.fetch_platform_state().week or 1
-        except Exception:  # noqa: BLE001 - fall back to the first weeks
+        except Exception:
             pass
     out: dict[str, dict] = {}
     for leg in range(0, min(week + 2, MAX_TX_WEEKS)):

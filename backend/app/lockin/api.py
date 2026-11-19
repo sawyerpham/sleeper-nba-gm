@@ -65,7 +65,7 @@ def plan(league_id: str, week: int | None = Query(None, ge=1), roster_id: int | 
     session = _session(state, league_id)
     try:
         view = week_view(session, _fetch(state), week, today)
-        manual = read_locks(state.store, league_id, view["week"])   # your answers, any team's player (rivals too)
+        manual = read_locks(state.store, league_id, view["week"])
         return team_plan(session, view, roster_id, manual)
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
@@ -123,9 +123,8 @@ def injuries(league_id: str, state: AppState = Depends(get_state)) -> dict:
     hurt = {}
     for sid, h in sleeper_injuries(_fetch(state)).items():
         pid = by_sid.get(sid)
-        role = _team_role(session, rosters.get(h["team"], []), pid) if pid else None   # same "#2 option" the player card shows
+        role = _team_role(session, rosters.get(h["team"], []), pid) if pid else None
         fantasy = session.players[pid].fantasy if pid else None
-        # starter = first on the depth chart, read from the same pulled data as the depth grid so the two agree
         hurt[sid] = {**h, "player_id": pid, "role": role and {"label": role["label"], "star": role["star"], "rank": role["rank"],
                                                   "shared_with": role["shared_with"]},
                      "starter": fantasy.depth_chart_order == 1 if fantasy else h["starter"]}
@@ -145,7 +144,7 @@ class LockIn(BaseModel):
     """Body to set a lock answer: week, Sleeper player id and the locked game's date ("" = not locked, null = forget)."""
     week: int
     sleeper_id: str
-    game_date: str | None   # the locked game's date; "" = not locked; null = forget (use detection)
+    game_date: str | None
 
 
 @router.post("/locks")
@@ -173,12 +172,12 @@ def news(league_id: str, state: AppState = Depends(get_state)) -> dict:
     fetch = _fetch(state)
     try:
         free = trending(fetch)
-        sids = [session.players[p].sleeper_id for p in read_watch(state.store, league_id) if p in session.players and session.players[p].sleeper_id]   # watched players' notes come too
+        sids = [session.players[p].sleeper_id for p in read_watch(state.store, league_id) if p in session.players and session.players[p].sleeper_id]
         out = season_news(week_view(session, fetch, extra=(*free, *sids)), fetch, free, sids)
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     rosters ={t: sorted(r, reverse=True) for t, r in team_rosters(session)[0].items()}
-    for notes in out.values():   # the same "#2 option" the Teams Report shows, per note
+    for notes in out.values():
         for n in notes:
             role = _team_role(session, rosters.get(n["team"], []), n["player_id"]) if n.get("player_id") else None
             n["role"] = role and {"label": role["label"], "star": role["star"]}

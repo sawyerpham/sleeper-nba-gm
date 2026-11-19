@@ -96,7 +96,7 @@ class LeagueRepository:
         for league_id in self.list_ids():
             try:
                 doc = self.load(league_id)
-            except Exception:  # noqa: BLE001 - a corrupt file must not hide the others
+            except Exception:
                 out.append({"league_id": league_id, "name": None, "status": "unreadable"})
                 continue
             out.append({

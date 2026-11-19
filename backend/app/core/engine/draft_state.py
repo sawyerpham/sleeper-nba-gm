@@ -134,7 +134,7 @@ class DraftEngine:
             raise DraftError("nomination order is empty")
         if not self.can_draft(manager_id) and self.draft.status == "live":
             raise DraftError(f"{manager_id} cannot draft any more players")
-        for step in range(2 * n):  # snake rotations need up to two rounds to reach a manager
+        for step in range(2 * n):
             index = self.draft.nomination_pointer + step
             if self._nominator_at(index) == manager_id:
                 self.draft.nomination_pointer = index
@@ -267,7 +267,7 @@ class DraftEngine:
                 raise DraftError(error)
         pick.manager_id = target.manager_id
         pick.price = new_price
-        pick.slot = slot  # type: ignore[assignment]
+        pick.slot = slot
         return pick
 
     def remove_pick(self, pick_number: int) -> Pick:
@@ -342,7 +342,7 @@ class DraftEngine:
                 if room is None:
                     raise DraftError(f"{manager_id} has no open slot that fits {', '.join(eligibility) or 'this player'}")
                 slot, moves = room
-                for moved, to in moves:   # each slides along the chain; the new player takes the freed slot
+                for moved, to in moves:
                     moved.slot = to
         else:
             error = roster.validate_slot(self.league, own, eligibility, slot)
@@ -353,7 +353,7 @@ class DraftEngine:
             player_id=player_id,
             manager_id=manager_id,
             price=price,
-            slot=slot,  # type: ignore[arg-type]
+            slot=slot,
             is_keeper=is_keeper,
             nominated_by=nominated_by,
             timestamp=self._now(),

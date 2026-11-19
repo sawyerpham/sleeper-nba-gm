@@ -100,7 +100,7 @@ class AppState:
             rec = self.players.get(pid)
             exp = rec.bio.years_exp if rec and rec.bio else None
             shares: list[float | None] = [v.availability]
-            for k, season in enumerate(seasons, start=2):   # k = seasons back from the roster season
+            for k, season in enumerate(seasons, start=2):
                 share = history.get(season, {}).get(str(pid))
                 in_league = exp >= k if exp is not None else share is not None
                 shares.append((share or 0.0) if in_league else None)
@@ -202,7 +202,7 @@ class AppState:
                             self.stats_season = service.stats_season
                         try:
                             self.load_pool()
-                        except Exception:  # noqa: BLE001
+                        except Exception:
                             log.exception("reloading the pool after the pull failed")
 
             thread = threading.Thread(target=run, name="data-pull", daemon=True)
@@ -240,7 +240,7 @@ class AppState:
                 session = DraftSession.from_export(
                     doc, self.players, self.overrides, self.valuations_for(doc.league.scoring, doc.league.stats_season)
                 )
-                session.overrides = self.overrides  # shared, so edits propagate to every league
+                session.overrides = self.overrides
                 session.sleeper_details = load_details(self.store, doc.league.sleeper_league_id)
                 session.sleeper_history = self._history(doc.league)
                 session.schedule_games = self.schedule_games

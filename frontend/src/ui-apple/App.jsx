@@ -12,14 +12,11 @@ import { CardNav, CurrentCard, SeasonTools, WeekNav, callsOf, nextCheckIn, nowOf
 import { LeagueView, NewsView, WaiversView, WeekView, dayName, fp, lockEdge, lockableOf, pct, quarters, teamLogo, untilText } from "../lockin/SeasonPage.jsx";
 import { fmt, timeOf } from "../lockin/tz.js";
 
-// Apple (Settings > UI): built for the Apple theme (themes.css). A floating frosted sidebar of Settings-style rows, a large-title
-// toolbar, widget tiles with an activity ring, inset grouped lists for calls and games, and player / team / game cards as a sheet.
 
 const SIDE = [["season", "calendar", "Today", "#007aff"], ["standings", "trophy", "League", "#ff9500"], ["news", "news", "News", "#ff3b30"], ["waivers", "user-plus", "Waivers", "#34c759"], ["draft", "gavel", "Draft", "#af52de"]];
 const TITLES = { week: "Today", league: "League", news: "News", waivers: "Waivers" };
 const CALL_ICON = { swap: "swap", gtd: "alert", out: "alert", lock: "lock", alert: "alert" };
 
-/** Root of the Apple UI: the sidebar and the open page. */
 export default function App() {
   const app = useAppState();
   const { tab, setTab, leagueId, health } = app;
@@ -56,13 +53,11 @@ export default function App() {
   );
 }
 
-/** The Season side: a large title with the toolbar (week, search, sync), then the view; cards open in a sheet. */
 function AppleSeason({ leagueId, leagueName, view, onWeek }) {
   const s = useSeason(leagueId, onWeek);
-  const [focusRid, setFocusRid] = useState(null);   // the matchup on the lineup grid: the win chance and projection widgets follow it
+  const [focusRid, setFocusRid] = useState(null);
   useEffect(() => {
     if (!s.cur) return undefined;
-    /** Escape closes the sheet. */
     const k = (e) => e.key === "Escape" && s.close();
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
@@ -79,7 +74,7 @@ function AppleSeason({ leagueId, leagueName, view, onWeek }) {
   if (!s.data || !s.plan) return <div className="panel">Loading the week from Sleeper…</div>;
   const { data, plan } = s;
   const away = focusRid != null && focusRid !== plan.roster_id;
-  const shown = away ? other : plan;   // null while another team's plan loads
+  const shown = away ? other : plan;
   const t = data.teams.find((x) => x.roster_id === (away ? focusRid : plan.roster_id));
   const whoName = t ? t.user || t.name : "";
   return (
@@ -119,10 +114,9 @@ function AppleSeason({ leagueId, leagueName, view, onWeek }) {
   );
 }
 
-/** Three widgets: win chance as an activity ring, the next check-in, and the lockable games with the win chance a lock adds. */
 function Widgets({ data, plan, shown, who, open }) {
   const nowMs = nowOf(data), next = nextCheckIn(plan, nowMs);
-  const p = shown || plan, wait = shown === null;   // win chance and lockable games follow the matchup on the lineup grid
+  const p = shown || plan, wait = shown === null;
   const lockable = wait ? [] : lockableOf(p);
   const R = 34, C = 2 * Math.PI * R;
   return (
@@ -162,7 +156,6 @@ function Widgets({ data, plan, shown, who, open }) {
   );
 }
 
-/** "Do now": every call (callsOf) as a row of an inset grouped list. */
 function Calls({ data, plan, s }) {
   const calls = callsOf(data, plan);
   return (
@@ -183,7 +176,6 @@ function Calls({ data, plan, s }) {
   );
 }
 
-/** Today's NBA games that involve the league's players; a row opens the game card. */
 function Slate({ data, s }) {
   const { date, list } = slate(data);
   return (

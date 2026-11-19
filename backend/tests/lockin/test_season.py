@@ -4,7 +4,7 @@ from datetime import date
 import pytest
 
 from app.lockin.service import actual_fp, current_week, week_view
-from tests.test_session import JOKIC, fixture_world, make_session  # noqa: F401 - fixture_world is a pytest fixture
+from tests.test_session import JOKIC, fixture_world, make_session
 
 
 def test_week_view_joins_schedule_projections_scores_and_tips(fixture_world):
@@ -35,22 +35,22 @@ def test_week_view_joins_schedule_projections_scores_and_tips(fixture_world):
     assert w["week"] == 1 and w["dates"] == ["2026-10-20", "2026-10-22"]
     team = w["teams"][0]
     assert team["name"] == "Joker Fans" and team["user"] == "me" and team["avatar"] == "https://sleepercdn.com/avatars/thumbs/abc"
-    assert w["players"]["999"]["nick"] == "The Joker" and "123" not in w["players"]   # only nicknames of players he has
+    assert w["players"]["999"]["nick"] == "The Joker" and "123" not in w["players"]
     assert team["is_user"] and team["fpts"] == 50.25 and team["wins"] == 1
     assert [len(m) for m in w["matchups"]] == [2]
     g1, g2 = w["players"]["999"]["games"]
     assert g1["opp"] == "LAL" and g1["state"] == "post" and g1["min"] == 36.0
-    assert g1["fp"] == round(actual_fp(box, s.league.scoring), 2) and g1["fp"] > 20   # scored with the league formula
+    assert g1["fp"] == round(actual_fp(box, s.league.scoring), 2) and g1["fp"] > 20
     assert g2["opp"] == "PHX" and g2["fp"] is None and g2["proj"] > 0 and g2["tip"] is None
 
     from app.lockin import service as season
     real = season.today_ct
-    season.today_ct = lambda *_: date(2026, 10, 20)   # live mode: today's only game is over -> the lineup moves to the next game day
+    season.today_ct = lambda *_: date(2026, 10, 20)
     try:
         assert week_view(s, fetch)["day"] == "2026-10-22"
     finally:
         season.today_ct = real
-    season.RETIRED.add("999")   # a retired player never has games, even with a team and a schedule
+    season.RETIRED.add("999")
     try:
         p = week_view(s, fetch, today=date(2026, 10, 21))["players"]["999"]
         assert p["retired"] and p["games"] == []
@@ -70,8 +70,8 @@ def test_best_games_ranks_every_players_games_by_league_fp_with_the_game(fixture
         "stats/nba/2026/1": [{"player_id": "5", "date": "2026-10-20", "team": "LAL", "opponent": "DEN", "stats": {"pts": 10, "sp": 1200},
                               "player": {"first_name": "Some", "last_name": "Guy", "fantasy_positions": ["SF"]}},
                              {"player_id": "999", "date": "2026-10-20", "team": "DEN", "opponent": "LAL", "stats": big},
-                             {"player_id": "7", "date": "2026-10-20", "team": "LAL", "stats": {}},   # no minutes: not a game
-                             {"player_id": "TEAM_DEN", "date": "2026-10-20", "team": "DEN", "stats": {"pts": 120, "sp": 14400}}],   # team total
+                             {"player_id": "7", "date": "2026-10-20", "team": "LAL", "stats": {}},
+                             {"player_id": "TEAM_DEN", "date": "2026-10-20", "team": "DEN", "stats": {"pts": 120, "sp": 14400}}],
         "scoreboard?dates=20261020": {"events": [{"id": "401", "date": "2026-10-21T02:00Z", "status": {"type": {"state": "post"}},
                                                   "competitions": [{"competitors": [{"homeAway": "home", "score": "120", "team": {"abbreviation": "DEN"}},
                                                                                     {"homeAway": "away", "score": "110", "team": {"abbreviation": "LAL"}}]}]}]},
@@ -85,10 +85,10 @@ def test_best_games_ranks_every_players_games_by_league_fp_with_the_game(fixture
 def test_current_week_is_the_monday_to_sunday_span_holding_today():
     """Current week is the monday to sunday span holding today."""
     weeks = {1: ["2026-10-20", "2026-10-25"], 2: ["2026-10-26", "2026-11-01"]}
-    assert current_week(weeks, date(2026, 10, 16)) == 1    # preseason: week 1
-    assert current_week(weeks, date(2026, 10, 25)) == 1    # Sunday still week 1
+    assert current_week(weeks, date(2026, 10, 16)) == 1
+    assert current_week(weeks, date(2026, 10, 25)) == 1
     assert current_week(weeks, date(2026, 10, 26)) == 2
-    assert current_week(weeks, date(2027, 6, 1)) == 2      # after the season: the last week
+    assert current_week(weeks, date(2027, 6, 1)) == 2
 
 
 def test_lock_detection_and_your_answers():
@@ -96,10 +96,10 @@ def test_lock_detection_and_your_answers():
     from app.lockin.service import detect_lock
 
     games = [{"date": "2026-10-20", "fp": 18.5}, {"date": "2026-10-22", "fp": 11.0}, {"date": "2026-10-24", "fp": None}]
-    assert detect_lock(18.5, games, None) == ("locked", "2026-10-20")    # counts an earlier game: locked
-    assert detect_lock(11.0, games, None) == ("maybe", "2026-10-22")     # counts his latest: can't tell yet
+    assert detect_lock(18.5, games, None) == ("locked", "2026-10-20")
+    assert detect_lock(11.0, games, None) == ("maybe", "2026-10-22")
     assert detect_lock(0, games, None) == ("no", None)
-    assert detect_lock(11.0, games, "2026-10-20") == ("locked", "2026-10-20")   # your answer wins
+    assert detect_lock(11.0, games, "2026-10-20") == ("locked", "2026-10-20")
     assert detect_lock(18.5, games, "") == ("no", None)
 
 
@@ -129,7 +129,7 @@ def test_roster_rules_flag_a_healthy_player_on_ir_and_open_ir_spots(fixture_worl
             "teams": [{"roster_id": 1, "name": "me", "is_user": True, "players": ["a", "b", "c", "back"],
                        "starters": ["a", "b"], "reserve": ["back"]}]}
     r = team_plan(s, view)["roster"]
-    assert r["illegal"] == ["back"]                  # 3 active + a healthy player on IR = 4 > 3 spots
+    assert r["illegal"] == ["back"]
     assert r["ir_open"] == 1 and r["ir_candidates"] == ["c"]
 
 
@@ -138,8 +138,8 @@ def test_a_counted_latest_game_is_guessed_locked_when_locking_beats_waiting(fixt
     from app.lockin.service import team_plan
 
     s = make_session(fixture_world)
-    g = lambda d, fp=None, proj=10.0, st="pre": {"date": d, "proj": proj, "fp": fp, "state": st, "tip": None, "min": None}   # noqa: E731
-    pl = lambda sid, games: {"player_id": None, "name": sid, "team": "DEN", "pos": ["PG"], "injury": "healthy",   # noqa: E731
+    g = lambda d, fp=None, proj=10.0, st="pre": {"date": d, "proj": proj, "fp": fp, "state": st, "tip": None, "min": None}
+    pl = lambda sid, games: {"player_id": None, "name": sid, "team": "DEN", "pos": ["PG"], "injury": "healthy",
                              "injury_note": "", "retired": False, "games": games}
     view = {"today": "2026-10-21", "dates": [], "roster_positions": ["PG", "PG"], "reserve_slots": 0,
             "matchups": [[{"roster_id": 1, "players_points": {"hot": 18.6, "cold": 4.0}}]],
@@ -147,13 +147,13 @@ def test_a_counted_latest_game_is_guessed_locked_when_locking_beats_waiting(fixt
                         "cold": pl("cold", [g("2026-10-20", 4.0, st="post"), g("2026-10-23")])},
             "teams": [{"roster_id": 1, "name": "rival", "is_user": False, "players": ["hot", "cold"], "starters": ["hot", "cold"], "reserve": []}]}
     out = {p["sid"]: p for p in team_plan(s, view, roster_id=1)["players"]}
-    assert out["hot"]["lock_status"] == "guess" and out["hot"]["locked"] == 18.6   # 18.6 beats ~10 from his next game
-    assert out["cold"]["lock_status"] == "maybe" and out["cold"]["locked"] is None  # 4 doesn't: he'd wait
+    assert out["hot"]["lock_status"] == "guess" and out["hot"]["locked"] == 18.6
+    assert out["cold"]["lock_status"] == "maybe" and out["cold"]["locked"] is None
     assert team_plan(s, view, roster_id=1)["points"] == 18.6
-    view["players"]["hot"]["games"][0]["state"] = "in"   # still playing: can't be locked yet, so no guess
+    view["players"]["hot"]["games"][0]["state"] = "in"
     assert {p["sid"]: p["lock_status"] for p in team_plan(s, view, roster_id=1)["players"]}["hot"] == "maybe"
     view["players"]["hot"]["games"][0]["state"] = "post"
-    view["teams"][0]["is_user"] = True   # your own team: no guessing, you know what you locked
+    view["teams"][0]["is_user"] = True
     assert team_plan(s, view)["points"] == 0
 
 
@@ -161,19 +161,19 @@ def test_news_merges_my_players_newest_first_and_flags_injuries():
     """News merges my players newest first and flags injuries."""
     from app.lockin.service import season_news
 
-    note = lambda t, d, ms: {"published": ms, "metadata": {"title": t, "description": d}}   # noqa: E731 - Sleeper's shape
+    note = lambda t, d, ms: {"published": ms, "metadata": {"title": t, "description": d}}
     feeds = {"a": [note("Al Pha - Questionable", "Pha (ankle) is questionable Monday.", 1_792_000_000_000),
-                   note("", "", 1_792_900_000_000)],                                          # untitled: skipped
+                   note("", "", 1_792_900_000_000)],
              "b": [note("Bo Ta - Resting Monday", "Ta (rest) won't play Monday.", 1_792_100_000_000)],
              "c": [note("Cy Ga - Suffers torn Achilles", "Ga suffered a season-ending Achilles tear, Shams Charania reports.", 1_792_200_000_000)],
              "f": [note("Ben Simmons - Suffers torn Achilles", "Simmons tore his right Achilles.", 1_792_300_000_000)]}
-    fetch = lambda url, ttl: feeds[url.split("/")[-2]]   # noqa: E731
+    fetch = lambda url, ttl: feeds[url.split("/")[-2]]
 
     view = {"teams": [{"is_user": True, "name": "me", "user": "meuser", "players": ["a", "b"]},
                       {"is_user": False, "name": "rival", "user": "rivaluser", "players": ["c"]}],
             "players": {"a": {"name": "Al Pha", "player_id": 1}, "b": {"name": "Bo Ta", "player_id": 2}, "c": {"name": "Cy Ga", "player_id": 3},
                         "f": {"name": "Ben Simmons", "player_id": 4, "team": "SAC"}}}
-    n = season_news(view, fetch, free=["f", "c", "zz"])   # c is rostered, zz unknown: neither is a free agent
+    n = season_news(view, fetch, free=["f", "c", "zz"])
     assert [(x["headline"], x["injury"]) for x in n["mine"]] == [("Bo Ta - Resting Monday", False), ("Al Pha - Questionable", True)]
     assert [(x["headline"], x["injury"], x["user"]) for x in n["league"]] == [("Cy Ga - Suffers torn Achilles", True, "rivaluser")]
     assert [(x["name"], x["team"], x["owner"]) for x in n["free"]] == [("Ben Simmons", "SAC", None)]
@@ -201,19 +201,19 @@ def test_acquisitions_draft_price_then_moves_in_order():
     session = SimpleNamespace(league=SimpleNamespace(sleeper_league_id="L"))
     view = {"week": 1, "teams": [{"roster_id": 1, "name": "me"}, {"roster_id": 2, "name": "rival"}, {"roster_id": 3, "name": "other"}]}
     assert [(a["kind"], a["team"], a["price"]) for a in acquisitions(session, fetch, view, "9")] == [
-        ("drafted", "me", 24), ("dropped", "me", None), ("claimed", "rival", 7)]   # failed claim skipped
+        ("drafted", "me", 24), ("dropped", "me", None), ("claimed", "rival", 7)]
 
 
 def test_faab_bid_paces_the_budget_over_the_season():
     """Faab bid paces the budget over the season."""
     from app.lockin.service import faab_bid
 
-    assert faab_bid(6.68, 89, 23) == 13     # a big upgrade early: about 3 weeks' share, not half the budget
+    assert faab_bid(6.68, 89, 23) == 13
     assert faab_bid(3.18, 89, 23) == 6
-    assert faab_bid(40, 89, 23) == 22       # capped at a quarter of what is left
-    assert faab_bid(0.1, 89, 23) == 1       # never below the league minimum
-    assert faab_bid(6, 10, 1) == 2          # last week: spend, but still capped
-    assert faab_bid(6, 0, 5) == 0           # nothing left
+    assert faab_bid(40, 89, 23) == 22
+    assert faab_bid(0.1, 89, 23) == 1
+    assert faab_bid(6, 10, 1) == 2
+    assert faab_bid(6, 0, 5) == 0
     assert faab_bid(6.68, 89, 23, demand=0.3) == 4
 
 
@@ -221,11 +221,11 @@ def test_waiver_demand_needs_him_to_outscore_your_drop():
     """Waiver demand needs him to outscore your drop."""
     from app.lockin.service import waiver_demand
 
-    assert waiver_demand(10.4, 5.0) == 1.0          # twice your drop: full bid
-    assert waiver_demand(6.0, 5.0) == 0.0           # 20 % better: not worth a drop and a bid, min bid
+    assert waiver_demand(10.4, 5.0) == 1.0
+    assert waiver_demand(6.0, 5.0) == 0.0
     assert waiver_demand(4.0, 5.0) == 0.0
     assert waiver_demand(7.5, 5.0) == 0.5
-    assert waiver_demand(3.0, 0.0) == 1.0           # drop has no games and no projection
+    assert waiver_demand(3.0, 0.0) == 1.0
 
 
 def test_the_demand_ratio_uses_fpg_steadied_by_the_projection():
@@ -233,13 +233,13 @@ def test_the_demand_ratio_uses_fpg_steadied_by_the_projection():
     from app.lockin.service import FPG_PRIOR_GAMES, steady_fpg, waiver_demand
     from app.lockin.weekplan import PROJ_SCALE
 
-    proj = 8.0 * PROJ_SCALE                                              # the projection, scaled (it runs high)
+    proj = 8.0 * PROJ_SCALE
     one_bad_game = steady_fpg({"fp": 1.0, "gp": 1}, 8.0)
     assert one_bad_game == pytest.approx((1.0 + FPG_PRIOR_GAMES * proj) / (1 + FPG_PRIOR_GAMES))
-    assert waiver_demand(8.0, 1.0) == 1.0 and waiver_demand(8.0, one_bad_game) == 0.0   # raw: full bids; steadied: none
-    assert steady_fpg({"fp": 6.0, "gp": 30}, 8.0) == pytest.approx((180 + FPG_PRIOR_GAMES * proj) / 40)   # a month in: mostly his own
-    assert steady_fpg(None, 8.0) == pytest.approx(proj)                 # hasn't played: the projection
-    assert steady_fpg({"fp": 6.0, "gp": 4}, None) == 6.0                # no projection: his own
+    assert waiver_demand(8.0, 1.0) == 1.0 and waiver_demand(8.0, one_bad_game) == 0.0
+    assert steady_fpg({"fp": 6.0, "gp": 30}, 8.0) == pytest.approx((180 + FPG_PRIOR_GAMES * proj) / 40)
+    assert steady_fpg(None, 8.0) == pytest.approx(proj)
+    assert steady_fpg({"fp": 6.0, "gp": 4}, None) == 6.0
 
 
 def test_long_out_reads_the_tag_and_the_latest_notes():
@@ -251,7 +251,7 @@ def test_long_out_reads_the_tag_and_the_latest_notes():
     service.player_news = lambda fetch, sid: notes
     try:
         assert service.long_out(None, "2586", "Out")
-        assert not service.long_out(None, "2586", "DTD")       # a day-to-day tag never hides him
+        assert not service.long_out(None, "2586", "DTD")
         notes[0] = {"headline": "Coby White - Out with calf strain", "story": "out Monday"}
         assert not service.long_out(None, "1", "Out")
     finally:
@@ -276,9 +276,9 @@ def test_timeline_hands_the_slot_to_a_later_player_at_his_check_in():
     view = {"tz": "America/Chicago", "dates": ["2026-10-20", "2026-10-21"], "day": "2026-10-20"}
     segs = week_timeline([shai, reav], {"PG": 1}, view, None)["segments"]
     assert [(x["seats"]["PG"], x["to"][:16]) for x in segs] == [
-        (["s"], "2026-10-21T20:45"),    # Shai (Tue 8:30 PM) holds the slot until the check 15 min before Reaves's Wed tip ...
-        (["r"], "2026-10-26T00:00")]    # ... then the slot goes to the player who still has a game (Shai can be locked)
-    assert shai.slot == "PG" and not shai.games[0].started   # the simulation leaves the real state alone
+        (["s"], "2026-10-21T20:45"),
+        (["r"], "2026-10-26T00:00")]
+    assert shai.slot == "PG" and not shai.games[0].started
 
 
 def test_timeline_does_a_nights_swaps_at_one_check_in_and_never_moves_a_player_mid_game():
@@ -286,7 +286,7 @@ def test_timeline_does_a_nights_swaps_at_one_check_in_and_never_moves_a_player_m
     from app.lockin.service import week_timeline
     from app.lockin.weekplan import Game, PlanPlayer, plan_week
 
-    def guy(sid, slot, tip):   # Wed 10/21 (CDT = UTC-5)
+    def guy(sid, slot, tip):
         """A one-game plan player in slot `slot`, tipping at `tip` on Wed 10/21 (CDT)."""
         return PlanPlayer(sid=sid, name=sid, eligibility=["C"], slot=slot, games=[Game("2026-10-21", 20, tip=tip)])
     six, six30, seven = guy("6:00", "C", "2026-10-21T23:00:00Z"), guy("6:30", "C", "2026-10-21T23:30:00Z"), guy("7:00", "C", "2026-10-22T00:00:00Z")
@@ -296,8 +296,8 @@ def test_timeline_does_a_nights_swaps_at_one_check_in_and_never_moves_a_player_m
     view = {"tz": "America/Chicago", "dates": ["2026-10-21"], "day": "2026-10-21"}
     segs = week_timeline(ps, {"C": 3}, view, None)["segments"]
     assert [(sorted(x["seats"]["C"]), x["to"][:16]) for x in segs] == [
-        (["6:00", "6:30", "7:00"], "2026-10-21T20:45"),   # the early games start; one check at 8:45 PM ...
-        (["7:00", "9:00", "9:30"], "2026-10-26T00:00")]   # ... swaps in the 9:00 AND 9:30 games; 7:00 is still playing
+        (["6:00", "6:30", "7:00"], "2026-10-21T20:45"),
+        (["7:00", "9:00", "9:30"], "2026-10-26T00:00")]
 
 
 def test_lead_stats_points_first_then_what_is_worth_fantasy_points(fixture_world):
@@ -306,11 +306,11 @@ def test_lead_stats_points_first_then_what_is_worth_fantasy_points(fixture_world
 
     s = make_session(fixture_world)
     lead = lead_stats({"pts": 20, "reb": 10, "ast": 1, "stl": 0, "blk": 3, "tpm": 0}, s.league.scoring)
-    assert lead[0] == ["PTS", 20] and lead[1:] == [["REB", 10], ["BLK", 3], ["AST", 1]]   # by FP worth; a lone assist still shows
-    assert not any(label in ("STL", "3PM") for label, _ in lead)                          # zeros don't
-    assert lead_stats({"pts": 7, "reb": 2}, s.league.scoring) == [["PTS", 7], ["REB", 2]]   # 2 REB (0.8 FP) shows
+    assert lead[0] == ["PTS", 20] and lead[1:] == [["REB", 10], ["BLK", 3], ["AST", 1]]
+    assert not any(label in ("STL", "3PM") for label, _ in lead)
+    assert lead_stats({"pts": 7, "reb": 2}, s.league.scoring) == [["PTS", 7], ["REB", 2]]
     many = lead_stats({"pts": 30, "reb": 9, "ast": 8, "stl": 3, "blk": 2, "tpm": 4}, s.league.scoring)
-    assert len(many) == 5 and many[0][0] == "PTS"                                          # points + the 4 worth the most
+    assert len(many) == 5 and many[0][0] == "PTS"
 
 
 def test_team_ranks_offense_from_its_box_scores_and_defense_from_its_opponents():
@@ -323,15 +323,15 @@ def test_team_ranks_offense_from_its_box_scores_and_defense_from_its_opponents()
     rows = [row("MEM", "BOS", pts=120, reb=50, to=20), row("BOS", "MEM", pts=100, reb=40, to=10),
             row("MEM", "DEN", pts=110, reb=50, to=18), row("DEN", "MEM", pts=130, reb=45, to=12),
             row("DEN", "BOS", pts=105, reb=35, to=15), row("BOS", "DEN", pts=115, reb=40, to=14),
-            {"player_id": "123", "team": "MEM", "opponent": "BOS", "game_id": "g1", "stats": {"pts": 40}},   # a player row
-            row("MEM", "LAL", game="live", pts=30, reb=9, to=2)]   # in progress (not in done): ignored
+            {"player_id": "123", "team": "MEM", "opponent": "BOS", "game_id": "g1", "stats": {"pts": 40}},
+            row("MEM", "LAL", game="live", pts=30, reb=9, to=2)]
     done = {"g1"}
     r = team_ranks(rows, "MEM", done)
     assert r["games"] == 2 and r["teams"] == 3
-    assert r["offense"]["pts"] == {"v": 115.0, "rank": 2}                 # DEN 117.5 scores more
-    assert r["offense"]["reb"]["rank"] == 1 and r["offense"]["to"]["rank"] == 3   # most turnovers: last
-    assert r["defense"]["pts"] == {"v": 115.0, "rank": 3}                 # allows the most (BOS 107.5, DEN 112.5)
-    assert team_ranks(rows, "BOS", done)["offense"]["reb"]["rank"] == 2 == team_ranks(rows, "DEN", done)["offense"]["reb"]["rank"]  # a tie
+    assert r["offense"]["pts"] == {"v": 115.0, "rank": 2}
+    assert r["offense"]["reb"]["rank"] == 1 and r["offense"]["to"]["rank"] == 3
+    assert r["defense"]["pts"] == {"v": 115.0, "rank": 3}
+    assert team_ranks(rows, "BOS", done)["offense"]["reb"]["rank"] == 2 == team_ranks(rows, "DEN", done)["offense"]["reb"]["rank"]
     assert team_ranks(rows, "LAL", done) is None
 
 
@@ -344,11 +344,11 @@ def test_next_waiver_run_is_the_coming_saturday_or_sunday_at_2_am():
 
     ct = ZoneInfo("America/Chicago")
     at = lambda *a: datetime(*a, tzinfo=ct)
-    assert next_waiver_run(at(2026, 10, 21, 15, 0), [5, 6], 2) == at(2026, 10, 24, 2, 0)    # Wed -> Sat 2 AM
-    assert next_waiver_run(at(2026, 10, 24, 1, 59), [5, 6], 2) == at(2026, 10, 24, 2, 0)    # Sat just before the run
-    assert next_waiver_run(at(2026, 10, 24, 18, 0), [5, 6], 2) == at(2026, 10, 25, 2, 0)    # Sat evening -> Sun 2 AM
-    assert next_waiver_run(at(2026, 10, 25, 2, 0), [5, 6], 2) == at(2026, 10, 31, 2, 0)     # Sun's run just went -> next Sat
-    assert next_waiver_run(at(2026, 10, 24, 18, 0), [2], 0) == at(2026, 10, 28, 0, 0)   # a league set to Wed midnight
+    assert next_waiver_run(at(2026, 10, 21, 15, 0), [5, 6], 2) == at(2026, 10, 24, 2, 0)
+    assert next_waiver_run(at(2026, 10, 24, 1, 59), [5, 6], 2) == at(2026, 10, 24, 2, 0)
+    assert next_waiver_run(at(2026, 10, 24, 18, 0), [5, 6], 2) == at(2026, 10, 25, 2, 0)
+    assert next_waiver_run(at(2026, 10, 25, 2, 0), [5, 6], 2) == at(2026, 10, 31, 2, 0)
+    assert next_waiver_run(at(2026, 10, 24, 18, 0), [2], 0) == at(2026, 10, 28, 0, 0)
 
 
 def test_season_averages_count_finished_games_in_league_scoring(fixture_world):
@@ -359,12 +359,12 @@ def test_season_averages_count_finished_games_in_league_scoring(fixture_world):
     box = {"pts": 20, "reb": 10, "ast": 4, "stl": 1, "blk": 1, "to": 2, "tpm": 2, "sp": 1800}
     rows = [{"player_id": "7", "game_id": "g1", "stats": box},
             {"player_id": "7", "game_id": "g2", "stats": {**box, "pts": 10, "reb": 6}},
-            {"player_id": "7", "game_id": "live", "stats": {**box, "pts": 2}},        # in progress: not counted
-            {"player_id": "7", "game_id": "g3", "stats": {"pts": 0}},                 # DNP (no minutes)
-            {"player_id": "8", "game_id": "g1", "stats": box}]                        # not asked for
+            {"player_id": "7", "game_id": "live", "stats": {**box, "pts": 2}},
+            {"player_id": "7", "game_id": "g3", "stats": {"pts": 0}},
+            {"player_id": "8", "game_id": "g1", "stats": box}]
     a = season_averages(rows, {"7"}, {"g1", "g2", "g3"}, s.league.scoring)
     assert set(a) == {"7"} and a["7"]["gp"] == 2 and a["7"]["pts"] == 15.0 and a["7"]["reb"] == 8.0
-    assert a["7"]["fp"] == round((actual_fp(box, s.league.scoring) + actual_fp({**box, "pts": 10, "reb": 6}, s.league.scoring)) / 2, 2)   # FP to 2 decimals, like Sleeper
+    assert a["7"]["fp"] == round((actual_fp(box, s.league.scoring) + actual_fp({**box, "pts": 10, "reb": 6}, s.league.scoring)) / 2, 2)
 
 
 def test_game_card_shows_both_teams_before_the_tip_with_their_ranks(fixture_world):
@@ -385,7 +385,7 @@ def test_game_card_shows_both_teams_before_the_tip_with_their_ranks(fixture_worl
     }
     g = game_detail(s, lambda url, ttl: next((v for k, v in canned.items() if k in url), None), "9")
     away, home = g["teams"]
-    assert g["state"] == "pre" and (away["abbr"], home["abbr"]) == ("LAL", "UTA")      # ESPN's UTAH -> UTA, away first
+    assert g["state"] == "pre" and (away["abbr"], home["abbr"]) == ("LAL", "UTA")
     assert home["name"] == "Utah Jazz" and home["record"] == "1-1" and home["logo"] == "https://logo/UTAH.png"
     assert home["players"] == [] and home["ranks"]["offense"]["pts"]["rank"] == 2 and away["ranks"]["offense"]["pts"]["rank"] == 1
 
@@ -400,10 +400,10 @@ def test_sleeper_injuries_tag_every_hurt_player_red_or_yellow():
             "4": {"full_name": "Free Agent", "team": None, "injury_status": "Out"},
             "5": {"full_name": "Long Term", "team": "BKN", "injury_status": "IR"}}
     hurt = sleeper_injuries(lambda url, ttl: feed)
-    assert set(hurt) == {"1", "2", "5"}                                   # healthy and teamless players left out
+    assert set(hurt) == {"1", "2", "5"}
     assert (hurt["1"]["group"], hurt["2"]["group"], hurt["5"]["group"]) == ("out", "q", "out")
     assert hurt["1"]["body"] == "Ankle" and hurt["2"]["team"] == "MEM"
-    assert sleeper_injuries(lambda url, ttl: (_ for _ in ()).throw(OSError("down"))) == {}   # Sleeper down: no colours, no crash
+    assert sleeper_injuries(lambda url, ttl: (_ for _ in ()).throw(OSError("down"))) == {}
 
 
 def test_team_card_schedule_stats_and_injury_report(fixture_world):
@@ -424,8 +424,8 @@ def test_team_card_schedule_stats_and_injury_report(fixture_world):
     line = {"sp": 2100, "pts": 30, "reb": 12, "ast": 9, "fgm": 12, "fga": 20, "ftm": 4, "fta": 5, "tpm": 2, "tpa": 4}
     rows = [{"player_id": "999", "team": "DEN", "game_id": "g1", "stats": line},
             {"player_id": "999", "team": "DEN", "game_id": "g2", "stats": {**line, "pts": 20, "fgm": 8}},
-            {"player_id": "999", "team": "DEN", "game_id": "live", "stats": line},       # in progress: not counted
-            {"player_id": "TEAM_DEN", "team": "DEN", "game_id": "g1", "stats": line}]    # the team's own row: not a player
+            {"player_id": "999", "team": "DEN", "game_id": "live", "stats": line},
+            {"player_id": "TEAM_DEN", "team": "DEN", "game_id": "g1", "stats": line}]
     j = next(r for r in team_player_stats(sess, rows, {"g1", "g2"}, "DEN") if r["sleeper_id"] == "999")
     assert j["gp"] == 2 and j["pts"] == 25.0 and j["min"] == 35.0 and j["fg_pct"] == 50.0 and j["ft_pct"] == 80.0
 
@@ -433,6 +433,5 @@ def test_team_card_schedule_stats_and_injury_report(fixture_world):
             "3": {"name": "C", "team": "BKN", "group": "out", "starter": True}, "4": {"name": "D", "team": "LAL", "group": "q"},
             "5": {"name": "E", "team": "LAL", "group": "q", "starter": True}}
     rep = injury_report(hurt)
-    # a starter out beats a starter questionable beats bench injuries, however many
     assert [t["abbr"] for t in rep] == ["BKN", "LAL", "MEM"] and rep[0]["starters_out"] == 1 and rep[1]["starters_q"] == 1
-    assert (rep[2]["out"], rep[2]["q"], rep[2]["starters_out"]) == (1, 1, 0) and rep[1]["players"][0]["name"] == "E"   # starters listed first
+    assert (rep[2]["out"], rep[2]["q"], rep[2]["starters_out"]) == (1, 1, 0) and rep[1]["players"][0]["name"] == "E"

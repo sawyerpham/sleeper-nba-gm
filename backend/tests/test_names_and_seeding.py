@@ -74,12 +74,11 @@ def test_seed_always_takes_sleeper_and_keeps_the_users_notes():
     fa1 = FantasyAttributes(sleeper_id="1", fantasy_positions=["PF", "SF"], injury_status_raw="DTD", injury_body_part="Ankle")
     fa2 = FantasyAttributes(sleeper_id="2", fantasy_positions=["PG", "SG"], injury_status_raw=None)
     out = seed_overrides([record(1, fa1), record(2, fa2)], existing, now=LATER)
-    # old manual values (from before manual editing was removed) are replaced by Sleeper's
-    assert out[1].eligibility == ["SF", "PF"] and out[1].eligibility_source == "sleeper"  # PG -> C order
+    assert out[1].eligibility == ["SF", "PF"] and out[1].eligibility_source == "sleeper"
     assert out[1].injury_status == "day_to_day" and out[1].injury_note == "Ankle" and out[1].notes == "keep me"
     assert out[2].eligibility == ["PG", "SG"] and out[2].eligibility_source == "sleeper"
     assert out[2].injury_status == "healthy" and out[2].injury_source == "sleeper" and out[2].injury_note == ""
-    assert out[2].injury_sleeper_raw is None  # raw value still recorded for display
+    assert out[2].injury_sleeper_raw is None
 
 
 def test_seed_leaves_players_without_sleeper_data_untouched():

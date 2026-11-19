@@ -28,8 +28,6 @@ from .budget import ManagerBudget, manager_budget
 from .ranking import RankedPlayer
 
 EARLY_PHASE_END = 0.4
-# Recommended max = fair × (1 + PRESSURE_SCALE × pressure / other managers): +15 % when every other
-# manager can afford the player at even pace, scaled by their behaviour weights, ~0 when nobody can.
 PRESSURE_SCALE = 0.15
 
 
@@ -94,7 +92,7 @@ class MarketRate:
     open_total: int
     var_pool: float
     dollars_per_var: float
-    market_cap: int                     # largest legal bid anyone can make right now
+    market_cap: int
     budgets: dict[str, ManagerBudget]
 
 
@@ -115,7 +113,6 @@ def market_rate(
     replacement = replacement_value(pool_values.values(), rosterable_n)
     free_dollars = sum(b.discretionary for b in budgets.values())
     open_total = sum(b.open_mandatory for b in budgets.values())
-    # ponytail: assumes open slots keep the league's starter/bench mix; per-manager open starters if it drifts.
     priced_open = round(open_total * priced / mandatory) if mandatory else 0
     top_available = sorted(available_values, reverse=True)[: max(0, priced_open)]
     var_pool = sum(max(0.0, v - replacement) for v in top_available)
@@ -149,7 +146,6 @@ def recommend_bid(
     var = max(0.0, target.value - replacement)
     free_dollars, open_total, var_pool, dollars_per_var = rate.free_dollars, rate.open_total, rate.var_pool, rate.dollars_per_var
     uncapped_fair_value = min_bid + var * dollars_per_var
-    # Nobody can pay more than the largest legal bid in the room (reservation rule applied to everyone).
     fair_value = min(uncapped_fair_value, float(rate.market_cap))
 
     rationale: list[str] = []

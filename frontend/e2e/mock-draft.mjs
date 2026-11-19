@@ -1,7 +1,3 @@
-// Prereqs: backend on http://127.0.0.1:8000 (python -m app.serve), Vite dev server on http://localhost:5173.
-// Run:     npm run e2e            (env: DA_URL, DA_API, DA_BROWSER=msedge|chrome|chromium, DA_LEAGUE, DA_SKIP_PULL=1)
-// Every draft action goes through the browser. The API is only READ here to decide who should win
-// the next lot and to verify the final state; it never mutates anything.
 
 import fs from "node:fs";
 import { chromium } from "playwright";
@@ -14,11 +10,8 @@ const MAX_ITER = 320;
 fs.mkdirSync(SHOTS, { recursive: true });
 
 const t0 = Date.now();
-/** Log a message prefixed with the elapsed seconds. */
 const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(1)}s]`, ...a);
-/** Throw an ASSERT error when `cond` is false. */
 const assert = (cond, msg) => { if (!cond) throw new Error(`ASSERT: ${msg}`); };
-/** GET from the API (read only) and parse the JSON. */
 const apiGet = async (path) => { const r = await fetch(API + path); if (!r.ok) throw new Error(`${path}: ${r.status}`); return r.json(); };
 
 const browser = await chromium.launch({ channel: process.env.DA_BROWSER || "msedge", headless: true });
@@ -26,19 +19,16 @@ const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 page.setDefaultTimeout(20000);
 page.on("dialog", (d) => d.accept());
 page.on("pageerror", (e) => log("PAGE ERROR:", e.message));
-/** Save a full-page screenshot under e2e/screenshots. */
 const shot = (name) => page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: true });
 const summary = { league: LEAGUE, steps: [], picks: [] };
-/** Open the Settings popup (the cog) unless it is already open. */
 const openSettings = async () => { if (!(await page.getByTestId("settings-modal").count())) await page.getByTestId("tab-settings").click(); };
-/** Close the Settings popup if it is open, so the tabs underneath can be clicked. */
 const closeSettings = async () => { if (await page.getByTestId("settings-modal").count()) await page.getByTestId("settings-close").click(); };
 
 try {
   await page.goto(BASE);
   await page.getByTestId("home").waitFor();
 
-  await openSettings();   // settings and data pull live in the Settings popup
+  await openSettings();
   if (process.env.DA_SKIP_PULL !== "1") {
     await page.getByTestId("pull-button").click();
     await page.waitForFunction(() => {
@@ -58,7 +48,7 @@ try {
   await page.getByTestId("create-league-id").fill(LEAGUE);
   await page.getByTestId("create-league-name").fill("Mock Auction 2026-27");
   await page.getByTestId("create-league-submit").click();
-  await page.locator('[data-testid="managers-toggle"] > summary').click();   // the Managers section starts folded
+  await page.locator('[data-testid="managers-toggle"] > summary').click();
   await page.getByTestId(`manager-row-m2`).waitFor();
   const names = ["Sawyer", "Early Eddie", "Manager Three", "Four", "Late Lucy", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"];
   await page.getByTestId("bulk-names").fill(names.join("\n"));
@@ -101,8 +91,6 @@ try {
 
   await page.getByTestId("btn-start").click();
   await page.getByTestId("start-dialog").waitFor();
-  // one row per manager is pre-filled: only the player and LAST year's price are typed;
-  // the league rule (+$1 per full $5) computes this year's price
   assert((await page.locator('[data-testid^="keeper-row-"]').count()) === 12, "one keeper row per manager pre-filled");
   const keepers = [["m3", 2, "doncic", 17, 20], ["m7", 6, "gilgeous", 55, 66]];
   let verdictsSeen = 0;
@@ -140,14 +128,11 @@ try {
   log(`user (m1) won ${first.full_name} for the recommended $${recMax}`);
   summary.picks.push({ n: 1, player: first.full_name, winner: "m1", price: recMax, rec: recMax, path: "nominate+record" });
 
-  // nomination order on the fly: move m12 to the front with the arrow buttons (next nominator m2 must stay), then make m5 next
-  /** The manager id currently shown as the next nominator. */
   const nextId = () => page.getByTestId("next-nominator").getAttribute("data-manager-id");
   assert((await nextId()) === "m2", "m2 nominates after m1");
   assert((await page.getByTestId("next-nominator").textContent()) === "Early Eddie", "next nominator shown by name, not id");
-  if (!(await page.getByTestId("order-bar").isVisible())) await page.getByTestId("btn-order").click();   // order editor is folded away once live
-  for (let k = 0; k < 11; k++) await page.getByTestId("order-left-m12").click();  // each click waits for the previous save (arrows disable while busy)
-  // wait for the last save to land: the chip shows "1." and the arrows are enabled again (not busy)
+  if (!(await page.getByTestId("order-bar").isVisible())) await page.getByTestId("btn-order").click();
+  for (let k = 0; k < 11; k++) await page.getByTestId("order-left-m12").click();
   await page.waitForFunction(() => document.querySelector('[data-testid="order-next-m12"]')?.textContent.startsWith("1.")
     && !document.querySelector('[data-testid="order-right-m12"]')?.disabled);
   let order = (await apiGet(`/leagues/${LEAGUE}/draft`)).nomination_order;
@@ -185,10 +170,9 @@ try {
   assert(spending.includes("for Sawyer") && spending.includes("Room") && !spending.includes("Price level"), "spending guide shows you vs the room");
   assert((await page.locator('[data-testid^="best-fit-"]').count()) >= 1, "spending guide lists your best fits");
   log("spending guide:", spending.replace(/\s+/g, " ").slice(0, 160));
-  await page.getByTestId("rank-sort").click();             // first column: tier and overall rank side by side ("T2 1")
+  await page.getByTestId("rank-sort").click();
   await page.waitForFunction(() => /^T\d+ 1$/.test((document.querySelector('[data-testid^="rank-row-"]')?.children[0].textContent || "").trim()));
   log("rankings: position chip filter and column sort work");
-  // adjust who drafted whom: Jokić is pick #3 (after two keepers); move it to m2 through the edit dialog, then back
   await page.getByTestId("pick-chip-3").click();
   await page.getByTestId("edit-pick-dialog").waitFor();
   await page.getByTestId("edit-pick-manager").selectOption("m2");
@@ -236,7 +220,6 @@ try {
     } catch { }
     const maxBid = Number((await page.getByTestId(`pick-max-${winner}`).textContent()).replace(/[^0-9]/g, ""));
     assert(maxBid === winnerBudget.max_bid, `dialog max bid ${maxBid} == API max bid ${winnerBudget.max_bid}`);
-    // late in the draft managers fill bench at $1; otherwise pay up to the recommendation, capped by the reservation rule
     const price = Math.max(1, Math.min(winnerBudget.open_mandatory <= 3 ? 1 : rec, maxBid));
     await page.getByTestId("pick-price").fill(String(price));
     await page.getByTestId(`pick-mgr-${winner}`).click();

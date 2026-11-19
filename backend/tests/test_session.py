@@ -51,7 +51,7 @@ def test_rankings_recommendation_pick_and_stacking(fixture_world):
 
     rec = s.recommend(JOKIC)
     assert rec.can_bid and 1 <= rec.recommended_max <= 186 and rec.my_max_bid == 186
-    assert rec.replacement_value == 0.0  # 23 players in the pool, 180 rosterable slots
+    assert rec.replacement_value == 0.0
     assert len(rec.competitors) == 11
 
     s.engine.pick(JOKIC, "m1", rec.recommended_max)
@@ -82,7 +82,6 @@ def test_hide_unrosterable_setting(fixture_world):
     """Hide unrosterable setting."""
     s = make_session(fixture_world)
     s.start([])
-    # fill every slot a guard can take: PG, SG, UTIL×2, BN×8 -> 12 picks of PG/SG-eligible players
     guards = [r.player_id for r in s.rankings() if set(r.eligibility) & {"PG", "SG"}]
     assert len(guards) >= 10
     for pid in guards[:12] if len(guards) >= 12 else guards:
@@ -132,10 +131,9 @@ def test_export_round_trip(fixture_world):
     assert s2.rankings()[0].player_id != JOKIC
     s2.engine.undo()
     assert s2.engine.is_available(BUTLER)
-    # a pool that lost a drafted player still restores from the snapshot
     s3 = DraftSession.from_export(restored, {k: v for k, v in players.items() if k != JOKIC}, overrides, valuations)
     assert JOKIC in s3.players and s3.engine.picks_for("m1")[0].player_id == JOKIC
-    json.loads(raw)  # plain JSON on disk
+    json.loads(raw)
 
 
 def test_fit_card_and_fit_column_give_the_same_score(fixture_world):
@@ -151,11 +149,9 @@ def test_fit_card_and_fit_column_give_the_same_score(fixture_world):
     column = fit_scores(s, "m1", rows, calls)
     for pid in (r.player_id for r in rows[:8]):
         assert team_fit(s, "m1", pid).score == column[pid]["score"]
-        # one call and one "your max" per player, whichever screen asks
         focus = s.spending_guide("m1", pid).focus
         assert (focus.verdict, focus.suggested, focus.recommended) == (calls[pid].verdict, calls[pid].suggested, calls[pid].recommended)
         assert focus.suggested <= focus.walk_away or focus.verdict == "cannot"
-    # Fill every slot a center can start in (C, UTIL×2): another center is now bench only and scores lower.
     centers = [pid for pid, o in s.overrides.items() if "C" in o.eligibility and pid in s.players and pid != JOKIC and s.engine.is_available(pid)][:3]
     for pid, slot in zip(centers, ("C", "UTIL", "UTIL")):
         s.engine.pick(pid, "m1", 1, slot)
@@ -170,7 +166,7 @@ def test_fit_scores_drop_bench_only_and_unaffordable_players(fixture_world):
     s = make_session(fixture_world)
     rows = s.rankings("m1", 30)
     fits = fit_scores(s, "m1", rows, {})
-    assert fits[rows[0].player_id]["score"] == 100   # best player left, starting slot, no prices before the draft
+    assert fits[rows[0].player_id]["score"] == 100
     s.start([])
     rows = s.rankings("m1", 30)
     top = rows[0]
@@ -209,14 +205,14 @@ def test_market_board_counts_need_and_supply_and_prices_each_sale_at_its_moment(
     per_team = next(x.count for x in s.league.roster_slots if x.slot == "C")
     assert c["need"] == 12 * per_team - 1 and c["my_open"] == per_team and c["status"] in {"scarce", "tight", "plenty"}
     room_starters = sum(n for m in s.managers for sl, n in __import__("app.core.engine.roster", fromlist=["x"]).open_slots(s.league, s.engine.picks_for(m.manager_id)).items() if sl not in ("BN", "IR"))
-    assert sum(p["left"] for p in b["positions"]) <= room_starters   # each player counted once, where he is needed most
+    assert sum(p["left"] for p in b["positions"]) <= room_starters
     assert c["cliff"]["left"] >= 1 and all(ch["name"] != s.managers[0].name for ch in c["chasers"])
     sale = b["sales"][0]
     assert sale["player_id"] == JOKIC and sale["price"] == 80 and sale["diff"] == 80 - sale["fair"] and sale["fair"] > 1
     from app.draft.room import room_board
     jokic = next(p for m in room_board(s, "m1") for p in m["picks"] if p["player_id"] == JOKIC)
     assert jokic["worth"] == sale["fair"]
-    assert b["sold"] == 1 and b["good_left"] >= 1 and b["spots_left"] == 12 * s.league.mandatory_slot_count() - 1   # the Managers page colours his price with the same Worth-at-sale
+    assert b["sold"] == 1 and b["good_left"] >= 1 and b["spots_left"] == 12 * s.league.mandatory_slot_count() - 1
 
 
 def test_keeper_outlook_prices_next_year_with_the_league_rule_and_flags_stashes(fixture_world):
@@ -236,7 +232,6 @@ def test_keeper_outlook_prices_next_year_with_the_league_rule_and_flags_stashes(
     s.overrides[JOKIC] = s.overrides[JOKIC].model_copy(update={"injury_status": "out_season"})
     s.invalidate()
     hurt = keeper_outlook(s, row, 1)
-    # an injury now barely moves next year's worth (only the pool around him shifts)
     assert hurt["stash"] and hurt["next_worth"] >= 0.8 * cheap["next_worth"]
 
 
@@ -249,8 +244,8 @@ def test_pre_draft_worth_counts_keepers_and_matches_draft_start(fixture_world):
     s.sync_keeper_history()
     live = s.start_worth(luka())
     s.engine.reset()
-    assert s.draft.status == "setup" and s.start_worth(luka()) == live   # same number before the draft, from the keeper rows
-    assert s.keeper_start_rate().free_dollars == no_keepers - 9   # his $10 is spent, $1 of it on a spot that no longer needs reserving
+    assert s.draft.status == "setup" and s.start_worth(luka()) == live
+    assert s.keeper_start_rate().free_dollars == no_keepers - 9
 
 
 def test_win_score_of_an_empty_roster_is_all_on_the_weekly_best_scale(fixture_world):
@@ -273,6 +268,6 @@ def test_win_score_of_an_empty_roster_is_all_on_the_weekly_best_scale(fixture_wo
     me = next(m for m in room_board(s, "m1") if m["manager_id"] == "m1")
     b = me["budget"]
     per_starter = max(0.0, (b["remaining"] - (b["open_mandatory"] - starters) * lg.min_bid) / starters - lg.min_bid)
-    scale = repl / pool[repl_pid] if pool[repl_pid] > 0 else 1.0        # weekly-best FP per point of ranking value
+    scale = repl / pool[repl_pid] if pool[repl_pid] > 0 else 1.0
     bought = per_starter / rate.dollars_per_var * scale if rate.dollars_per_var > 0 else 0.0
     assert me["empty_starters"] == starters and me["win_score"] == pytest.approx(starters * (repl + bought), abs=0.06)

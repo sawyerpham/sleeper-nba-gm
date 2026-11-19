@@ -6,9 +6,8 @@ import { TipLayer } from "./core/Terms.jsx";
 import Icon from "./core/Icon.jsx";
 import { SEASON_VIEWS, SettingsModal, TABS, useAppState } from "./core/Shell.jsx";
 
-const TAB_COLORS = { season: "#3b82f6", news: "#f59e0b", standings: "#10b981", waivers: "#ec4899", draft: "#a855f7" };   // each tab's own hue (see header.top nav button in styles.css)
+const TAB_COLORS = { season: "#3b82f6", news: "#f59e0b", standings: "#10b981", waivers: "#ec4899", draft: "#a855f7" };
 
-/** Root component of the "New" UI: the header (tabs, settings cog) and the page for the open tab (Home, Draft or a Season view). State and the Settings popup: core/Shell.jsx. */
 export default function App() {
   const app = useAppState();
   const { tab, setTab, goTab, leagueId, health } = app;
@@ -25,7 +24,7 @@ export default function App() {
           ))}
         </nav>
         </div>
-        <div id="header-slot" className="header-slot" />   {/* pages can put their own bar here (Season: week bar) */}
+        <div id="header-slot" className="header-slot" />
         {health && !health.ok && <span className="meta"><span className="small warn-text" data-testid="health">API unreachable</span></span>}
         <button className={`cog icon-btn ${app.settingsOpen ? "active" : ""}`} onClick={() => app.setSettingsOpen(true)} data-testid="tab-settings" aria-label="Settings" title="Settings"><Icon name="settings" /></button>
       </header>

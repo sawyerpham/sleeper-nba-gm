@@ -23,9 +23,9 @@ class ManagerBudget:
     remaining: int
     filled_mandatory: int
     open_mandatory: int
-    reserved: int          # dollars that must stay untouched for the other open mandatory slots
-    max_bid: int           # remaining - reserved, floored at 0; 0 when no mandatory slot is open
-    discretionary: int     # remaining - min_bid * open_mandatory: money above the bare minimum
+    reserved: int
+    max_bid: int
+    discretionary: int
 
 
 def max_bid(remaining: int, open_mandatory: int, min_bid: int) -> int:

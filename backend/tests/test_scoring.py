@@ -120,33 +120,32 @@ def test_thresholds_and_bonus_amounts_are_editable():
 def test_valuate_average_ceiling_counts_and_team_history():
     """Valuate average ceiling counts and team history."""
     games = [
-        line("3", date(2026, 3, 1), "BKN", 36.0, pts=41, reb=5, ast=5),     # 10.25+2+2.5 + 4 = 18.75
-        line("1", date(2025, 11, 1), "PHX", 30.0, pts=10, reb=10, ast=10),  # 2.5+4+5 + 2 = 13.5
-        line("2", date(2025, 12, 1), "PHX", 24.0, pts=8, tov=2),            # 2 - 1 = 1.0
+        line("3", date(2026, 3, 1), "BKN", 36.0, pts=41, reb=5, ast=5),
+        line("1", date(2025, 11, 1), "PHX", 30.0, pts=10, reb=10, ast=10),
+        line("2", date(2025, 12, 1), "PHX", 24.0, pts=8, tov=2),
     ]
     v = valuate(1, "2025-26", games, DEFAULT)
     assert v.games_played == 3
-    assert v.per_game_fpts == [13.5, 1.0, 18.75]  # chronological regardless of input order
+    assert v.per_game_fpts == [13.5, 1.0, 18.75]
     assert v.avg_fpts == pytest.approx(round((13.5 + 1.0 + 18.75) / 3, 2))
     assert v.best_game_fpts == 18.75
     assert v.bonus_counts == {"triple_double": 1, "pts_40": 1, "pts_50": 0, "ast_15": 0, "reb_20": 0}
     assert v.minutes_avg == 30.0
     assert v.teams_played_for == ["PHX", "BKN"]
-    # three games in three different fantasy weeks
     assert v.weeks_played == 3 and v.weekly_best_avg == pytest.approx(round((13.5 + 1.0 + 18.75) / 3, 2))
-    assert v.season_weeks == 18 and v.availability == pytest.approx(3 / 18, abs=0.001)  # Mon 2025-10-27 .. week of 2026-03-01
+    assert v.season_weeks == 18 and v.availability == pytest.approx(3 / 18, abs=0.001)
     assert v.total_fpts == pytest.approx(33.25) and v.top_quarter_avg == 18.75
     assert v.stat_averages["pts"] == pytest.approx(19.67) and v.stat_averages["minutes"] == 30.0
-    assert v.bonus_fpts_per_game == pytest.approx(2.0)  # (+4 for 41 pts, +2 triple-double) / 3 games
+    assert v.bonus_fpts_per_game == pytest.approx(2.0)
 
 
 def test_weekly_best_groups_games_by_monday_to_sunday_week():
     """Weekly best groups games by monday to sunday week."""
     games = [
-        line("a", date(2025, 11, 4), pts=40),   # Tue, week of Mon 2025-11-03 -> 10.0 + 4 (40+) = 14.0
-        line("b", date(2025, 11, 6), pts=120),  # Thu, same week -> 30.0 + 4 + 1 = 35.0 (best of the week)
-        line("c", date(2025, 11, 9), pts=80),   # Sun, same week -> 20 + 4 + 1 = 25.0
-        line("d", date(2025, 11, 12), pts=20),  # next week -> 5.0
+        line("a", date(2025, 11, 4), pts=40),
+        line("b", date(2025, 11, 6), pts=120),
+        line("c", date(2025, 11, 9), pts=80),
+        line("d", date(2025, 11, 12), pts=20),
     ]
     v = valuate(1, "2025-26", games, DEFAULT, season_start=date(2025, 10, 20), season_weeks=25)
     assert v.weeks_played == 2 and v.weekly_best_avg == pytest.approx((35.0 + 5.0) / 2)
@@ -158,7 +157,7 @@ def test_valuate_all_uses_the_league_wide_season_span():
     """Valuate all uses the league wide season span."""
     logs = {1: [line("a", date(2025, 10, 22), pts=10)], 2: [line("b", date(2026, 4, 12), pts=10), line("c", date(2026, 4, 5), pts=10)]}
     out = valuate_all(logs, DEFAULT, "2025-26")
-    assert out[1].season_weeks == out[2].season_weeks == 25  # Mon 2025-10-20 .. Sun 2026-04-12 is 25 weeks
+    assert out[1].season_weeks == out[2].season_weeks == 25
     assert out[1].weeks_played == 1 and out[2].weeks_played == 2
     assert out[1].availability == pytest.approx(1 / 25, abs=0.001)
 
@@ -188,10 +187,10 @@ def test_blended_value_uses_weights_ceiling_metric_confidence_and_availability()
                            best_game_fpts=80.0, weekly_best_avg=70.0, top_quarter_avg=75.0, weeks_played=22, season_weeks=25,
                            availability=0.88, bonus_counts={}, minutes_avg=34.0, teams_played_for=["DEN"])
     small = full.model_copy(update={"games_played": 3, "avg_fpts": 60.0, "best_game_fpts": 95.0, "weekly_best_avg": 90.0})
-    ranking = RankingSettings()  # 0.5 / 0.5, weekly best, min 20 games, availability ignored
+    ranking = RankingSettings()
     assert blended_value(full, ranking) == pytest.approx(0.5 * 50 + 0.5 * 70)
     assert blended_value(small, ranking) == pytest.approx((0.5 * 60 + 0.5 * 90) * 0.15)
-    assert blended_value(small, ranking) < blended_value(full, ranking)  # 3-game sample cannot out-rank a full season
+    assert blended_value(small, ranking) < blended_value(full, ranking)
     assert blended_value(full, RankingSettings(weight_avg=1.0, weight_ceiling=0.0)) == pytest.approx(50.0)
     assert blended_value(full, RankingSettings(ceiling_metric="best_game")) == pytest.approx(0.5 * 50 + 0.5 * 80)
     assert blended_value(full, RankingSettings(ceiling_metric="top_quarter")) == pytest.approx(0.5 * 50 + 0.5 * 75)
@@ -209,12 +208,10 @@ def test_weekly_best_ceiling_keeps_a_steady_star_above_a_one_night_outlier():
                             best_game_fpts=30.8, weekly_best_avg=14.37, top_quarter_avg=18.3, weeks_played=17, season_weeks=25,
                             availability=0.68, bonus_counts={}, minutes_avg=32.0, teams_played_for=["LAL"])
     new = RankingSettings()
-    old = RankingSettings(weight_avg=0.6, weight_ceiling=0.4, ceiling_metric="best_game")  # the previous default
-    dtd = old.injury_multipliers["day_to_day"]  # Giannis carried Sleeper's DTD tag (× 0.95)
-    # old blend: one 30.8 night put Reaves within 1 FP of Giannis, and the DTD tag flipped the order
+    old = RankingSettings(weight_avg=0.6, weight_ceiling=0.4, ceiling_metric="best_game")
+    dtd = old.injury_multipliers["day_to_day"]
     assert blended_value(star, old) - blended_value(spiky, old) < 1.0
     assert blended_value(star, old) * dtd < blended_value(spiky, old)
-    # weekly-best blend: a 3 FP gap that a DTD tag cannot close
     assert blended_value(star, new) - blended_value(spiky, new) > 2.5
     assert blended_value(star, new) * dtd > blended_value(spiky, new)
 
@@ -234,7 +231,7 @@ def test_jokic_2025_26_has_34_triple_doubles_matching_nba_com_td3(fixtures_dir):
     assert v.bonus_counts["triple_double"] == 34
 
     batch_rows = [r for r in load(fixtures_dir, "nba/playergamelogs_2025-26.json") if r["PLAYER_ID"] == JOKIC]
-    assert sum(r["TD3"] for r in batch_rows) == 34  # NBA.com's own count
+    assert sum(r["TD3"] for r in batch_rows) == 34
     assert sum(1 for g in lines if is_triple_double(g)) == 34
 
     assert len(v.per_game_fpts) == 65
@@ -242,14 +239,14 @@ def test_jokic_2025_26_has_34_triple_doubles_matching_nba_com_td3(fixtures_dir):
     assert v.avg_fpts == pytest.approx(sum(v.per_game_fpts) / 65, abs=0.01)
     assert v.total_fpts == pytest.approx(sum(v.per_game_fpts), abs=0.01)
     assert 20 <= v.weeks_played <= v.season_weeks <= 26 and v.availability > 0.8
-    assert v.stat_averages["pts"] == pytest.approx(1799 / 65, abs=0.01)  # NBA.com season total / GP
+    assert v.stat_averages["pts"] == pytest.approx(1799 / 65, abs=0.01)
     assert v.teams_played_for == ["DEN"]
     assert confidence_factor(v.games_played, 20) == 1.0
 
 
 def test_traded_player_has_two_teams_in_history(fixtures_dir):
     """Traded player has two teams in history."""
-    rows = [r for r in load(fixtures_dir, "nba/playergamelogs_2025-26.json") if r["PLAYER_ID"] == 1630631]  # Jose Alvarado
+    rows = [r for r in load(fixtures_dir, "nba/playergamelogs_2025-26.json") if r["PLAYER_ID"] == 1630631]
     v = valuate(1630631, "2025-26", [game_line_from_row(r) for r in rows], DEFAULT)
     assert len(v.teams_played_for) == 2
 
@@ -262,17 +259,15 @@ def test_three_season_availability_forgives_one_injured_season_but_not_chronic_o
     from nba_fantasy_shared.models.players import PlayerValuation
     from nba_fantasy_shared.scoring import blend_availability, season_week_shares
 
-    # two players over a 4-week season: one plays every week, one only in week 1
     shares = season_week_shares({1: ["2024-10-21", "2024-10-29", "2024-11-05", "2024-11-12"], 2: ["2024-10-22"]})
     assert shares == {1: 1.0, 2: 0.25}
-    assert blend_availability([0.32, 0.96, 1.0]) == 0.648          # one bad year: 50/30/20
-    assert blend_availability([0.5, None, None]) == 0.5            # rookie-ish: only seasons in the league count
+    assert blend_availability([0.32, 0.96, 1.0]) == 0.648
+    assert blend_availability([0.5, None, None]) == 0.5
     assert blend_availability([0.8, 0.6, None]) == round((0.5 * 0.8 + 0.3 * 0.6) / 0.8, 3)
-    # one lost season, durable otherwise: forgiven fully when young, a quarter when old; a pattern is never forgiven
-    assert blend_availability([0.0, 1.0, 0.96], age=26) == 0.982                    # Haliburton
-    assert blend_availability([0.0, 0.76, 0.84], age=34) == 0.496                   # Kyrie: 0.0 -> 0.2
-    assert blend_availability([0.4, 0.84, 0.12], age=27) == blend_availability([0.4, 0.84, 0.12])   # Morant
-    assert blend_availability([0.68, 0.4, 0.6], age=32) == blend_availability([0.68, 0.4, 0.6])     # Embiid
+    assert blend_availability([0.0, 1.0, 0.96], age=26) == 0.982
+    assert blend_availability([0.0, 0.76, 0.84], age=34) == 0.496
+    assert blend_availability([0.4, 0.84, 0.12], age=27) == blend_availability([0.4, 0.84, 0.12])
+    assert blend_availability([0.68, 0.4, 0.6], age=32) == blend_availability([0.68, 0.4, 0.6])
 
     class Store:
         """A stub store that serves a fixed availability history."""
@@ -285,5 +280,5 @@ def test_three_season_availability_forgives_one_injured_season_but_not_chronic_o
                                          best_game_fpts=0, availability=a, bonus_counts={}, minutes_avg=0, teams_played_for=[])
     out = AppState._blend_availability(fake, {7: val(7, 0.32), 8: val(8, 0.9), 9: val(9, 0.3)}, "2025-26")
     assert out[7].availability == 0.648 and out[7].availability_seasons == {"2025-26": 0.32, "2024-25": 0.96, "2023-24": 1.0}
-    assert out[8].availability == 0.9                                   # second-year player: last season only
-    assert out[9].availability == round(0.5 * 0.3 + 0.3 * 0.4 + 0.2 * 0.0, 3)   # in the league but missed 2023-24 entirely
+    assert out[8].availability == 0.9
+    assert out[9].availability == round(0.5 * 0.3 + 0.3 * 0.4 + 0.2 * 0.0, 3)

@@ -5,10 +5,6 @@ import Headshot from "../core/Headshot.jsx";
 import { Term, TERMS, priceTone } from "../core/Terms.jsx";
 import Icon from "../core/Icon.jsx";
 
-/**
- * Page 2 of the draft: one card per manager with money, roster by spot, needs and habits.
- * Click a player for his profile, the pencil to edit the pick, or drag a pick onto another card to move it.
- */
 export default function RoomBoard({ leagueId, rosterSlots, refreshKey, onEditPick, onMovePick, onSelectPlayer }) {
   const [room, setRoom] = useState(null);
   const [dragging, setDragging] = useState(null);

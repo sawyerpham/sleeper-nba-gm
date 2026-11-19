@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { api } from "../api.js";
 
-/** The kinds of push, in the order shown: settings key, label, when it goes out. */
 const KINDS = [
   ["lock", "Lock calls", "30 min before the tip that closes a lock window"],
   ["swap", "Keep / swap calls", "5 min before a later bench player's tip"],
@@ -11,14 +10,12 @@ const KINDS = [
   ["moves", "Lineup moves", "the swaps to make in Sleeper, 30 min before the tip they must beat"],
 ];
 
-/** Load /notify: the Telegram link and the Notifications settings; `null` while loading, `{ error }` when the API fails. */
 export function useNotify() {
   const [st, setSt] = useState(null);
   useEffect(() => { api.get("/notify").then(setSt).catch((e) => setSt({ configured: false, error: e.message })); }, []);
   return [st, setSt];
 }
 
-/** "Linked to <chat> · chat <id> · Open the chat", or that Telegram isn't set up. `st` is /notify's result. */
 export function TelegramLink({ st }) {
   if (!st) return <span className="muted">Checking Telegram…</span>;
   if (!st.configured) return <span data-testid="telegram-off">Telegram alerts are <strong>not set up</strong></span>;
@@ -31,11 +28,9 @@ export function TelegramLink({ st }) {
   );
 }
 
-/** Settings > Notifications: the Telegram link (or how to set it up) and which pushes to send, saved as you click. */
 export default function NotifyPage() {
   const [st, setSt] = useNotify();
   const [msg, setMsg] = useState("");
-  /** Change some settings and save them at once. */
   const set = (patch) => {
     const prefs = { ...st.prefs, ...patch };
     setSt({ ...st, prefs }); setMsg("");

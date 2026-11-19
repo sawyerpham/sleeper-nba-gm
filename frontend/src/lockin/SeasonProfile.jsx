@@ -4,28 +4,15 @@ import { fmt } from "./tz.js";
 import DragScroll from "../core/DragScroll.jsx";
 import InjuryTag from "../core/InjuryTag.jsx";
 
-// The in-season player profile's tabs (backend season_player): Summary, Game log and History; the Team tab (depth
-// chart) is drawn by PlayerSidebar, which already has his team card.
 
-/** One-decimal number, or an em dash for null. */
 const f1 = (x) => (x == null ? "—" : Number(x).toFixed(1));
-/** Fantasy points to two decimals (like Sleeper), or an em dash for null. */
 const f2 = (x) => (x == null ? "—" : Number(x).toFixed(2));
-/** "2026-10-23" -> "10/23". */
 const mmdd = (d) => d.slice(5).replace("-", "/");
-/** A timestamp as "Oct 15 2026" in the league's time zone. */
 const longDate = (ms) => fmt(ms, { month: "short", day: "numeric", year: "numeric" }).replace(",", "");
-/** ESPN's live game status in quarters: "3:14 - 1st" -> "Q1 3:14", "5:00 - 2OT" -> "2OT 5:00". */
 const quarters = (d) => (d || "").replace(/^(.+) - (\d)(?:st|nd|rd|th)$/, "Q$2 $1").replace(/^(.+) - (\d?OT)$/, "$2 $1").replace(/\b(\d)(?:st|nd|rd|th)\b/g, "Q$1");
 
-/**
- * Summary tab: his live or last game (both teams, score, quarter and clock, his FP and line), season averages, then ranks, ownership and FP per game, with owner and injury status under them.
- * `onOpenGame(game)` opens that game's card (GamePanel) on the right when the game box is clicked; `onOpenMatchup(roster_id)`
- * shows the owner's matchup this week when his name is clicked.
- */
 export function SeasonSummary({ sea, onOpenGame, onOpenMatchup }) {
   const g = sea.last_game, a = sea.averages, live = g?.state === "in";
-  /** One labelled number in the summary grid. */
   const stat = (label, value) => <div className="sp-stat"><span>{label}</span><strong>{value}</strong></div>;
   const openable = g?.event && onOpenGame;
   return (
@@ -81,19 +68,16 @@ export function SeasonSummary({ sea, onOpenGame, onOpenMatchup }) {
   );
 }
 
-// [header, shown value, raw key]
 const LOG_COLS = [["FPTS", (r) => f2(r.fp), "fp"], ["MIN", (r) => r.min, "min"], ["PTS", (r) => r.pts, "pts"], ["REB", (r) => r.reb, "reb"],
   ["AST", (r) => r.ast, "ast"], ["STL", (r) => r.stl, "stl"], ["BLK", (r) => r.blk, "blk"], ["TO", (r) => r.to, "to"], ["PF", (r) => r.pf, "pf"],
   ["+/-", (r) => (r.pm > 0 ? `+${r.pm}` : r.pm), "pm"]];
 const LESS_IS_BETTER = new Set(["to", "pf"]);
-/** Colour band for one game stat against his own season average: "up" at 8% or more above it, "even" within 8%, "down" below (turnovers and fouls the other way round; +/- by its sign, within 1 is even). null when he didn't play. */
 function logTone(k, v, avg) {
   if (v == null) return null;
   let rel = k === "pm" ? v / 10 : (v - avg) / Math.max(avg, 1);
   if (LESS_IS_BETTER.has(k)) rel = -rel;
   return rel >= 0.08 ? "up" : rel > -0.08 ? "even" : "down";
 }
-/** Game-log tab: every game his team plays this season, with his line where he played (blank for games to come or missed), each stat toned against his season average. */
 export function SeasonLog({ sea }) {
   const played = sea.season_log.filter((r) => r.fp != null);
   const avg = Object.fromEntries(LOG_COLS.map(([, , k]) => [k, played.reduce((t, r) => t + (r[k] || 0), 0) / (played.length || 1)]));
@@ -115,9 +99,7 @@ export function SeasonLog({ sea }) {
 }
 
 const KIND = { drafted: "Drafted", keeper: "Keeper", claimed: "Claimed", "picked up": "Added", "traded to": "Trade", dropped: "Dropped", added: "Added" };
-/** History tab: how he changed hands (draft, keeper, claims, pickups, trades, drops), newest first, as Type | what happened | date. A keeper also shows last season's draft. */
 export function SeasonHistory({ sea }) {
-  /** The sentence for one transaction ("kept by X for $5", "traded to Y", ...). */
   const what = (a) => {
     const by = a.team || "?", price = a.price != null ? ` for $${a.price}` : "";
     return a.kind === "keeper" ? `kept by ${by}${price}` : a.kind === "drafted" ? `drafted by ${by}${price}${a.season ? ` (${a.season})` : ""}`
@@ -126,7 +108,7 @@ export function SeasonHistory({ sea }) {
   if (!sea.acquired?.length) return <div className="small muted sec">No transactions this season: he hasn't been drafted, kept or moved.</div>;
   return (
     <div className="sec"><table className="sp-history" data-testid="season-history">
-      <tbody>{[...sea.acquired].reverse().map((a, i) => (   /* newest first (the backend sends them oldest first) */
+      <tbody>{[...sea.acquired].reverse().map((a, i) => (
         <tr key={i}><td><strong>{KIND[a.kind] || a.kind}</strong></td><td>{what(a)}</td><td className="muted">{a.when ? longDate(a.when) : ""}</td></tr>
       ))}</tbody>
     </table></div>

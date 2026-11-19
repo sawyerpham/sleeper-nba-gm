@@ -41,7 +41,7 @@ log = logging.getLogger(__name__)
 @dataclass
 class PullStatus:
     """Progress of a pull: state (idle / running / done / failed), phase, progress counter, timings, error and the provider reports."""
-    state: str = "idle"  # idle | running | done | failed
+    state: str = "idle"
     phase: str = ""
     progress: FetchProgress | None = None
     started_at: datetime | None = None
@@ -204,7 +204,7 @@ class PullService:
                 self._pull_game_logs(records)
             self._seed(records)
             st.state = "done"
-        except Exception as exc:  # noqa: BLE001 - surfaced to the caller/UI, never swallowed
+        except Exception as exc:
             log.exception("pull failed")
             st.state, st.error = "failed", f"{type(exc).__name__}: {exc}"
         finally:
@@ -280,7 +280,7 @@ class PullService:
         self._phase("nba_schedule")
         try:
             games = self.stats.fetch_schedule(self.roster_season)
-        except (CallFailed, ValueError, KeyError) as exc:  # the schedule is an upgrade, not a requirement
+        except (CallFailed, ValueError, KeyError) as exc:
             log.warning("NBA schedule unavailable (%s); keeping the previous cache", exc)
             return
         if games:
@@ -307,7 +307,7 @@ class PullService:
         self._phase("sleeper_projections")
         try:
             projections = self.platform.fetch_projections(self.roster_season)
-        except (CallFailed, ValueError) as exc:  # projections are an upgrade, not a requirement
+        except (CallFailed, ValueError) as exc:
             log.warning("Sleeper projections unavailable (%s); keeping the previous cache", exc)
             return
         self.store.write_json(
@@ -333,7 +333,7 @@ class PullService:
             self._phase(f"sleeper_league {sleeper_id}")
             try:
                 pull_details(self.platform, self.store, sleeper_id)
-            except (CallFailed, ValueError) as exc:  # league details are an upgrade, not a requirement
+            except (CallFailed, ValueError) as exc:
                 log.warning("Sleeper league %s unavailable (%s)", sleeper_id, exc)
         if ids:
             from .sleeper_league import write_profiles

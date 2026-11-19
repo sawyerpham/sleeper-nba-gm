@@ -28,8 +28,8 @@ from ..core.services.league_repository import LeagueRepository
 from .service import SLEEPER, projected_fp
 from .weekplan import Game, live_estimate
 
-CHECKPOINTS = (12, 24, 36, 42)   # minutes of game clock elapsed: end of Q1, half, end of Q3, midway through Q4
-MIN_PROJ_MIN = 15.0              # only rotation players: the ones a lineup call is about
+CHECKPOINTS = (12, 24, 36, 42)
+MIN_PROJ_MIN = 15.0
 DATA = Path(config.DEFAULT_DATA_DIR)
 CACHE = DATA / "cache" / "backtest_live"
 
@@ -51,7 +51,7 @@ def nba(endpoint, **kw) -> dict:
         try:
             time.sleep(0.6)
             return endpoint(timeout=30, **kw).get_dict()
-        except Exception:  # noqa: BLE001 - stats.nba.com times out at random; retry
+        except Exception:
             if attempt == 3:
                 raise
             time.sleep(5 * (attempt + 1))
@@ -63,7 +63,7 @@ def box(game_id: str, upto_min: int | None) -> dict[int, dict]:
 
     def get():
         kw = {} if upto_min is None else dict(start_period=0, end_period=0, range_type=2, start_range=0,
-                                                end_range=upto_min * 600)   # tenths of a second
+                                                end_range=upto_min * 600)
         bt = nba(b.BoxScoreTraditionalV3, game_id=game_id, **kw)["boxScoreTraditional"]
         return {str(p["personId"]): p["statistics"] for side in ("homeTeam", "awayTeam") for p in bt[side]["players"]}
     return {int(k): v for k, v in cached(f"box_{game_id}_{upto_min or 'final'}.json", get).items()}
@@ -168,8 +168,7 @@ def report(rows: list[dict]) -> None:
         pred = sum(r["proj_min"] * (1 - m / 48) * weekplan.MINUTES_LEFT_SCALE for r in sub) / len(sub)
         real = sum(r["min_final"] - r["min_at"] for r in sub) / len(sub)
         print(f"  {m:>2}': predicted {pred:5.1f}  actual {real:5.1f}")
-    # how fast the miss shrinks as the game goes on: game_dist takes the pre-game spread x sqrt(share of the game left)
-    rms = lambda xs: (sum(x * x for x in xs) / len(xs)) ** 0.5   # noqa: E731
+    rms = lambda xs: (sum(x * x for x in xs) / len(xs)) ** 0.5
     first = {(r["day"], r["pid"]): r for r in rows if r["proj"] > 5}.values()
     pre = rms([(r["final"] - weekplan.PROJ_SCALE * r["proj"]) / r["proj"] for r in first])
     print(f"\nmiss as a share of the projection: {pre:.3f} before the tip; then, as a share of that")

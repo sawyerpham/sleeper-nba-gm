@@ -15,41 +15,26 @@ import { fmt, setZone, timeOf } from "./tz.js";
 import { reseat, swapSteps } from "./swaps.js";
 import Icon from "../core/Icon.jsx";
 
-const REFRESH_MS = 60000;   // every minute: live scores feed the KEEP / SWAP calls
+const REFRESH_MS = 60000;
 
-/** One-line headline of a watch line: who to check, bench, start or lock. */
 export const watchTitle = (w) => w.kind === "gtd" ? `${w.name} GTD: check, else start ${w.backup}` : w.kind === "out" ? `${w.name} OUT: bench${w.backup ? `, start ${w.backup}` : ""}` : w.kind === "lock" ? `Lock ${w.name} now`
   : w.decision === "SWAP" ? `SWAP: bench ${w.name}, start ${w.backup}` : `${w.decision}: ${w.backup} check`;
 
-/** Minutes from now as a countdown: "2d 5h", "19h 42m" or "7m". */
 export const untilText = (mins) => {
   const d = Math.floor(mins / 1440), h = Math.floor((mins % 1440) / 60), m = mins % 60;
   return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`;
 };
-/** Short weekday name ("Mon") for a YYYY-MM-DD date. */
 export const dayName = (d) => new Date(`${d}T12:00:00`).toLocaleDateString("en-US", { weekday: "short" });
-/** "2026-10-20" -> "10/20". */
 const md = (d) => d.slice(5).replace("-", "/");
-/** Fantasy points to two decimals (like Sleeper); empty for null. */
 export const fp = (x) => (x == null ? "" : x.toFixed(2));
-/** Whether to show the nicknames managers set on Sleeper: on unless switched off in Settings > General (this browser only). */
 const showNicks = () => { try { return localStorage.getItem("da.nicks") !== "off"; } catch { return true; } };
-// A narrow window (keep in step with the 1599px @media block in styles.css): the chips become a small bar graph per
-// game and lose the hourly timeline (laneXs), and the swap-arrow lanes slim down. 4K / wide windows are untouched.
 const NARROW = "(max-width: 1599px)";
-/** React hook: whether a CSS media query currently matches, re-rendering when that changes. */
 const useMedia = (q) => useSyncExternalStore(
   (cb) => { const m = window.matchMedia(q); m.addEventListener("change", cb); return () => m.removeEventListener("change", cb); },
   () => window.matchMedia(q).matches);
-/** True in a narrow window (under 1600px). Keep in step with the 1599px @media block in styles.css. */
 const useNarrow = () => useMedia(NARROW);
-/** True in a thin window (under 1000px): the matchup shows only the left team (yours) and scrolls sideways if even that doesn't fit. Keep in step with the 999px block in styles.css. */
 const useThin = () => useMedia("(max-width: 999px)");
 
-/**
- * A fantasy team: its Sleeper avatar, its team name, and under it the manager's username (when that differs) and W-L record with a green up / red down arrow for the latest result.
- * `mine` makes the username (or the team name when there is none) glow in the theme tint.
- */
 export function TeamName({ t, cls = "", size = 24, record = true, mine = false }) {
   const rec = record && t.wins != null;
   return (
@@ -67,39 +52,25 @@ export function TeamName({ t, cls = "", size = 24, record = true, mine = false }
 }
 
 
-/**
- * The in-season tab: your Lock-In week (matchup, week plan with LOCK / PASS calls, every player's games Mon-Sun), today's lineup moves, the league (matchups and standings), news and waiver claims, chosen by `view`. Any player name opens his season profile on the right.
- * Data: backend services/season.py and engine/weekplan.py. The plan is "what to do now": the backend re-runs the rules against the clock on every load, so it reloads every minute and whenever the tab comes back into view.
- * Alarms ring before swap and GTD checks while the tab is open, and the week bar is portalled into the app header.
- */
-export default function SeasonPage({ leagueId, view, onWeek }) {   // view: week | news | league | waivers (the app's top tabs); onWeek() opens the Week tab
+export default function SeasonPage({ leagueId, view, onWeek }) {
   const [week, setWeek] = useState(null);
-  const [matchup, setMatchup] = useState(null);   // { rid }: the matchup the lineup grid jumps to (a new object per click)
-  /** Show a fantasy team's matchup this week on the Week tab (from a player card's owner); Week Stats follows it. */
+  const [matchup, setMatchup] = useState(null);
   const openMatchup = (rid) => { setWeek(null); setMatchup({ rid }); close(); onWeek?.(); };
   const [plan, setPlan] = useState(null);
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
-  // The right side's history, like a browser's: each entry a player profile { pid }, a game card { game: { game, team,
-  // sid, name } } (GamePanel) or an NBA team's card { team: abbr } (TeamPanel); ‹ › step through it, opening something
-  // new drops what was ahead. The close button clears it back to the guide.
   const [nav, setNav] = useState({ stack: [], i: -1 });
   const cur = nav.stack[nav.i], selected = cur?.pid ?? null, game = cur?.game ?? null, team = cur?.team ?? null;
-  /** Open an entry (player profile, game card or team card) on the right. Repeating the current entry changes nothing; a new one drops whatever was ahead in the history. */
   const go = (entry) => setNav(({ stack, i }) => {
-    /** Do two history entries show the same player, game or team? */
     const same = (a, b) => (a?.pid && a.pid === b.pid) || (a?.game && a.game.game.event === b.game?.game.event) || (a?.team && a.team === b.team);
     return same(stack[i], entry) ? { stack, i } : { stack: [...stack.slice(0, i + 1), entry], i: i + 1 };
   });
-  /** Clear the right side's history back to the Lock-In guide. */
   const close = () => setNav({ stack: [], i: -1 });
-  /** Open a player's profile (a falsy id closes the right side). */
   const setSelected = (pid) => (pid ? go({ pid }) : close());
   const [tick, setTick] = useState(0);
   const [headerSlot, setHeaderSlot] = useState(null);
   useEffect(() => { setHeaderSlot(document.getElementById("header-slot")); }, []);
 
-  /** Load the week (matchups, games, rosters) and the plan for the shown week; sets the league's time zone. */
   const load = useCallback(() => {
     if (!leagueId) return;
     Promise.all([api.get(`/leagues/${leagueId}/season/week` + qs({ week })), api.get(`/leagues/${leagueId}/season/plan` + qs({ week }))])
@@ -109,42 +80,33 @@ export default function SeasonPage({ leagueId, view, onWeek }) {   // view: week
   useEffect(() => {
     load();
     const t = setInterval(load, REFRESH_MS);
-    /** Reload when the tab becomes visible again. */
     const back = () => { if (document.visibilityState === "visible") load(); };
     document.addEventListener("visibilitychange", back);
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", back); };
   }, [load, tick]);
   const [syncing, setSyncing] = useState(false);
-  /** Pull the lineup, locks, scores and news from Sleeper now, then reload. */
   const sync = () => {
     setSyncing(true);
     api.post(`/leagues/${leagueId}/season/sync`, {}).then(() => setTick((t) => t + 1)).catch((e) => setError(e.message)).finally(() => setSyncing(false));
   };
 
-  // The bell lists what needs you today: GTD / DTD / OUT players and when to swap or lock (the plan's watch lines). The same lines go to Telegram from the backend (app/notify.py).
   const [showNotifs, setShowNotifs] = useState(false);
-  const [focusRid, setFocusRid] = useState(null);   // the matchup on the Week tab: Week Stats follows it
+  const [focusRid, setFocusRid] = useState(null);
 
   if (!leagueId) return <div className="panel muted" data-testid="no-league">No Sleeper league selected!</div>;
   if (error && !data) return <div className="panel error">{error}</div>;
   if (!data || !plan) return <div className="panel">Loading the week from Sleeper…</div>;
 
-  /** The profile id for a Sleeper id. */
   const pidOf = (sid) => data.players[sid]?.player_id;
-  /** Open a player's profile from his Sleeper id. */
   const open = (sid) => { const pid = pidOf(sid); if (pid) setSelected(pid); };
-  /** Open a game's card on the right. */
   const openGame = (g) => go({ game: g });
-  /** Open an NBA team's card on the right. */
   const openTeam = (abbr) => go({ team: abbr });
-  /** Lock a player's game (`gameDate`), unlock it ("") or forget the answer (null), then reload. */
   const setLock = (sid, gameDate) => api.post(`/leagues/${leagueId}/season/locks`, { week: data.week, sleeper_id: sid, game_date: gameDate })
     .then(() => setTick((t) => t + 1)).catch((e) => setError(e.message));
 
   const rosterNotes = (plan.roster?.illegal.length ? 1 : 0) + (plan.roster?.ir_candidates.length ? 1 : 0);
   const watch = [...(plan.today?.watch || [])].sort((x, y) => (x.alarm === "now" ? "" : x.alarm || "~").localeCompare(y.alarm === "now" ? "" : y.alarm || "~"));
   const count = watch.length + rosterNotes;
-  // The week bar lives in the app header (top bar) while this tab is open.
   const bar = (
         <div className="season-bar">
           {view === "news" || view === "waivers" ? null : <span className="season-weeknav">
@@ -206,14 +168,8 @@ export default function SeasonPage({ leagueId, view, onWeek }) {   // view: week
 }
 
 const TEAM_TABS = [["roster", "Roster"], ["schedule", "Schedule"], ["stats", "Stats"], ["news", "News"]];
-/** Sleeper's logo URL for an NBA team abbreviation. */
 export const teamLogo = (abbr) => `https://sleepercdn.com/images/team_logos/nba/${abbr.toLowerCase()}.png`;
-/** "R. Hachimura" from "Rui Hachimura". */
 const shortName = (n) => { const [first, ...rest] = (n || "").split(" "); return rest.length ? `${first[0]}. ${rest.join(" ")}` : n; };
-/**
- * The right side's Team card (a team's name clicked anywhere on the Season tab, or a team in the News tab's report): logo and name, then tabs (backend /season/team), Roster first.
- * Roster: offense / defense ranks and the depth chart (names coloured by injury), then the injuries (yellow: questionable / game-time / day-to-day; red: out / IR). Schedule: every game, vs / @ the opponent, and W / L with the score once it's played. Stats: every player's per-game line for this team. News: the News tab's notes on this team's players only, loaded when the tab opens.
- */
 export function TeamPanel({ abbr, leagueId, onOpenPid, onClose }) {
   const [t, setT] = useState(null);
   const [error, setError] = useState("");
@@ -223,7 +179,7 @@ export function TeamPanel({ abbr, leagueId, onOpenPid, onClose }) {
   useEffect(() => {
     if (tab === "news" && !news) api.get(`/leagues/${leagueId}/season/team/news` + qs({ abbr })).then((x) => setNews(x.news)).catch(() => setNews([]));
   }, [tab, news, leagueId, abbr]);
-  const results = (t?.schedule || []).map((g) => g.result).filter(Boolean);   // the record: its finished games' W / L
+  const results = (t?.schedule || []).map((g) => g.result).filter(Boolean);
   return (
     <div className="panel scroll team-panel" data-testid="team-panel">
       <button className="sidebar-close" onClick={onClose} title="Close team" data-testid="team-close" aria-label="Close team"><Icon name="x" /></button>
@@ -295,31 +251,22 @@ export function TeamPanel({ abbr, leagueId, onOpenPid, onClose }) {
 const BOX_COLS = [["MIN", (r) => r.min], ["PTS", (r) => r.stats.pts], ["REB", (r) => r.stats.reb], ["AST", (r) => r.stats.ast],
   ["STL", (r) => r.stats.stl], ["BLK", (r) => r.stats.blk], ["TO", (r) => r.stats.to], ["FG", (r) => `${r.stats.fgm}-${r.stats.fga}`],
   ["3PT", (r) => `${r.stats.tpm}-${r.stats.tpa}`], ["FT", (r) => `${r.stats.ftm}-${r.stats.fta}`], ["PF", (r) => r.stats.pf]];
-/** "R. Hachimura" from "Rui Hachimura". */
 const initialName = (n) => { const [first, ...rest] = (n || "").split(" "); return rest.length ? `${first[0]}. ${rest.join(" ")}` : n; };
-/** Normalise a player name for matching across sources: no accents, lower case, letters only, without Jr / Sr / II-IV suffixes. */
 const normName = (n) => (n || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z ]/g, "")
   .replace(/\b(jr|sr|ii|iii|iv)\b/g, "").replace(/\s+/g, " ").trim();
-/** A small round image for a game card; a blank placeholder when there is no source or it fails to load. */
 const GpHead = ({ src, size }) => src
   ? <img className="gp-head" src={src} alt="" width={size} height={size} style={{ width: size, height: size }} loading="lazy" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
   : <span className="gp-head" style={{ width: size, height: size }} />;
-/**
- * The right side when a game card is clicked: that NBA game (backend game_detail, ESPN's summary), live or past. Refreshes every minute.
- * Score and status, a stream link (streamed.pk) while it's on, each team's top 5 by fantasy points with their headline stats, then per team its box score (players who got minutes, fantasy points in the league's scoring; rostered players tagged with their fantasy team; any player matched to ours opens his profile), its offense / defense ranks and depth chart. Before the tip: both teams with their records, ranks and depth charts. Team names open the Team card.
- */
 export function GamePanel({ sel, data, leagueId, onOpenPid, onClose }) {
   const [g, setG] = useState(null);
   const [error, setError] = useState("");
   const { list: matches } = useNBAMatches();
   useEffect(() => {
-    /** Reload the game card's ESPN data. */
     const load = () => api.get(`/leagues/${leagueId}/season/game` + qs({ event: sel.game.event })).then((x) => { setG(x); setError(""); }).catch((e) => setError(e.message));
     load();
     const t = setInterval(load, REFRESH_MS);
     return () => clearInterval(t);
   }, [leagueId, sel.game.event]);
-  // fantasy rosters by name (ESPN's names, Sleeper's ids): who owns each player in the box score
   const owner = {};
   for (const t of data.teams) for (const sid of t.players) {
     const n = data.players[sid]?.name;
@@ -407,19 +354,11 @@ export function GamePanel({ sel, data, leagueId, onOpenPid, onClose }) {
   );
 }
 
-/** A row's win-probability edge from locking: win % locked minus win % left open. */
 export const lockEdge = (r) => (r.win_lock ?? 0) - (r.win_wait ?? 0);
-/** The plan's lockable games, best edge first. A lock that costs more than 5 points of win chance isn't worth a card. x is only set for a player in a starting slot, so this includes starters the plan benches (Sleeper lets them lock). */
 export const lockableOf = (p) => p.players.filter((r) => r.x != null && r.x_final && r.lock_status !== "locked" && r.lock_status !== "guess" && lockEdge(r) >= -0.05)
   .sort((a, b) => lockEdge(b) - lockEdge(a));
-/** A 0-1 share as a whole-number percent. */
 export const pct = (x) => `${Math.round((x ?? 0) * 100)}%`;
-/** Everything after the first word of a name (the whole name when it has one word). */
 const lastName = (n) => n.split(" ").slice(1).join(" ") || n;
-/**
- * The right side when no player is open: the week's Lock-In numbers for any team (yours by default; the drop-down loads another's plan from the plan endpoint). Stats, not instructions: open(sid) opens a player's profile.
- * Matchup: win probability; projected final, banked points and games left for both teams. By approach: win probability locking every lockable game now vs leaving every slot open vs the plan's mix (backend outlook); the opponent's remaining projections and banked games. Lockable games: each game that could be locked now with its score, the open slot's value (his later games or a spare bench player's, the best each day: backend open_slot), win % locked vs open and the next tip. Swap windows and Injury watch: tonight's live-vs-later comparisons and questionable / out starters.
- */
 export function LockinGuide({ data, plan, leagueId, setLock, open, focus, hideSwaps }) {
   const [rid, setRid] = useState(focus ?? plan.roster_id);
   useEffect(() => { if (focus != null) setRid(focus); }, [focus]);
@@ -440,32 +379,24 @@ export function LockinGuide({ data, plan, leagueId, setLock, open, focus, hideSw
   const head = <div className="guide-head"><h3>Week Stats</h3>{picker}</div>;
   if (!p) return <div className="panel scroll guide" data-testid="lockin-guide">{head}<div className="muted small">Loading…</div></div>;
 
-  /** A timestamp as "Mon 7:30 PM". */
   const when = (t) => fmt(t, { weekday: "short", hour: "numeric", minute: "2-digit" });
   const watch = p.today?.watch || [];
   const nowMs = data.now ? Date.parse(data.now) : Date.now();
-  /** A swap chip's name: up to 10 characters ("Washington"); longer ones keep 8 and end in "..". */
   const clip = (n) => (n.length > 10 ? `${n.slice(0, 8)}..` : n);
   const o = p.opponent, out = p.outlook;
-  /** A row's win-probability edge from locking: win % locked minus win % left open. */
   const edge = lockEdge;
   const lockable = lockableOf(p);
-  // a KEEP call (his game under way, headed past the backup's) is no swap: it drops off the list
   const swaps = watch.filter((w) => w.kind === "swap" && w.decision !== "KEEP"), injuries = watch.filter((w) => w.kind === "gtd" || w.kind === "out");
-  // the Sleeper swaps to make right now: the same steps as the lineup grid's numbered arrows (bestLineup at the clock)
   const games = Object.fromEntries(Object.entries(data.players).map(([sid, pl]) => [sid, pl.games]));
   const nameOf = Object.fromEntries(p.players.map((r) => [r.sid, r.name]));
   const nowSwaps = bestLineup(p, nowMs, data.roster_positions, false, games).pairs;
-  // a window whose check-in has come is already one of the moves due now: list it once, under Now
   const dueNow = new Set(nowSwaps.flatMap((s) => [`${s.in}|${s.out}`, `${s.out}|${s.in}`]));
   const windows = swaps.filter((w) => !dueNow.has(`${w.backup_sid}|${w.sid}`));
   const remaining = (o?.players || []).filter((r) => r.seat && r.locked == null && r.w > 0).sort((a, b) => b.w - a.w).slice(0, 4);
   const banked = (o?.players || []).filter((r) => r.locked != null).sort((a, b) => b.locked - a.locked);
   const odds = out ? [["Lock all now", out.safe], ["Leave all open", out.risky], ["Plan mix", p.win_chance]] : [];
   const top = Math.max(...odds.map(([, v]) => v ?? 0));
-  /** A 0-1 edge as a signed percentage ("+1.2%"). */
   const signed = (x) => `${x >= 0 ? "+" : "−"}${Math.abs(x * 100).toFixed(1)}%`;
-  /** A player chip for a guide list. A guessed lock (?) can be answered here: ✓ locked or ✕ not locked (saved like your own lock answers). */
   const chip = (r, value, guess) => (
     <span key={r.sid} className="guide-chip"><span className="clickable guide-who" onClick={() => open(r.sid)}><Headshot sleeperId={r.sid} name={r.name} size={22} />{lastName(r.name)}</span> <strong>{value}{guess ? "?" : ""}</strong>
       {guess && setLock && <>
@@ -473,8 +404,6 @@ export function LockinGuide({ data, plan, leagueId, setLock, open, focus, hideSw
         <button className="chip-btn" onClick={() => setLock(r.sid, "")} data-tip="Not locked" aria-label="Not locked"><Icon name="x" /></button>
       </>}</span>
   );
-  /** One team's side of the Matchup card: name, projected final, banked points and games left. `mirror`: the right-hand
-   * side, its avatar and name on the outer (right) edge. */
   const side = (t, mirror) => (
     <div className={`hub-side ${mirror ? "mirror" : ""}`}>
       <div className="hub-team"><TeamName t={t} cls="hub-name" size={31} /></div>
@@ -521,7 +450,6 @@ export function LockinGuide({ data, plan, leagueId, setLock, open, focus, hideSw
                 <Headshot sleeperId={r.sid} name={r.name} size={34} />
                 <div className="guide-lock-main">
                   <div className="guide-lock-top"><strong className="clickable" onClick={() => open(r.sid)}>{r.name}</strong> <span className="muted small">{r.seat || r.slot}</span></div>
-                  {/* the open slot: what it can still get from his and spare bench players' games (backend open_slot) */}
                   <div className="small muted guide-lock-top">{nba && <><TeamLink abbr={nba}><img src={teamLogo(nba)} alt="" width={14} height={14} style={{ verticalAlign: "-2px" }} /> {nba}</TeamLink> · </>}
                     {r.seat ? <>Open slot <span className="guide-hi">~{fp(r.slot_w ?? r.w)}</span></> : "Plan benches him"}</div>
                   <div className="small muted">
@@ -541,8 +469,6 @@ export function LockinGuide({ data, plan, leagueId, setLock, open, focus, hideSw
       {!hideSwaps && (nowSwaps.length > 0 || windows.length > 0) && (
         <section className="guide-card">
           <div className="bid-label">Swaps</div>
-          {/* one line per swap: "Now swap [a] & [b]" for the moves due now (in arrow order), then
-              "Wed 6:55p (19h 42m) swap [backup] & [starter]" per window (the plan's pick, w.name); a line between times */}
           <div className="guide-swaps">
             {[...nowSwaps.map((s) => ({ key: `now-${s.n}`, group: "now", a: s.in, b: s.out })),
               ...windows.map((w) => ({ key: w.backup_sid, group: w.alarm, a: w.backup_sid, b: w.sid }))].map((r, i, rows) => (
@@ -563,10 +489,8 @@ export function LockinGuide({ data, plan, leagueId, setLock, open, focus, hideSw
       {injuries.length > 0 && (
         <section className="guide-card">
           <div className="bid-label">Injuries</div>
-          {/* one line each: headshot, name, his positions, · his Sleeper injury tag and reason */}
           {injuries.map((w) => {
             const pl = data.players[w.sid] || {};
-            // the note is "Out: Knee - Sprain" (backend week_view): the reason is what follows the tag
             const note = pl.injury_note || "";
             const reason = note === pl.injury_tag ? "" : note.replace(`${pl.injury_tag}: `, "");
             return (
@@ -581,7 +505,6 @@ export function LockinGuide({ data, plan, leagueId, setLock, open, focus, hideSw
   );
 }
 
-/** Roster warnings from the plan: an illegal roster (a healthy player on IR makes 16 healthy players, so Sleeper blocks lineup changes and locks) and open IR spots, with the players to move there. */
 export function RosterAlerts({ roster }) {
   if (!roster) return null;
   return (
@@ -600,25 +523,16 @@ export function RosterAlerts({ roster }) {
   );
 }
 
-/**
- * One card per game he has this week (so 3-4 at most): day, tip time, then his FP (a dash before the game) with the projection small beside it. Live, that number is where his game is headed instead (backend pace: live_estimate), green or red as it beats his projection or not; once the game is final it goes back to the pregame projection.
- * A game that can't be locked (or count any more) is crossed out: every game but the locked one once he's locked; a final game once a later one has tipped, or that the backend can't lock (lockable = r.x: benched for it); a live game while he sits on the bench. Games off the lineup day dim, except the locked game and a final game he can still lock. A game that's on or about to start gets a stream link (streamed.pk) in the same corner as the padlock.
- * `lane` (matchup cards): { xs: tip ms -> x px, scale }, so the chips line up as a timeline (see laneXs). `onOpen(game)` opens that game on the right (GamePanel). `onLock(date)`: the corner padlock locks or unlocks (open on any final game he played while not benched, past ones too, when nothing is locked; filled on the locked game; unlock is "").
- */
 function GameChips({ games, today, lockDate, lockGuess, lockable, benched, day, lane, team, onOpen, onLock }) {
   const graph = useNarrow();
-  // graph bars share one scale per player: his best projection / score this week
   const peak = Math.max(1, ...games.map((x) => Math.max(x.fp ?? 0, x.pace ?? 0, x.proj ?? 0)));
   if (!games.length) return lane ? <span className="chips-lane"><span className="muted small">no games</span></span> : <span className="muted small">no games</span>;
   const chips = games.map((g, i) => {
-        // live: ESPN says in progress, or his stats are coming in before ESPN's state catches up; final only once ESPN says so
         const played = g.fp != null, live = g.state === "in" || (played && g.state !== "post");
         const later = games.slice(i + 1).some((x) => x.state !== "pre" || x.fp != null);
         const dead = lockDate ? g.date !== lockDate : (g.state === "post" && (later || !lockable)) || (live && benched);
         const upcoming = g.state === "pre" && !played && !dead;
-        // any final game he played while not benched can be marked locked, even one a later game has passed (a lock you forgot to record)
         const toggle = !onLock ? null : lockDate === g.date ? "" : !lockDate && g.state === "post" && played && !benched ? g.date : null;
-        /** Click on the corner padlock: lock this game, or unlock it when it's the locked one. */
         const lockClick = (e) => { e.stopPropagation(); onLock(toggle); };
         const exp = live && g.pace != null ? g.pace : g.proj;
         const tip = [
@@ -651,16 +565,12 @@ function GameChips({ games, today, lockDate, lockGuess, lockable, benched, day, 
   return <span className="chips-lane">{lane.xs ? chips : <span className="chips-row">{chips}</span>}</span>;
 }
 
-/** ESPN's live status in quarters: "3:14 - 1st" -> "Q1 3:14", "1:05 - OT" -> "OT 1:05", "End of 3rd" -> "End of Q3". */
 export const quarters = (detail) => (detail || "").replace(/^(.+) - (\d)(?:st|nd|rd|th)$/, "Q$2 $1").replace(/^(.+) - (\d?OT)$/, "$2 $1")
   .replace(/\b(\d)(?:st|nd|rd|th)\b/g, "Q$1");
-/** A status short enough for a live card's top line, in place of the weekday: "Q1 3:14", "End Q3", "Half". */
 export const shortQuarter = (detail) => quarters(detail).replace("End of ", "End ").replace("Start of ", "Start ").replace("Halftime", "Half") || "—";
 
-/** His box score on one line: "38 PTS, 5 REB, 3 AST, 0 BLK, 12/21 FG, 7/8 FT, 3 TO, 5 PF". */
 const boxLine = (b, min) => `${min != null ? `${Math.round(min)} MIN, ` : ""}${b.pts} PTS, ${b.reb} REB, ${b.ast} AST, ${b.blk} BLK, ${b.fgm}/${b.fga} FG, ${b.ftm}/${b.fta} FT, ${b.to} TO, ${b.pf} PF`;
 
-/** A small padlock: a locked game with no unlock button shows it where "final" would be; open (shackle lifted) on the lock button. */
 export const LockIcon = ({ open }) => (
   <svg className="gch-lock" viewBox="0 0 10 12" aria-hidden="true">
     <path d={open ? "M3 5.2V2.6a2 2 0 0 1 4 0v.6" : "M3 5.2V3.6a2 2 0 0 1 4 0v1.6"} fill="none" stroke="currentColor" strokeWidth="1.4" />
@@ -668,21 +578,15 @@ export const LockIcon = ({ open }) => (
   </svg>
 );
 
-/** A game's tip time in ms (noon of its date when no tip is known). */
 const tipMs = (g) => Date.parse(g.tip) || Date.parse(`${g.date}T12:00:00`);
 
 const CHIP_W = 100, CHIP_GAP = 6, HOUR_MIN = 4, HOUR_MAX = 12;
-/**
- * A matchup's chips as a timeline: one x per distinct tip on both rosters, the earliest at the lane's left edge.
- * Each game day starts clear of the previous day's chips (so the time line never sits on an earlier day's chips); within a day the tips spread by the hour (4-12 px an hour, as much as fits); room left over spaces the days in proportion to time. Too narrow even at 4 px an hour: the chips shrink (scale) down to 65%; narrower than that, xs is null and the chips sit in a plain row (no time line).
- */
-function laneXs(games, width) {   // games: [tip ms, game date] for every chip in the matchup
+function laneXs(games, width) {
   const day = new Map(games);
   const tips = [...day.keys()].sort((a, b) => a - b);
   if (!tips.length || !width) return { xs: new Map(), scale: 1 };
   const t0 = tips[0], span = Math.max(1, tips.at(-1) - t0);
-  /** Place the tips for a share `s` of the lane spaced by time, `h` px an hour and chip width `cw`; returns [tip ms, x] pairs. */
-  const place = (s, h, cw) => {   // s: share of the lane spaced by time; h: px an hour within a day; cw: chip width
+  const place = (s, h, cw) => {
     const x = new Map();
     let prev = 0, start = 0, first = t0, last = t0;
     for (const t of tips) {
@@ -694,9 +598,7 @@ function laneXs(games, width) {   // games: [tip ms, game date] for every chip i
     }
     return x;
   };
-  /** Does a spacing (s, h, cw) fit in the lane? */
   const ok = (s, h, cw) => place(s, h, cw).get(tips.at(-1)) + cw <= width;
-  /** The largest value in [lo, hi] that `f` accepts (`f` grows with it), or null. */
   const most = (lo, hi, f) => {
     if (f(hi)) return hi;
     if (!f(lo)) return null;
@@ -712,7 +614,6 @@ function laneXs(games, width) {   // games: [tip ms, game date] for every chip i
   return { xs: place(s, h, CHIP_W), scale: 1 };
 }
 
-/** The time line's x: between tips it moves at an even pace from one chip's left edge (its tip) to the next. */
 function laneAt(xs, ms, start, end, width) {
   const pts = [[start, -8], ...xs, [Math.max(end, start + 1), width]];
   if (ms <= pts[0][0]) return pts[0][1];
@@ -723,16 +624,13 @@ function laneAt(xs, ms, start, end, width) {
   return width;
 }
 
-/** Shallow equality of two row objects, field by field (bestLineup hands back fresh objects each time). */
 const sameFields = (a, b) => a === b || (!!a && !!b && Object.keys(a).length === Object.keys(b).length && Object.keys(a).every((k) => a[k] === b[k]));
-/** React.memo comparator for PlayerCard: re-render a card only when what it shows changes (the slider re-renders the grid every step). */
 const sameCard = (a, b) => Object.keys(a).every((k) => (k === "r" ? sameFields(a.r, b.r) : a[k] === b[k]));
-/** One player's card in the lineup grid: headshot, name with injury tag, team and positions, and his game chips. An empty slot renders a placeholder. */
 const PlayerCard = React.memo(function PlayerCard({ data, r, open, openGame, setLock, mine, side, day, lane }) {
   if (!r) return <div className={`mu-card empty ${side}`}><span className="muted small">empty</span></div>;
   const p = data.players[r.sid] || { games: [] };
   const starter = r.slot !== "BN" && r.slot !== "IR";
-  const locked = r.lock_status === "locked" || r.lock_status === "guess";   // guess: Sleeper can't tell yet, the math says locked
+  const locked = r.lock_status === "locked" || r.lock_status === "guess";
   return (
     <div className={`mu-card ${side} ${starter ? "" : "bench"} ${locked ? "done" : ""} ${isOut(p.injury_tag) ? "out" : isDoubt(p.injury_tag) ? "doubt" : ""}`} data-testid={`mu-${r.sid}`}>
       <div className="mu-top">
@@ -752,11 +650,9 @@ const PlayerCard = React.memo(function PlayerCard({ data, r, open, openGame, set
   );
 }, sameCard);
 
-/** Slot order down the middle (PG PG SG SG ... C C), then every bench spot and every IR spot (empty ones too); each team's players fill their current slots. Returns { lines, bench, ir }. */
 export function bySlot(rows, positions, irSlots) {
   const pool = {};
   for (const r of [...rows].sort((a, b) => b.value - a.value)) (pool[r.slot] ||= []).push(r);
-  /** `n` entries for a slot, each taking the next player left in the pool (or empty). */
   const fill = (slot, n) => Array.from({ length: n }, () => ({ slot, r: (pool[slot] || []).shift() }));
   const lines = positions.filter((x) => x !== "BN" && x !== "IR").map((slot) => ({ slot, r: (pool[slot] || []).shift() }));
   const bench = fill("BN", Math.max(positions.filter((x) => x === "BN").length, (pool.BN || []).length));
@@ -764,25 +660,16 @@ export function bySlot(rows, positions, irSlots) {
   return { lines, bench, ir };
 }
 
-/**
- * One matchup side by side. ◀ ▶ step through the league's matchups (yours first); calls and lock buttons show on yours only. Other matchups come from the plan endpoint for their first team (its opponent rides along).
- * On a thin window only the left team is shown. The left team can show its best lineup (default) or the one it has in Sleeper now when they differ.
- */
 export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow, focus }) {
-  /** The index of the matchup a fantasy team plays in this week (-1: none). */
   const idxOf = (rid) => data.matchups.findIndex((pair) => pair.some((m) => m.roster_id === rid));
   const mineIdx = Math.max(0, idxOf(plan.roster_id));
-  // `focus` ({ rid }, from a player card's owner) jumps to that team's matchup
   const [idx, setIdx] = useState(() => (focus && idxOf(focus.rid) >= 0 ? idxOf(focus.rid) : mineIdx));
-  useEffect(() => { if (focus && idxOf(focus.rid) >= 0) setIdx(idxOf(focus.rid)); }, [focus]);   // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { onShow?.(idx === mineIdx ? plan.roster_id : data.matchups[idx]?.[0]?.roster_id); }, [idx]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (focus && idxOf(focus.rid) >= 0) setIdx(idxOf(focus.rid)); }, [focus]);
+  useEffect(() => { onShow?.(idx === mineIdx ? plan.roster_id : data.matchups[idx]?.[0]?.roster_id); }, [idx]);
   const [other, setOther] = useState(null);
   const isMine = idx === mineIdx;
   const shown = isMine ? plan : other;
-  // Your side shows your best lineup at the timeline's time (default: now); rivals show their real Sleeper lineup.
-  // Each side's arrows are the moves from its Sleeper lineup to its best one. In the Sleeper gap (data.sleeper_gap: Sleeper
-  // still serves the day that just ended) that lineup is the one it carries into the next day, so the arrows start from it.
-  const [at, setAt] = useState(null);   // ms; null = follow the clock (so does the slider pushed into the past)
+  const [at, setAt] = useState(null);
   const tl = shown?.timeline, nowMs = data.now ? Date.parse(data.now) : Date.now();
   const atMs = Math.max(at ?? nowMs, nowMs);
   const gap = data.sleeper_gap;
@@ -790,7 +677,7 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
   const best = bestLineup(shown, atMs, data.roster_positions, false, gamesOf), them = bestLineup(shown?.opponent, atMs, data.roster_positions, true, gamesOf);
   const [view, setView] = useState("best");
   const differs = !!shown && best.rows.some((r, i) => r.slot !== shown.players[i].slot);
-  const me = differs && view === "sleeper" ? bestLineup(shown, atMs, data.roster_positions, true, gamesOf) : best;   // as-is rows, arrows still to the best
+  const me = differs && view === "sleeper" ? bestLineup(shown, atMs, data.roster_positions, true, gamesOf) : best;
   const seg = me.seg;
   const gridRef = React.useRef(null);
   const narrow = useNarrow(), thin = useThin(), gutter = narrow ? 60 : ARROW_GUTTER;
@@ -799,21 +686,16 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
     const rid = data.matchups[idx]?.[0]?.roster_id;
     api.get(`/leagues/${leagueId}/season/plan` + qs({ week: data.week, roster_id: rid })).then(setOther).catch(() => setOther(null));
   }, [idx, isMine, leagueId, data.week, data.matchups]);
-  // Both teams' chip lanes share one width (the narrowest) and one time axis; each column has its own left edge.
-  // Measured from the cards on screen.
   const [lane, setLane] = useState(null);
   React.useLayoutEffect(() => {
     const grid = gridRef.current;
     if (!grid) return undefined;
-    /** Measure the chip lanes on screen so both teams share one width and one time axis. */
     const measure = () => {
       const g = grid.getBoundingClientRect().left;
-      /** The chip lanes on one side of the grid. */
       const side = (s) => [...grid.querySelectorAll(`.mu-card.${s} .chips-lane`)];
       const L = side("left"), R = side("right");
       if (!L.length && !R.length) return;
       const w = Math.min(...[...L, ...R].map((e) => e.getBoundingClientRect().width));
-      /** The left edge of a side's first lane, relative to the grid. */
       const edge = (els) => (els.length ? els[0].getBoundingClientRect().left - g : null);
       const l = edge(L), r = edge(R);
       setLane((o) => (o && o.w === w && o.l === l && o.r === r ? o : { w, l, r }));
@@ -823,13 +705,10 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
     ro.observe(grid);
     return () => ro.disconnect();
   });
-  // the chips' x positions: the same object until the plan or the lane width changes, so the cards can skip re-rendering
-  /** [tip ms, game date] for every chip of the given players. */
   const games = (players) => players.flatMap((r) => (data.players[r.sid]?.games || []).map((g) => [tipMs(g), g.date]));
   const xs = React.useMemo(() => (narrow ? { xs: null } : laneXs([...games(shown?.players || []), ...games(shown?.opponent?.players || [])], lane?.w)),
-    [shown, data.players, lane?.w, narrow]);   // eslint-disable-line react-hooks/exhaustive-deps
+    [shown, data.players, lane?.w, narrow]);
   const n = data.matchups.length;
-  /** Step to the previous / next matchup, wrapping around. */
   const step = (d) => setIdx((i) => (i + d + n) % n);
   const nav = (
     <>
@@ -843,14 +722,11 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
   const R = o ? bySlot(them.rows, data.roster_positions, data.reserve_slots) : { lines: [], bench: [], ir: [] };
   const irRows = Math.max(L.ir.length, R.ir.length);
   const allRows = L.lines.length + Math.max(L.bench.length, R.bench.length) + irRows;
-  // first: the first bench / IR row gets a gap above it: a 5px empty track (with the grid's gaps, 10px more than between rows),
-  // so every player row keeps the same height
   const nBench = Math.max(L.bench.length, R.bench.length);
-  const rowT = `minmax(${ROW_MIN}px, 1fr)`;   // rows share the window's height but never go under ROW_MIN: a short window scrolls instead
+  const rowT = `minmax(${ROW_MIN}px, 1fr)`;
   const tracks = [...Array(L.lines.length).fill(rowT), ...(nBench ? ["5px", ...Array(nBench).fill(rowT)] : []),
     ...(irRows ? ["5px", ...Array(irRows).fill(rowT)] : [])];
-  const minH = allRows * ROW_MIN + (tracks.length - allRows) * 5 + (tracks.length - 1) * 5;   // every row at ROW_MIN + the 5px spacers + the 5px row gaps
-  /** One lineup row: the left card, the slot tag in the middle and the right card. `first` puts a dashed divider above the first bench / IR row. */
+  const minH = allRows * ROW_MIN + (tracks.length - allRows) * 5 + (tracks.length - 1) * 5;
   const row = (l, r, key, slot, first, gr) => (
     <React.Fragment key={key}>
       <div className="mu-cell" style={{ gridRow: gr }}><PlayerCard data={data} r={l?.r} open={open} openGame={openGame} setLock={setLock} mine={isMine} side="left" day={seg?.date} lane={xs} /></div>
@@ -881,7 +757,6 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
         </div>}
         <button className="mu-arrow neon-arrow" onClick={() => step(1)} data-tip="Next matchup" aria-label="Next matchup" data-testid="mu-next"><NeonArrow dir="right" /></button>
       </div>
-      {/* starters + bench fill the window; IR rows sit below the fold (scroll down), at the same row height */}
       <div className="mu-scroll">
       <div className="mu-grid with-arrows" ref={gridRef} style={{ gridTemplateRows: tracks.join(" "), minHeight: minH }}>
         <SwapArrows pairs={me.pairs} side="left" gutter={gutter} names={(sid) => data.players[sid]?.name || sid} />
@@ -898,11 +773,7 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
   );
 }
 
-const GAME_MS = 135 * 60000;   // a game counts as under way this long after its tip (as the backend's timeline does)
-/**
- * A team's best lineup at `atMs` from its timeline (one lineup per check-in; locked players never move): rows with everyone in the slot he should be in then, and the swaps from its Sleeper lineup as it is right now (so the arrows are the moves you'd make in Sleeper from where you are, at any point of the timeline).
- * `asIs` (rivals): rows stay their real Sleeper lineup; the arrows still show the moves to the best one.
- */
+const GAME_MS = 135 * 60000;
 export function bestLineup(team, atMs, positions, asIs, games = {}) {
   const tl = team?.timeline, players = team?.players || [];
   const seg = tl?.segments[Math.max(0, tl.segments.findIndex((s) => atMs < Date.parse(s.to)))];
@@ -910,12 +781,8 @@ export function bestLineup(team, atMs, positions, asIs, games = {}) {
   if (!seats) return { seg, rows: players, pairs: [] };
   const best = {};
   for (const [slot, sids] of Object.entries(seats)) for (const sid of sids) best[sid] = slot;
-  // the plan says who starts; reseat keeps everyone who already starts in his Sleeper slot, so the moves are fewest
   const now = Object.fromEntries(players.map((r) => [r.sid, r.slot]));
   const pos = Object.fromEntries(players.map((r) => [r.sid, r.pos || []]));
-  // Sleeper won't move these: locked in (or guessed locked), or benched with his game under way at the time shown (too
-  // late to start him). A starter mid-game can still be benched for a later player (the plan's KEEP / SWAP calls).
-  /** Is his game under way at `atMs` (tipped, and live or within GAME_MS of the tip)? */
   const playing = (sid) => (games[sid] || []).some((g) => {
     const tip = Date.parse(g.tip);
     return tip <= atMs && g.state !== "post" && (g.state === "in" || atMs < tip + GAME_MS);
@@ -929,27 +796,21 @@ export function bestLineup(team, atMs, positions, asIs, games = {}) {
 
 const ROW_MIN = 54;
 const ARROW_GUTTER = 80;
-/** The arrows, in a lane beside a team's cards (left of the left team, right of the right team, mirrored by CSS): one per Sleeper swap (swapSteps), joining the two players who trade places (a head at both ends), numbered in the order to make them and coloured by the starting slot it fills. Measured from the cards on screen; redrawn when the grid changes size. */
 function SwapArrows({ pairs, side, names, gutter = ARROW_GUTTER }) {
   const svgRef = React.useRef(null);
   const [lines, setLines] = useState([]);
   const key = pairs.map((p) => `${p.n}:${p.a}>${p.b}`).join(",");
   React.useLayoutEffect(() => {
-    // the grid through our own svg: on mount the grid's ref isn't attached yet when this runs (children first)
     const grid = svgRef.current?.parentElement;
     if (!grid) return undefined;
-    /** Measure the cards on screen and redraw the arrows. */
     const measure = () => {
       const top = grid.getBoundingClientRect().top;
-      /** A card's vertical centre within the grid, or null when it isn't on screen. */
       const mid = (sid) => {
         const el = grid.querySelector(`.mu-card.${side}[data-testid="mu-${sid}"]`);
         if (!el) return null;
         const r = el.getBoundingClientRect();
         return r.top + r.height / 2 - top;
       };
-      // shortest arrows nearest the cards, longest outside: nested lines cross as little as possible
-      // each step joins the cards its two players' slots show at that step (earlier steps taken as done: swapSteps a / b)
       setLines(pairs.map((p) => ({ ...p, y1: mid(p.b), y2: mid(p.a) })).filter((l) => l.y1 != null && l.y2 != null)
         .sort((a, b) => Math.abs(a.y1 - a.y2) - Math.abs(b.y1 - b.y2)));
     };
@@ -957,7 +818,7 @@ function SwapArrows({ pairs, side, names, gutter = ARROW_GUTTER }) {
     const ro = new ResizeObserver(measure);
     ro.observe(grid);
     return () => ro.disconnect();
-  }, [key]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [key]);
   const step = Math.min(13, (gutter - 24) / Math.max(1, lines.length));
   const label = {};
   for (const s of pairs) {
@@ -969,14 +830,10 @@ function SwapArrows({ pairs, side, names, gutter = ARROW_GUTTER }) {
       {lines.map((l, i) => {
         const x = end - 12 - i * step, r = 6, dir = l.y2 < l.y1 ? -1 : 1;
         const color = `var(--pos-${(String(l.slot).match(/PG|SG|SF|PF|C/) || ["C"])[0]})`;
-        // A number only where order matters: a step sharing a player with another step (a chain); a lone swap can be
-        // made any time, so it's a plain line. The vertical run breaks around the number (mid ± gap), so the line never
-        // crosses it; neighbouring lines put theirs at different heights so side-by-side numbers don't run together.
         const chained = label[l.n] != null;
         const mid = l.y1 + (l.y2 - l.y1) * [0.5, 0.3, 0.7][i % 3], gap = chained ? 10 : 0;
         const d = `M ${end - 5} ${l.y1} H ${x + r} Q ${x} ${l.y1} ${x} ${l.y1 + dir * r} V ${mid - dir * gap} `
           + `M ${x} ${mid + dir * gap} V ${l.y2 - dir * r} Q ${x} ${l.y2} ${x + r} ${l.y2} H ${end - 5}`;
-        /** The points of an arrowhead at height `y`. */
         const head = (y) => `${end - 6},${y - 5} ${end + 1},${y} ${end - 6},${y + 5}`;
         return (
           <g key={l.n} style={{ color }}>
@@ -984,7 +841,6 @@ function SwapArrows({ pairs, side, names, gutter = ARROW_GUTTER }) {
             <path d={d} className="swap-path" />
             <polygon points={head(l.y1)} fill="currentColor" />
             <polygon points={head(l.y2)} fill="currentColor" />
-            {/* the step number on the line's middle; the right lane is mirrored, so flip the text back */}
             {chained && <text className="swap-n" x={side === "right" ? -x : x} y={mid} transform={side === "right" ? "scale(-1,1)" : undefined}>{label[l.n]}</text>}
           </g>
         );
@@ -995,12 +851,9 @@ function SwapArrows({ pairs, side, names, gutter = ARROW_GUTTER }) {
 
 const STEP_MS = 15 * 60000;
 
-/** The week as a line (Mon 12 AM to the next Mon) in 15-minute steps; the dot picks the time whose best lineup shows. The past is shaded and the dot can't go there (no lineup to set for it). Also marks the next check-in and, when the lineups differ, toggles the left team between its best lineup and Sleeper's. */
 function Timeline({ tl, nowMs, atMs, setAt, view, setView, differs }) {
   const start = Date.parse(tl.start), end = Date.parse(tl.end);
-  /** Where a time falls along the week (0 to 1). */
   const frac = (ms) => Math.min(1, Math.max(0, (ms - start) / (end - start)));
-  /** CSS left for the dot's centre at a time. */
   const at = (ms) => `calc(${frac(ms)} * (100% - 16px) + 8px)`;
   const days = Array.from({ length: 7 }, (_, i) => start + i * 86400000 + 12 * 3600000);
   const next = tl.segments.slice(0, -1).map((s) => Date.parse(s.to)).find((ms) => ms > nowMs);
@@ -1010,7 +863,6 @@ function Timeline({ tl, nowMs, atMs, setAt, view, setView, differs }) {
       <button className="tl-next" onClick={() => setView(view === "best" ? "sleeper" : "best")} disabled={!differs} data-testid="lineup-toggle"
         data-tip={differs ? "Switch between the best lineup and the lineup in Sleeper now." : "The Sleeper lineup is already the best one."}>
         <span className="tl-next-head"><span className="tl-next-label">LINEUP</span></span>
-        {/* both words stacked in one cell, the other one hidden, so the box is always as wide as the longer word */}
         <strong className="tl-toggle-val"><span className={view === "best" ? "" : "off"}>Best</span><span className={view === "best" ? "off" : ""}>Current</span></strong>
       </button>
       <div className="tl-main">
@@ -1033,7 +885,6 @@ function Timeline({ tl, nowMs, atMs, setAt, view, setView, differs }) {
   );
 }
 
-/** Another team's week (League tab): the same cards in one column. */
 function TeamColumn({ data, team, open }) {
   const { lines, bench, ir } = bySlot(team.players, data.roster_positions, data.reserve_slots);
   return (
@@ -1045,7 +896,6 @@ function TeamColumn({ data, team, open }) {
   );
 }
 
-/** A note's age and date: "2d 5h ago · 10/14/26" (under an hour: "35m ago"). */
 const newsTime = (iso) => {
   if (!iso) return "";
   const t = new Date(iso), mins = Math.max(0, Math.floor((Date.now() - t) / 60000));
@@ -1054,7 +904,6 @@ const newsTime = (iso) => {
   return `${ago} ago · ${fmt(t, { month: "2-digit", day: "2-digit", year: "2-digit" })}`;
 };
 
-/** One news note: who (opens his profile), his injury tag, the fantasy team that has him (league-wide), when, and the note. */
 function NewsNote({ n, open, owner }) {
   const title = n.headline.startsWith(`${n.name} - `) ? n.headline.slice(n.name.length + 3) : n.headline;
   return (
@@ -1078,11 +927,9 @@ function NewsNote({ n, open, owner }) {
 
 const LEAGUE_NEWS = 80;
 
-/** Beside the news: every NBA team with injured players right now (Sleeper's tags, backend injury_report), most starters out first. Red counts out / IR, yellow questionable / day-to-day, with the names under it (starters bold, first) and why (status · body part · note). A team opens its Team card on the right, a name its player card. */
 function TeamsReport({ leagueId, open, refreshKey }) {
   const [r, setR] = useState(null);
   const openTeam = useContext(TeamLinkContext);
-  /** Order injured players: starters first, then by "#N option"; stable. */
   const order = (ps) => [...ps].sort((a, b) => !!b.starter - !!a.starter || (a.role?.rank ?? 99) - (b.role?.rank ?? 99));
   useEffect(() => { api.get(`/leagues/${leagueId}/season/injuries`).then(setR).catch(() => setR({ teams: [], names: {} })); }, [leagueId, refreshKey]);
   return (
@@ -1113,11 +960,9 @@ function TeamsReport({ leagueId, open, refreshKey }) {
   );
 }
 
-/** The news filter's NBA team dropdown: a native select can't show images, so this is a details popup of logo + abbreviation rows. */
 function TeamPick({ value, onChange, teams }) {
   const ref = useRef(null);
   useEffect(() => {
-    /** Close the popup on a click anywhere outside it. */
     const away = (e) => { if (ref.current && !ref.current.contains(e.target)) ref.current.open = false; };
     document.addEventListener("mousedown", away);
     return () => document.removeEventListener("mousedown", away);
@@ -1134,20 +979,18 @@ function TeamPick({ value, onChange, teams }) {
   );
 }
 
-/** News tab: tabs under the filter bar, My team (opens first), Watched (players watched from their profile), League-wide and Free agents; the filter bar narrows whichever is open. Reloads on Sync; the backend caches the notes for 15 minutes otherwise. */
 export function NewsView({ leagueId, open, refreshKey }) {
   const [news, setNews] = useState(null);
   const [error, setError] = useState("");
   const [q, setQ] = useState(""), [nba, setNba] = useState(""), [mgr, setMgr] = useState(""), [inj, setInj] = useState(false), [tab, setTab] = useState("mine");
   const [watched] = useWatch(leagueId);
-  const watchKey = watched.join(",");   // a change reloads the news: the backend adds a newly watched free agent's notes
+  const watchKey = watched.join(",");
   useEffect(() => {
     api.get(`/leagues/${leagueId}/season/news`).then((n) => { setNews(n); setError(""); }).catch((e) => setError(e.message));
   }, [leagueId, refreshKey, watchKey]);
   if (error) return <div className="panel error">{error}</div>;
   if (!news) return <div className="panel muted">Loading news…</div>;
   const words = q.toLowerCase().trim();
-  /** The news filter: a search over player, NBA team, manager's username and the note itself, plus the team and injured switches. */
   const keep = (n) => (!nba || n.team === nba) && (!inj || n.injury)
     && (!words || [n.name, n.team, n.user, n.headline, n.story].join(" ").toLowerCase().includes(words));
   const all = [...news.mine, ...news.league, ...news.free];
@@ -1186,10 +1029,6 @@ export function NewsView({ leagueId, open, refreshKey }) {
   );
 }
 
-/**
- * The League tab's Best games: the week's 10 best single games by any NBA player in league FP (backend /season/best), two columns.
- * Each: rank, headshot and name (opens his profile when he's in our pool), his stat line, a small game card (score, status, day: opens the game card) and his FP.
- */
 function BestGames({ leagueId, week, openPid, openGame }) {
   const [games, setGames] = useState(null);
   useEffect(() => { api.get(`/leagues/${leagueId}/season/best` + qs({ week })).then((x) => setGames(x.games)).catch(() => setGames([])); }, [leagueId, week]);
@@ -1225,11 +1064,9 @@ function BestGames({ leagueId, week, openPid, openGame }) {
   );
 }
 
-/** League tab: this week's matchups (click a team for its roster and games), the week's best games and the standings with FAAB left. */
 export function LeagueView({ data, leagueId, open, openPid, openGame }) {
   const team = Object.fromEntries(data.teams.map((t) => [t.roster_id, t]));
   const [shown, setShown] = useState(null);
-  /** Load another team's week plan (roster and games) into the shown team. */
   const show = (rid) => api.get(`/leagues/${leagueId}/season/plan` + qs({ week: data.week, roster_id: rid })).then(setShown).catch(() => setShown(null));
   const standings = [...data.teams].sort((a, b) => b.wins - a.wins || b.fpts - a.fpts);
   return (
@@ -1273,25 +1110,19 @@ export function LeagueView({ data, leagueId, open, openPid, openGame }) {
   );
 }
 
-/**
- * Waivers tab: free agents ranked by how much they'd upgrade your weakest player, with value, upgrade, games once he lands, a guide bid and each player's season line. Shows the next waiver run and, for FAAB leagues, your budget.
- * Every column header sorts: a click cycles ascending, descending, off (the backend's order), and rows with nothing to show for a column sort last.
- */
 export function WaiversView({ leagueId, onSelect }) {
   const [w, setW] = useState(null);
-  const [sort, setSort] = useState(null);   // {k, dir}: a header click cycles ascending, descending, off (the backend's order)
+  const [sort, setSort] = useState(null);
   useEffect(() => { api.get(`/leagues/${leagueId}/season/waivers`).then(setW).catch(() => setW(null)); }, [leagueId]);
   if (!w) return <div className="panel waivers">Loading free agents…</div>;
   if (w.error) return <div className="panel waivers warn-text" data-testid="waivers-error">{w.error}</div>;
   const faab = w.type === "FAAB";
   const STATS = [["fp", "FP/G"], ["pts", "PTS"], ["reb", "REB"], ["ast", "AST"], ["stl", "STL"], ["blk", "BLK"], ["tpm", "3PM"], ["gp", "GP"]];
-  /** The sortable value of a claim for column key `k`. */
   const val = (c, k) => (k === "value" || k === "upgrade" || k === "bid" ? c[k] : k === "games" ? c.games_left * 100 + c.games_next : c.season?.[k]);
   const claims = !sort ? w.claims : [...w.claims].sort((a, b) => {
     const x = val(a, sort.k), y = val(b, sort.k);
     return x == null || y == null ? (x == null) - (y == null) : sort.dir * (x - y);
   });
-  /** A clickable column header showing the sort direction. */
   const th = (k, label, tip, cls = "num") => (
     <th className={`${cls} clickable`} data-tip={tip} onClick={() => setSort(sort?.k !== k ? { k, dir: 1 } : sort.dir === 1 ? { k, dir: -1 } : null)} data-testid={`sort-${k}`}>
       {label}{sort?.k === k && (sort.dir === 1 ? " ▲" : " ▼")}</th>);

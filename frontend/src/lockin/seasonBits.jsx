@@ -4,9 +4,7 @@ import PlayerSearch from "../core/PlayerSearch.jsx";
 import Icon from "../core/Icon.jsx";
 import { GamePanel, TeamPanel, bestLineup, watchTitle } from "./SeasonPage.jsx";
 
-// Pieces of the Season tab shared by the redesigned UIs (src/ui-command, src/ui-broadcast); `s` is useSeason()'s result.
 
-/** The open card (player, game or NBA team) from the history in `s`, or null. */
 export function CurrentCard({ s, leagueId }) {
   const c = s.cur;
   if (!c) return null;
@@ -15,7 +13,6 @@ export function CurrentCard({ s, leagueId }) {
   return <TeamPanel key={c.team} abbr={c.team} leagueId={leagueId} onOpenPid={s.openPid} onClose={s.close} />;
 }
 
-/** Back / forward through the cards opened so far. */
 export function CardNav({ s }) {
   return (
     <span className="card-nav">
@@ -25,7 +22,6 @@ export function CardNav({ s }) {
   );
 }
 
-/** ‹ WEEK n ›; clicking the week name goes back to the current week. */
 export function WeekNav({ s }) {
   const { data, week, setWeek } = s;
   return (
@@ -37,7 +33,6 @@ export function WeekNav({ s }) {
   );
 }
 
-/** Player / team search and the Sync button. */
 export function SeasonTools({ s, leagueId }) {
   return (
     <span className="season-tools-x">
@@ -47,16 +42,10 @@ export function SeasonTools({ s, leagueId }) {
   );
 }
 
-/** The league clock in ms. */
 export const nowOf = (data) => (data.now ? Date.parse(data.now) : Date.now());
 
-/** The next lineup check-in (ms) after now from a plan's timeline, or null when none is left this week. */
 export const nextCheckIn = (plan, nowMs) => (plan.timeline?.segments || []).slice(0, -1).map((x) => Date.parse(x.to)).find((ms) => ms > nowMs) ?? null;
 
-/**
- * The NBA games on `date` that any rostered player in the league plays in, one per game: { event, away, home, awayScore,
- * homeScore, state, detail, tip, mine (how many of yours play), sel (opens the game card) }, live ones first, then by tip.
- */
 export function gamesOn(data, date) {
   const mine = new Set(data.teams.find((t) => t.is_user)?.players || []);
   const out = new Map();
@@ -73,7 +62,6 @@ export function gamesOn(data, date) {
   return [...out.values()].sort((a, b) => (rank[a.state] ?? 1) - (rank[b.state] ?? 1) || Date.parse(a.tip) - Date.parse(b.tip));
 }
 
-/** Today's games, or the next day's that has any when today has none. */
 export function slate(data) {
   for (const d of data.dates.filter((x) => x >= data.today)) {
     const list = gamesOn(data, d);
@@ -82,10 +70,6 @@ export function slate(data) {
   return { date: data.today, list: [] };
 }
 
-/**
- * Everything that needs you now, in one list: the Sleeper swaps due now (the lineup grid's arrows), then the plan's watch
- * lines (GTD / OUT / swap windows / locks) by alarm time, then roster warnings. Each: { key, kind, when, title, text, sid, sid2, tone }.
- */
 export function callsOf(data, plan) {
   const nowMs = nowOf(data);
   const games = Object.fromEntries(Object.entries(data.players).map(([sid, p]) => [sid, p.games]));

@@ -54,7 +54,7 @@ def search_players(
             prefix.append(pid)
         elif query in name:
             inner.append(pid)
-    key = lambda pid: (not state.players[pid].has_stats, state.players[pid].last_name.lower(), state.players[pid].first_name.lower())  # noqa: E731
+    key = lambda pid: (not state.players[pid].has_stats, state.players[pid].last_name.lower(), state.players[pid].first_name.lower())
     ordered = sorted(prefix, key=key) + sorted(inner, key=key)
     return [_brief(state, pid, drafted.get(pid)) for pid in ordered[:limit]]
 
@@ -101,7 +101,7 @@ def patch_overrides(player_id: int, body: OverridePatch, state: AppState = Depen
     return updated.model_dump(mode="json")
 
 
-ROTATION = 8   # players per team counted for the team's projected fantasy talent
+ROTATION = 8
 
 
 def team_rosters(session) -> tuple[dict[str, list[tuple[float, int]]], dict[str, float]]:
@@ -128,7 +128,6 @@ def _team_block(state: AppState, session, player_id: int) -> dict:
     by_team = rosters[0]
     abbr = session.players[player_id].team_abbr
     roster = sorted(by_team.get(abbr, []), reverse=True)
-    # Card order: Sleeper's starting five PG -> C, then 'next up' by depth (all the #2s PG -> C, then #3s ...).
     pos_order = ("PG", "SG", "SF", "PF", "C")
 
     def depth(pid: int) -> tuple[int, int]:

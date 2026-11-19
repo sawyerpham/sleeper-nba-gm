@@ -17,7 +17,7 @@ from nba_fantasy_shared.models.players import SLOT_ACCEPTS, PlayerRecord
 POSITION_SLOTS: tuple[str, ...] = ("PG", "SG", "SF", "PF", "C")
 FLEX_SLOTS: tuple[str, ...] = ("G", "F")
 GENERIC_SLOTS: tuple[str, ...] = ("UTIL", "BN")
-DRAFTABLE_SLOTS: tuple[str, ...] = POSITION_SLOTS + FLEX_SLOTS + GENERIC_SLOTS  # IR excluded
+DRAFTABLE_SLOTS: tuple[str, ...] = POSITION_SLOTS + FLEX_SLOTS + GENERIC_SLOTS
 
 
 def slot_capacity(league: LeagueSettings) -> dict[str, int]:
@@ -50,7 +50,7 @@ def slot_accepts(slot: str, eligibility: Iterable[str]) -> bool:
     if accepted is None:
         return False
     if slot in GENERIC_SLOTS:
-        return True  # UTIL/BN take anyone, even a player whose eligibility is still unset
+        return True
     return any(pos in accepted for pos in eligibility)
 
 
@@ -80,7 +80,7 @@ def make_room(league: LeagueSettings, picks: list[Pick], eligibility: Iterable[s
     opens = open_slots(league, picks)
     seen: set[str] = set()
 
-    def path(slots: list[str]) -> list | None:   # [slot, occupant, slot, occupant, ..., open slot]
+    def path(slots: list[str]) -> list | None:
         """Find a chain of players sliding between slots that frees a slot for the newcomer, or None."""
         for slot in slots:
             if slot == "IR" or slot in seen:

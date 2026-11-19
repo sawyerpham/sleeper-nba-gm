@@ -11,10 +11,6 @@ const TEAMS = ("ATL Atlanta Hawks,BOS Boston Celtics,BKN Brooklyn Nets,CHA Charl
   "POR Portland Trail Blazers,SAC Sacramento Kings,SAS San Antonio Spurs,TOR Toronto Raptors,UTA Utah Jazz,WAS Washington Wizards")
   .split(",").map((t) => ({ abbr: t.slice(0, 3), name: t.slice(4) }));
 
-/**
- * Debounced (150 ms) autocomplete over the player pool.
- * `onSelect(player)` receives the API's brief row. With `onSelectTeam(abbr)`, NBA teams matching the text (code or name) are listed first and open that team's card.
- */
 export default function PlayerSearch({ leagueId, onSelect, onSelectTeam, placeholder = "Search player…", testId = "search-input", autoFocus = false }) {
   const [q, setQ] = useState("");
   const [hits, setHits] = useState([]);
@@ -40,7 +36,6 @@ export default function PlayerSearch({ leagueId, onSelect, onSelectTeam, placeho
     return () => clearTimeout(timer.current);
   }, [q, leagueId]);
 
-  /** Close the dropdown, clear the box and report the choice: a team row goes to onSelectTeam, a player row to onSelect. */
   const choose = (p) => {
     setOpen(false);
     setQ("");

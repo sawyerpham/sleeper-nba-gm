@@ -80,7 +80,7 @@ def test_first_fetch_hits_network_second_within_24h_serves_cache(tmp_path, paylo
     assert provider.store.exists(PLAYERS_CACHE_REL)
 
     clock.now = T0 + timedelta(hours=23, minutes=59)
-    fresh = SleeperProvider(provider.store, CallRunner(RetryPolicy(delay_s=0)), session=session, now=clock)  # new process
+    fresh = SleeperProvider(provider.store, CallRunner(RetryPolicy(delay_s=0)), session=session, now=clock)
     bios2, report2 = fresh.fetch_player_pool("2026-27")
     assert report2.served_from_cache and report2.endpoint_calls == 0 and len(session.calls) == 1
     assert [b.source_id for b in bios2] == [b.source_id for b in bios]
@@ -134,7 +134,7 @@ def test_league_404_returns_none_and_state_parses(tmp_path, payload):
 def test_search_uses_cached_payload_only(tmp_path, payload):
     """Search uses cached payload only."""
     provider, session, _ = make(tmp_path, payload)
-    assert provider.search_players("jokic") == []  # nothing cached yet, no network
+    assert provider.search_players("jokic") == []
     provider.fetch_player_pool("2026-27")
     hits = provider.search_players("jokic")
     assert hits and hits[0].full_name == "Nikola Jokić" and hits[0].player_id == -1658

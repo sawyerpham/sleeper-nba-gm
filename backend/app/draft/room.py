@@ -24,7 +24,7 @@ def room_board(session, my_manager_id: str) -> list[dict]:
     """The room board: one entry per manager with money, roster by spot (each sale coloured against the Worth it had when it sold), needs, strength estimates, habits, and the players to nominate to make each rival spend. `my_manager_id` marks you."""
     lg = session.league
     schedule = session.schedule()
-    worths = sale_worths(session)   # each sale's Worth when it sold, for the over / fair / steal colours
+    worths = sale_worths(session)
 
     def stats(pid: int) -> tuple[float, float, float | None]:
         """(projected FP/G, expected weekly-best FP, availability last season or None with no games)."""
@@ -40,7 +40,6 @@ def room_board(session, my_manager_id: str) -> list[dict]:
         return {**pick, "worth": worths.get(pick["pick_number"]), "sleeper_id": rec.sleeper_id if rec else None, "fpg": round(avg, 1) if avg is not None else None,
                 "avail": avail, "pos": ov.eligibility if ov else [], "age": int(rec.bio.age) if rec and rec.bio.age else None}
 
-    # Replacement level: the weekly-best of the player ranked just past every team's starters.
     starter_slots = sum(s.count for s in lg.roster_slots if s.slot not in ("BN", "IR"))
     pool = session.pool_values()
     ranked = sorted(pool, key=lambda pid: -pool[pid])
