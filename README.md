@@ -154,7 +154,7 @@ about 0.03 from sample noise alone), and real margins still run wider than the p
 
 ## Testing and CI
 
-- 314 backend tests (`pytest`) run offline against captured real API responses under `backend/tests/fixtures`:
+- 321 backend tests (`pytest`) run offline against captured real API responses under `backend/tests/fixtures`:
   the engine, the API, reconciliation, scoring, the week plan and the Telegram watcher.
 - `frontend/src/lockin/swaps.check.mjs` replays every lineup swap the UI can propose and asserts each step is legal.
 - Playwright end-to-end scripts in `frontend/e2e`: a mock auction draft driven entirely through the browser, and
@@ -214,6 +214,39 @@ The home page and Settings > Notifications show which chat the bot is linked to,
 picks what to push (lock calls, keep / swap calls, players ruled OUT, GTD / DTD or cleared, lineup moves) and the win
 chance a lock call must add before it is pushed.
 
+## Calculations API
+
+The calculations the app shows are also exposed as a small JSON API, so you can run any of them on your own numbers
+without a league. It needs no setup beyond starting the backend.
+
+1. Start the backend: `python -m app.serve --port 8000` from `backend` (or `docker compose up`).
+2. Open `http://localhost:8000/docs`. Under **calculations**, click an endpoint, press **Try it out**, then **Execute**.
+3. Or from a terminal:
+
+```sh
+# what is available: every calculation with its formula, inputs, constants and a ready-to-send example request
+curl http://localhost:8000/api/calculations
+
+# run one: the chance to win a week, given each team's expected total and variance
+curl -X POST http://localhost:8000/api/calculations/win-chance   -H "Content-Type: application/json"   -d '{"mine": {"mean": 130, "variance": 25}, "theirs": {"mean": 124.9, "variance": 100}}'
+# {"id":"win-chance","result":{"win_chance":0.6759,"opponent_win_chance":0.3241}}
+```
+
+Each entry in the catalog has a `run` block holding its path and an example request body you can copy.
+
+| `POST /api/calculations/...` | Computes |
+|---|---|
+| `win-chance` | chance to win the week from two teams' totals and spreads |
+| `lock-or-wait` | the value of waiting on a player's games to come, and the expected-points call |
+| `live-finish-estimate` | where a game in progress will finish |
+| `game-swing` | how much one game can swing a player's night |
+| `lineup-seating` | players seated into slots under multi-position eligibility |
+| `fantasy-points` | fantasy points for a stat line under a league's scoring |
+
+Two calculations need real data, so they are in the catalog but have no endpoint of their own: the check-in
+timeline (part of `/api/leagues/{league_id}/season/plan`) and the auction valuations (they need pulled game logs).
+The code is in `backend/app/calculations.py`.
+
 ## Repository layout
 
 ```
@@ -222,7 +255,7 @@ backend/app/
              services/ (app state, pull, valuations, Sleeper league link and changelog)
   draft/     auction routes, fit, market, room
   lockin/    api, service (week view, plans, game and team cards), weekplan (the engine), backtest_live, backtest_week
-  main.py    notify.py (Telegram)   pull.py / valuate.py (CLIs)
+  main.py    notify.py (Telegram)   calculations.py (the calculations API)   pull.py / valuate.py (CLIs)
 backend/tests/      pytest suite; fixtures/ holds captured API responses
 frontend/src/
   core/      shell, settings, player sidebar and search, shared widgets
