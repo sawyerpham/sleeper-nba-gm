@@ -9,7 +9,7 @@ import { TeamLinkContext } from "../core/TeamLink.jsx";
 import { SEASON_VIEWS, SettingsModal, useAppState } from "../core/Shell.jsx";
 import useSeason from "../lockin/useSeason.js";
 import { CardNav, CurrentCard, SeasonTools, WeekNav, callsOf, nextCheckIn, nowOf, slate } from "../lockin/seasonBits.jsx";
-import { LeagueView, NewsView, WaiversView, WeekView, dayName, fp, lockEdge, lockableOf, pct, quarters, teamLogo, untilText } from "../lockin/SeasonPage.jsx";
+import { LeagueView, NewsView, TeamName, flashEl, WaiversView, WeekView, dayName, fp, lockEdge, lockableOf, pct, quarters, teamLogo, untilText } from "../lockin/SeasonPage.jsx";
 import { fmt, timeOf } from "../lockin/tz.js";
 
 
@@ -83,6 +83,7 @@ function AppleSeason({ leagueId, leagueName, view, onWeek }) {
         <div className="ap-top">
           <h1 className="ap-title">{TITLES[view]}<span>{leagueName}</span></h1>
           {(view === "week" || view === "league") && <WeekNav s={s} />}
+          {view === "week" && <ManagerPill data={data} rid={away ? focusRid : plan.roster_id} onPick={setFocusRid} />}
           {s.error && <span className="small warn-text">{s.error}</span>}
           <SeasonTools s={s} leagueId={leagueId} />
         </div>
@@ -91,15 +92,15 @@ function AppleSeason({ leagueId, leagueName, view, onWeek }) {
             <section className="ap-center">
               <Widgets data={data} plan={plan} shown={shown} who={whoName} open={s.open} />
               <div className="ap-pair">
-                <Slate data={data} s={s} />
-                <Calls data={data} plan={plan} s={s} />
+                <Slate data={data} s={s} rid={away ? focusRid : plan.roster_id} />
+                <Calls data={data} plan={shown} s={s} />
               </div>
               <WeekView key={data.week} data={data} plan={plan} open={s.open} openGame={s.openGame} setLock={s.setLock} leagueId={leagueId} onShow={setFocusRid} focus={s.matchup} />
             </section>
           </div>
         )}
         {view === "news" && <div className="ap-fill"><NewsView leagueId={leagueId} open={s.openPid} refreshKey={s.tick} /></div>}
-        {view === "league" && <div className="ap-scroll"><LeagueView data={data} leagueId={leagueId} open={s.open} openPid={s.openPid} openGame={s.openGame} /></div>}
+        {view === "league" && <div className="ap-scroll"><LeagueView data={data} leagueId={leagueId} open={s.open} openPid={s.openPid} openGame={s.openGame} openMatchup={s.openMatchup} Standings={AppleStandings} /></div>}
         {view === "waivers" && <div className="ap-scroll"><WaiversView leagueId={leagueId} onSelect={s.openPid} /></div>}
       </div>
       {s.cur && (
@@ -114,8 +115,19 @@ function AppleSeason({ leagueId, leagueName, view, onWeek }) {
   );
 }
 
+function ManagerPill({ data, rid, onPick }) {
+  const pair = data.matchups.find((p) => p.some((m) => m.roster_id === rid)) || [];
+  const name = (id) => { const t = data.teams.find((x) => x.roster_id === id); return t ? t.user || t.name : "?"; };
+  if (pair.length < 2) return null;
+  return (
+    <span className="ap-who" role="group" aria-label="Show this manager's side" data-testid="manager-pill">
+      {pair.map((m) => <button key={m.roster_id} className={m.roster_id === rid ? "on" : ""} aria-pressed={m.roster_id === rid} onClick={() => onPick(m.roster_id)}>{name(m.roster_id)}</button>)}
+    </span>
+  );
+}
+
 function Widgets({ data, plan, shown, who, open }) {
-  const nowMs = nowOf(data), next = nextCheckIn(plan, nowMs);
+  const nowMs = nowOf(data), next = nextCheckIn(shown || plan, nowMs);
   const p = shown || plan, wait = shown === null;
   const lockable = wait ? [] : lockableOf(p);
   const R = 34, C = 2 * Math.PI * R;
@@ -156,12 +168,24 @@ function Widgets({ data, plan, shown, who, open }) {
   );
 }
 
+const MASCOT = String.raw`    /\_/\
+   ( -.- )  z
+    > ^ <  Z
+   .-'''-.
+ .'   |   '.
+/ (   |   ) \
+(-----+-----)
+\ (   |   ) /
+ '.   |   .'
+   '-...-'`;
+
 function Calls({ data, plan, s }) {
-  const calls = callsOf(data, plan);
+  const calls = plan ? callsOf(data, plan) : [];
   return (
     <section className="panel ap-group" data-testid="calls">
       <h3>Do now</h3>
-      {!calls.length && <div className="ap-row ap-empty"><Icon name="check" /> Nothing to do. Your lineup is set until the next check-in.</div>}
+      {!plan && <div className="ap-row ap-empty">Loading…</div>}
+      {plan && !calls.length && <div className="ap-row ap-empty ap-mascot-row"><pre className="ap-mascot" role="img" aria-label="Nothing to do right now">{MASCOT}</pre></div>}
       {calls.map((c) => (
         <div key={c.key} className={`ap-row ap-call ${c.tone}`} data-testid="watch-line">
           <span className="ap-call-icon"><Icon name={CALL_ICON[c.kind] || "alert"} /></span>
@@ -176,19 +200,61 @@ function Calls({ data, plan, s }) {
   );
 }
 
-function Slate({ data, s }) {
-  const { date, list } = slate(data);
+function flashCard(sid) {
+  const el = document.querySelector(`[data-testid="mu-${sid}"]`);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  flashEl(el);
+}
+
+function AppleStandings({ data, onPick }) {
+  const teams = [...data.teams].sort((a, b) => b.wins - a.wins || b.fpts - a.fpts);
+  const cut = data.playoff_teams || 0;
+  return (
+    <div className="panel ap-st" data-testid="standings">
+      <h3>Standings</h3>
+      <div className="ap-st-head"><span>#</span><span>Team</span><span>Record</span><span>Points</span><span>Last 5</span><span>FAAB</span></div>
+      {teams.map((t, i) => {
+        const diff = t.fpts_against != null ? t.fpts - t.fpts_against : null;
+        return (
+          <React.Fragment key={t.roster_id}>
+            <div className={`ap-st-row ${t.is_user ? "me" : ""} ${cut && i < cut ? "in" : ""} clickable`} onClick={() => onPick(t.roster_id)}>
+              <b className="ap-st-rank">{i + 1}</b>
+              <TeamName t={t} size={32} record={false} mine={t.is_user} />
+              <span className="ap-st-rec"><strong>{t.wins}-{t.losses}{t.ties ? `-${t.ties}` : ""}</strong></span>
+              <span className="ap-st-pts"><strong>{fp(t.fpts)}</strong>
+                {diff != null && <span className="small muted">PA {fp(t.fpts_against)}<b className={diff >= 0 ? "good-text" : "warn-text"}> {diff >= 0 ? "+" : "−"}{fp(Math.abs(diff))}</b></span>}</span>
+              <span className="ap-st-form" title={t.results ? `Last ${Math.min(5, t.results.length)}: ${t.results.slice(-5).split("").join(" ")}` : ""}>
+                {Array.from({ length: 5 }, (_, k) => { const r = t.results?.slice(-5).padStart(5, " ")[k]; return <i key={k} className={r === "W" ? "w" : r === "L" ? "l" : r === "T" ? "t" : ""} />; })}</span>
+              <span className="ap-st-faab">{data.waiver ? `$${(data.faab_budget ?? 100) - (t.faab_used || 0)}` : "?"}</span>
+            </div>
+            {cut > 0 && i === cut - 1 && i < teams.length - 1 && <div className="ap-st-cut"><span>Playoff line</span></div>}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+function Slate({ data, s, rid }) {
+  const { date, list } = slate(data, rid);
   return (
     <section className="panel ap-group" data-testid="slate">
-      <h3>{date === data.today ? "Tonight" : dayName(date)} <span className="small muted">{list.length} games</span></h3>
+      <h3>{date === data.today ? "League Tonight" : dayName(date)} <span className="small muted">{list.length} games</span></h3>
       <div className="ap-games">
       {list.map((g) => (
         <button key={g.event} className={`ap-row ap-game ${g.state}`} onClick={() => s.openGame(g.sel)}>
-          <span className="ap-team"><img src={teamLogo(g.away)} alt="" width={28} height={28} /><strong>{g.away}</strong><b>{g.awayScore ?? ""}</b></span>
-          <span className="ap-at">@</span>
-          <span className="ap-team"><img src={teamLogo(g.home)} alt="" width={28} height={28} /><strong>{g.home}</strong><b>{g.homeScore ?? ""}</b></span>
-          <span className="ap-game-status">{g.state === "in" ? <><i className="live-dot" />{quarters(g.detail)}</> : g.state === "post" ? "Final" : timeOf(g.tip)}</span>
-          <span className="ap-slot">{g.mine > 0 && <span className="ap-pill">{g.mine} yours</span>}</span>
+          <span className="ap-teams">
+            {[[g.away, g.awayScore, g.homeScore, g.awayRecord], [g.home, g.homeScore, g.awayScore, g.homeRecord]].map(([t, sc, opp, rec]) => (
+              <span key={t} className={`ap-team${g.state === "post" && sc < opp ? " lost" : ""}`}><img src={teamLogo(t)} alt="" width={26} height={26} /><strong>{t}</strong>{rec && <small className="ap-rec">{rec}</small>}<b>{sc ?? ""}</b></span>
+            ))}
+          </span>
+          <span className="ap-mine" style={{ "--ov": `${Math.min(-4, -(((g.mineSids || []).length * 39 - 135) / Math.max(1, (g.mineSids || []).length - 1)))}px` }}>{(g.mineSids || []).map((sid) => (
+            <span key={sid} role="button" title={data.players[sid]?.name} onClick={(e) => { e.stopPropagation(); flashCard(sid); }}><Headshot sleeperId={sid} name={data.players[sid]?.name || ""} size={39} /></span>
+          ))}</span>
+          <span className="ap-meta">
+            <span className="ap-game-status">{g.state === "in" ? <><i className="live-dot" />{quarters(g.detail)}</> : g.state === "post" ? "Final" : timeOf(g.tip)}</span>
+          </span>
         </button>
       ))}
       </div>

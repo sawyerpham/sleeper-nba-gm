@@ -29,7 +29,7 @@ the games worth locking.*
   opponent's remaining projection and banked points.
 - Live game cards from ESPN (score, box scores in league scoring, top performers, depth charts), player profiles with
   game logs and news, NBA team cards with records, ranks and schedules, the week's best games across the whole NBA,
-  waiver targets with FAAB bids, league standings.
+  best available free agents by Sleeper % rostered, league standings.
 - Telegram pushes: each GTD / OUT / swap / lock call once at its alarm time, and the lineup moves due before a tip.
 
 **Before the season (auction drafts)**
@@ -46,7 +46,7 @@ the games worth locking.*
  ┌───────────────────────────────┐   /api   ┌───────────────────────────────────┐    ┌───────────────────┐
  │ Season · League · News        │ ───────▶ │ lockin/   week_view, team_plan    │ ─▶ │ Sleeper API       │
  │ Waivers · Draft · Settings    │ ◀─────── │           weekplan  (the engine)  │ ─▶ │ ESPN scoreboard   │
- │ three UIs, three themes       │          │ draft/    auction room, bid calls │ ─▶ │ stats.nba.com     │
+ │ one UI, light and dark        │          │ draft/    auction room, bid calls │ ─▶ │ stats.nba.com     │
  └───────────────────────────────┘          │ core/     league session, pull    │    └───────────────────┘
                                             │ notify    Telegram watcher thread │ ─▶   Telegram
                                             └─────────────────┬─────────────────┘
@@ -61,8 +61,8 @@ the games worth locking.*
 - **Backend:** FastAPI, everything under `/api`. One `AppState` per process holds the providers, the player pool and
   the open league sessions. Persistence is flat JSON under `backend/data/`; there is no database. The same process
   serves the built frontend, so one container runs the whole app.
-- **Frontend:** React 19 with Vite, plain JSX, no UI library. Three interchangeable UIs (default, Command Center,
-  Broadcast) share the same data hooks and cards; three design presets are pure CSS tokens.
+- **Frontend:** React 19 with Vite, plain JSX, no UI library. One Apple-style UI that follows the system's light or
+  dark mode; the design is pure CSS tokens.
 - **Shared package:** the data models (Pydantic), the Sleeper / nba_api / fixture providers, name reconciliation, the
   scoring formula and the JSON store, installed editable into the backend.
 - **Data:** Sleeper (rosters, matchups, per-game projections, box scores, injuries, news, transactions), ESPN (tip
@@ -224,7 +224,7 @@ backend/tests/      pytest suite; fixtures/ holds captured API responses
 frontend/src/
   core/      shell, settings, player sidebar and search, shared widgets
   draft/     the Draft tab          lockin/   the Season tabs, swaps.js, time zone helpers
-  ui-command/ ui-broadcast/         the two alternative UIs
+  ui-apple/  the app shell and its styles
 shared/nba_fantasy_shared/   models, providers, reconcile, scoring, storage
 ```
 

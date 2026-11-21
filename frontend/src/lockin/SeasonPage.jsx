@@ -52,120 +52,6 @@ export function TeamName({ t, cls = "", size = 24, record = true, mine = false }
 }
 
 
-export default function SeasonPage({ leagueId, view, onWeek }) {
-  const [week, setWeek] = useState(null);
-  const [matchup, setMatchup] = useState(null);
-  const openMatchup = (rid) => { setWeek(null); setMatchup({ rid }); close(); onWeek?.(); };
-  const [plan, setPlan] = useState(null);
-  const [data, setData] = useState(null);
-  const [error, setError] = useState("");
-  const [nav, setNav] = useState({ stack: [], i: -1 });
-  const cur = nav.stack[nav.i], selected = cur?.pid ?? null, game = cur?.game ?? null, team = cur?.team ?? null;
-  const go = (entry) => setNav(({ stack, i }) => {
-    const same = (a, b) => (a?.pid && a.pid === b.pid) || (a?.game && a.game.game.event === b.game?.game.event) || (a?.team && a.team === b.team);
-    return same(stack[i], entry) ? { stack, i } : { stack: [...stack.slice(0, i + 1), entry], i: i + 1 };
-  });
-  const close = () => setNav({ stack: [], i: -1 });
-  const setSelected = (pid) => (pid ? go({ pid }) : close());
-  const [tick, setTick] = useState(0);
-  const [headerSlot, setHeaderSlot] = useState(null);
-  useEffect(() => { setHeaderSlot(document.getElementById("header-slot")); }, []);
-
-  const load = useCallback(() => {
-    if (!leagueId) return;
-    Promise.all([api.get(`/leagues/${leagueId}/season/week` + qs({ week })), api.get(`/leagues/${leagueId}/season/plan` + qs({ week }))])
-      .then(([w, p]) => { setZone(w.tz); setData(w); setPlan(p); setError(""); })
-      .catch((e) => setError(e.message));
-  }, [leagueId, week]);
-  useEffect(() => {
-    load();
-    const t = setInterval(load, REFRESH_MS);
-    const back = () => { if (document.visibilityState === "visible") load(); };
-    document.addEventListener("visibilitychange", back);
-    return () => { clearInterval(t); document.removeEventListener("visibilitychange", back); };
-  }, [load, tick]);
-  const [syncing, setSyncing] = useState(false);
-  const sync = () => {
-    setSyncing(true);
-    api.post(`/leagues/${leagueId}/season/sync`, {}).then(() => setTick((t) => t + 1)).catch((e) => setError(e.message)).finally(() => setSyncing(false));
-  };
-
-  const [showNotifs, setShowNotifs] = useState(false);
-  const [focusRid, setFocusRid] = useState(null);
-
-  if (!leagueId) return <div className="panel muted" data-testid="no-league">No Sleeper league selected!</div>;
-  if (error && !data) return <div className="panel error">{error}</div>;
-  if (!data || !plan) return <div className="panel">Loading the week from Sleeper…</div>;
-
-  const pidOf = (sid) => data.players[sid]?.player_id;
-  const open = (sid) => { const pid = pidOf(sid); if (pid) setSelected(pid); };
-  const openGame = (g) => go({ game: g });
-  const openTeam = (abbr) => go({ team: abbr });
-  const setLock = (sid, gameDate) => api.post(`/leagues/${leagueId}/season/locks`, { week: data.week, sleeper_id: sid, game_date: gameDate })
-    .then(() => setTick((t) => t + 1)).catch((e) => setError(e.message));
-
-  const rosterNotes = (plan.roster?.illegal.length ? 1 : 0) + (plan.roster?.ir_candidates.length ? 1 : 0);
-  const watch = [...(plan.today?.watch || [])].sort((x, y) => (x.alarm === "now" ? "" : x.alarm || "~").localeCompare(y.alarm === "now" ? "" : y.alarm || "~"));
-  const count = watch.length + rosterNotes;
-  const bar = (
-        <div className="season-bar">
-          {view === "news" || view === "waivers" ? null : <span className="season-weeknav">
-            <span className="season-wk">
-            <button className="mu-arrow neon-arrow" disabled={data.week <= 1} onClick={() => setWeek(data.week - 1)} aria-label="Previous week"><NeonArrow dir="left" /></button>
-            <strong className={`season-week ${week ? "clickable" : ""}`} {...(week && { role: "button", tabIndex: 0, onClick: () => setWeek(null), onKeyDown: (e) => e.key === "Enter" && setWeek(null) })}>WEEK {data.week}</strong>
-            <button className="mu-arrow neon-arrow" disabled={data.week >= Math.max(...data.weeks)} onClick={() => setWeek(data.week + 1)} aria-label="Next week"><NeonArrow dir="right" /></button>
-            </span>
-          </span>}
-          {error &&<span className="small warn-text">{error}</span>}
-          <span className="season-tools">
-          <span className="season-search"><PlayerSearch leagueId={leagueId} onSelect={(p) => setSelected(p.player_id)} onSelectTeam={openTeam} placeholder="Any player or team…" testId="season-search" /></span>
-          <button className="small primary icon-btn" onClick={sync} disabled={syncing} data-testid="sync" aria-label="Sync" title="Sync with Sleeper"><Icon name="refresh" className={syncing ? "spin" : ""} /></button>
-          <span className="bell-wrap">
-            <button className="small primary bell icon-btn" onClick={() => setShowNotifs((s) => !s)} data-testid="notif-bell" aria-label={`${count} to see`}>
-              <Icon name="bell" /></button>
-            {count > 0 && <button className="notif-badge" onClick={() => setShowNotifs((s) => !s)} data-testid="notif-badge" aria-label={`${count} notifications`}>{count}</button>}
-          </span>
-          </span>
-        </div>
-  );
-  return (
-    <TeamLinkContext.Provider value={openTeam}>
-    <div className="season-grid">
-      <section className="season-main">
-        {headerSlot ? createPortal(bar, headerSlot) : bar}
-        {showNotifs && createPortal(
-          <div className="notif-pop" data-testid="notif-pop">
-            {count === 0 && <div className="panel muted">Nothing to check right now.</div>}
-            {watch.map((w) => (
-              <div key={`${w.kind}-${w.sid}-${w.backup_sid || ""}`} className={`panel roster-alert ${["gtd", "out"].includes(w.kind) || w.decision === "SWAP" ? "bad" : "even"}`} data-testid="watch-line">
-                <strong>{w.alarm === "now" ? "Now" : timeOf(w.alarm)}</strong> · {watchTitle(w)}
-              </div>
-            ))}
-            <RosterAlerts roster={plan.roster} />
-          </div>, document.body)}
-        {view === "week" && <WeekView key={data.week} data={data} plan={plan} open={open} openGame={openGame} setLock={setLock} leagueId={leagueId} onShow={setFocusRid} focus={matchup} />}
-        {view === "news" && <NewsView leagueId={leagueId} open={setSelected} refreshKey={tick} />}
-        {view === "league" && <LeagueView data={data} leagueId={leagueId} open={open} openPid={setSelected} openGame={openGame} />}
-        {view === "waivers" && <WaiversView leagueId={leagueId} onSelect={setSelected} />}
-      </section>
-      <aside className={`season-side ${cur ? "has-nav" : ""}`}>
-        {cur && (
-          <span className="side-nav">
-            <button className="neon-arrow" onClick={() => setNav((n) => ({ ...n, i: n.i - 1 }))} disabled={!nav.i} title="Back" aria-label="Back" data-testid="side-back"><NeonArrow dir="left" /></button>
-            <button className="neon-arrow" onClick={() => setNav((n) => ({ ...n, i: n.i + 1 }))} disabled={nav.i === nav.stack.length - 1} title="Forward" aria-label="Forward" data-testid="side-forward"><NeonArrow dir="right" /></button>
-          </span>
-        )}
-        {selected
-          ? <PlayerSidebar leagueId={leagueId} playerId={selected} season plan={plan} onSelectPlayer={setSelected} refreshKey={tick} onClose={close} onOpenGame={openGame} onOpenMatchup={openMatchup} />
-          : game ? <GamePanel key={game.game.event} sel={game} data={data} leagueId={leagueId}
-            onOpenPid={setSelected} onClose={close} />
-          : team ? <TeamPanel key={team} abbr={team} leagueId={leagueId} onOpenPid={setSelected} onClose={close} />
-          : <LockinGuide data={data} plan={plan} leagueId={leagueId} setLock={setLock} open={open} focus={focusRid} />}
-      </aside>
-    </div>
-    </TeamLinkContext.Provider>
-  );
-}
 
 const TEAM_TABS = [["roster", "Roster"], ["schedule", "Schedule"], ["stats", "Stats"], ["news", "News"]];
 export const teamLogo = (abbr) => `https://sleepercdn.com/images/team_logos/nba/${abbr.toLowerCase()}.png`;
@@ -358,170 +244,6 @@ export const lockEdge = (r) => (r.win_lock ?? 0) - (r.win_wait ?? 0);
 export const lockableOf = (p) => p.players.filter((r) => r.x != null && r.x_final && r.lock_status !== "locked" && r.lock_status !== "guess" && lockEdge(r) >= -0.05)
   .sort((a, b) => lockEdge(b) - lockEdge(a));
 export const pct = (x) => `${Math.round((x ?? 0) * 100)}%`;
-const lastName = (n) => n.split(" ").slice(1).join(" ") || n;
-export function LockinGuide({ data, plan, leagueId, setLock, open, focus, hideSwaps }) {
-  const [rid, setRid] = useState(focus ?? plan.roster_id);
-  useEffect(() => { if (focus != null) setRid(focus); }, [focus]);
-  const [other, setOther] = useState(null);
-  const mine = rid === plan.roster_id;
-  useEffect(() => {
-    if (mine) return;
-    setOther(null);
-    api.get(`/leagues/${leagueId}/season/plan` + qs({ week: data.week, roster_id: rid })).then(setOther).catch(() => setOther(null));
-  }, [rid, mine, leagueId, data.week, data.now]);
-  const p = mine ? plan : other;
-  const picker = (
-    <select className="guide-team" value={rid} onChange={(e) => setRid(Number(e.target.value))} data-testid="guide-team">
-      {[...data.teams].sort((a, b) => b.is_user - a.is_user || (a.user || a.name).localeCompare(b.user || b.name)).map((t) => (
-        <option key={t.roster_id} value={t.roster_id}>{t.user || t.name}{t.is_user ? " (you)" : ""}</option>))}
-    </select>
-  );
-  const head = <div className="guide-head"><h3>Week Stats</h3>{picker}</div>;
-  if (!p) return <div className="panel scroll guide" data-testid="lockin-guide">{head}<div className="muted small">Loading…</div></div>;
-
-  const when = (t) => fmt(t, { weekday: "short", hour: "numeric", minute: "2-digit" });
-  const watch = p.today?.watch || [];
-  const nowMs = data.now ? Date.parse(data.now) : Date.now();
-  const clip = (n) => (n.length > 10 ? `${n.slice(0, 8)}..` : n);
-  const o = p.opponent, out = p.outlook;
-  const edge = lockEdge;
-  const lockable = lockableOf(p);
-  const swaps = watch.filter((w) => w.kind === "swap" && w.decision !== "KEEP"), injuries = watch.filter((w) => w.kind === "gtd" || w.kind === "out");
-  const games = Object.fromEntries(Object.entries(data.players).map(([sid, pl]) => [sid, pl.games]));
-  const nameOf = Object.fromEntries(p.players.map((r) => [r.sid, r.name]));
-  const nowSwaps = bestLineup(p, nowMs, data.roster_positions, false, games).pairs;
-  const dueNow = new Set(nowSwaps.flatMap((s) => [`${s.in}|${s.out}`, `${s.out}|${s.in}`]));
-  const windows = swaps.filter((w) => !dueNow.has(`${w.backup_sid}|${w.sid}`));
-  const remaining = (o?.players || []).filter((r) => r.seat && r.locked == null && r.w > 0).sort((a, b) => b.w - a.w).slice(0, 4);
-  const banked = (o?.players || []).filter((r) => r.locked != null).sort((a, b) => b.locked - a.locked);
-  const odds = out ? [["Lock all now", out.safe], ["Leave all open", out.risky], ["Plan mix", p.win_chance]] : [];
-  const top = Math.max(...odds.map(([, v]) => v ?? 0));
-  const signed = (x) => `${x >= 0 ? "+" : "−"}${Math.abs(x * 100).toFixed(1)}%`;
-  const chip = (r, value, guess) => (
-    <span key={r.sid} className="guide-chip"><span className="clickable guide-who" onClick={() => open(r.sid)}><Headshot sleeperId={r.sid} name={r.name} size={22} />{lastName(r.name)}</span> <strong>{value}{guess ? "?" : ""}</strong>
-      {guess && setLock && <>
-        <button className="chip-btn" onClick={() => setLock(r.sid, r.lock_date)} data-tip="He locked it" aria-label="He locked it"><Icon name="check" /></button>
-        <button className="chip-btn" onClick={() => setLock(r.sid, "")} data-tip="Not locked" aria-label="Not locked"><Icon name="x" /></button>
-      </>}</span>
-  );
-  const side = (t, mirror) => (
-    <div className={`hub-side ${mirror ? "mirror" : ""}`}>
-      <div className="hub-team"><TeamName t={t} cls="hub-name" size={31} /></div>
-      <div className="hub-stat"><span>Projected</span><strong>{fp(t.expected)}</strong></div>
-      <div className="hub-stat"><span>Banked</span><strong>{fp(t.points)}</strong></div>
-      <div className="hub-stat"><span>Games left</span><strong>{t.games_left}</strong></div>
-    </div>
-  );
-  return (
-    <div className="panel scroll guide" data-testid="lockin-guide">
-      {head}
-      {o && (
-        <section className="guide-card">
-          <div className="bid-label">Win probability</div>
-          <div className="hub-win"><strong>{pct(p.win_chance)}</strong><strong>{pct(1 - (p.win_chance ?? 0))}</strong></div>
-          <div className="hub-sides">{side(p)}{side(o, true)}</div>
-        </section>
-      )}
-      {out && (
-        <section className="guide-card">
-          <div className="bid-label">Win probability by approach</div>
-          <div className="guide-odds">{odds.map(([label, v]) => (
-            <div key={label} className={`guide-odd ${v === top ? "best" : ""}`}>
-              <span className="small">{label}</span>
-              <span className="guide-bar"><span style={{ width: pct(v) }} /></span>
-              <strong className="small">{pct(v)}</strong>
-            </div>
-          ))}</div>
-          {remaining.length > 0 && <div className="guide-chips"><span className="bid-label">{o.user || o.name}: remaining projection</span>{remaining.map((r) => chip(r, `~${fp(r.w)}`))}</div>}
-          {banked.length > 0 && <div className="guide-chips"><span className="bid-label">{o.user || o.name}: banked</span>{banked.map((r) => chip(r, fp(r.locked), r.lock_status === "guess"))}</div>}
-        </section>
-      )}
-      {lockable.length > 0 && (
-        <section className="guide-card">
-          <div className="bid-label">Lockable games</div>
-          {lockable.map((r) => {
-            const e = edge(r), nba = data.players[r.sid]?.team;
-            const [best, ...rest] = r.lock_at || [];
-            const diff = rest.filter((o) => best.team - o.team >= 0.05);
-            const here = r.lock_at?.find((o) => o.slot === r.slot && o !== best && o.win != null);
-            const detail = (r.lock_at || []).map((o) => `${o.slot}: ${o.open} slot${o.open === 1 ? "" : "s"} left, ${o.others} others can play it`).join(" · ");
-            return (
-              <div key={r.sid} className="guide-item">
-                <Headshot sleeperId={r.sid} name={r.name} size={34} />
-                <div className="guide-lock-main">
-                  <div className="guide-lock-top"><strong className="clickable" onClick={() => open(r.sid)}>{r.name}</strong> <span className="muted small">{r.seat || r.slot}</span></div>
-                  <div className="small muted guide-lock-top">{nba && <><TeamLink abbr={nba}><img src={teamLogo(nba)} alt="" width={14} height={14} style={{ verticalAlign: "-2px" }} /> {nba}</TeamLink> · </>}
-                    {r.seat ? <>Open slot <span className="guide-hi">~{fp(r.slot_w ?? r.w)}</span></> : "Plan benches him"}</div>
-                  <div className="small muted">
-                    {best && <span data-tip={detail}>Lock <span className="guide-hi">{best.slot}</span>{r.slot !== best.slot ? ` (now ${r.slot})` : ""}
-                      {diff.length > 0 && ` (${diff.map((o) => `${o.slot} −${fp(best.team - o.team)}`).join(", ")})`}</span>}
-                    {r.win_lock != null && <> · win <span className="guide-hi">{pct(r.win_lock)}</span> vs <span className="guide-hi">{pct(r.win_wait)}</span> {r.seat ? "open" : "benched"}
-                      {here && <> · <span className="warn-text">{pct(here.win)} at {here.slot}</span></>}</>}
-                  </div>
-                </div>
-                <div className="guide-lock-side"><span className="guide-lock-x">{fp(r.x)}</span>
-                  {r.win_lock != null && <span className={`hub-edge ${Math.abs(e) < 0.015 ? "even" : e > 0 ? "up" : "down"}`} data-tip="Win probability added (WPA): win % locked minus win % open">{signed(e)}</span>}</div>
-              </div>
-            );
-          })}
-        </section>
-      )}
-      {!hideSwaps && (nowSwaps.length > 0 || windows.length > 0) && (
-        <section className="guide-card">
-          <div className="bid-label">Swaps</div>
-          <div className="guide-swaps">
-            {[...nowSwaps.map((s) => ({ key: `now-${s.n}`, group: "now", a: s.in, b: s.out })),
-              ...windows.map((w) => ({ key: w.backup_sid, group: w.alarm, a: w.backup_sid, b: w.sid }))].map((r, i, rows) => (
-              <div key={r.key} className="guide-swap">
-                {i > 0 && r.group !== rows[i - 1].group && <span className="guide-swap-sep" />}
-                <span className="small">{r.group === "now" ? <strong className="warn-text">Now</strong> : <>
-                  <strong>{when(r.group).replace(/ ([AP])M$/, (_, x) => x.toLowerCase())}</strong>
-                  {Date.parse(r.group) > nowMs && <span className="muted"> ({untilText(Math.ceil((Date.parse(r.group) - nowMs) / 60000))})</span>}</>}</span>
-                <span className="small muted">swap</span>
-                {[r.a, null, r.b].map((sid, k) => sid == null ? <span key={k} className="small muted">&amp;</span> : (
-                  <span key={k} className="guide-chip clickable" onClick={() => open(sid)} data-tip={nameOf[sid]}>
-                    <Headshot sleeperId={sid} name={nameOf[sid] || ""} size={20} /><strong>{clip(lastName(nameOf[sid] || sid))}</strong></span>))}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-      {injuries.length > 0 && (
-        <section className="guide-card">
-          <div className="bid-label">Injuries</div>
-          {injuries.map((w) => {
-            const pl = data.players[w.sid] || {};
-            const note = pl.injury_note || "";
-            const reason = note === pl.injury_tag ? "" : note.replace(`${pl.injury_tag}: `, "");
-            return (
-              <div key={`${w.kind}-${w.sid}`} className="guide-item small"><Headshot sleeperId={w.sid} name={w.name} size={30} />
-                <span><strong className="clickable" onClick={() => open(w.sid)}>{w.name}</strong> <PosList list={pl.pos || []} />
-                  {pl.injury_tag && <> <span className="muted">·</span> <InjuryTag tag={pl.injury_tag} note={pl.injury_note} />{reason && <span className="muted"> {reason}</span>}</>}</span></div>
-            );
-          })}
-        </section>
-      )}
-    </div>
-  );
-}
-
-export function RosterAlerts({ roster }) {
-  if (!roster) return null;
-  return (
-    <>
-      {roster.illegal.length > 0 && (
-        <div className="panel roster-alert bad" data-testid="roster-illegal">
-          <strong>Roster illegal:</strong> drop or trade someone: {roster.illegal.join(", ")} healthy on IR.
-        </div>
-      )}
-      {roster.ir_candidates.length > 0 && (
-        <div className="panel roster-alert even" data-testid="roster-ir">
-          <strong>IR open:</strong> move {roster.ir_candidates.join(", ")} to IR.
-        </div>
-      )}
-    </>
-  );
-}
 
 function GameChips({ games, today, lockDate, lockGuess, lockable, benched, day, lane, team, onOpen, onLock }) {
   const graph = useNarrow();
@@ -627,6 +349,7 @@ function laneAt(xs, ms, start, end, width) {
 const sameFields = (a, b) => a === b || (!!a && !!b && Object.keys(a).length === Object.keys(b).length && Object.keys(a).every((k) => a[k] === b[k]));
 const sameCard = (a, b) => Object.keys(a).every((k) => (k === "r" ? sameFields(a.r, b.r) : a[k] === b[k]));
 const PlayerCard = React.memo(function PlayerCard({ data, r, open, openGame, setLock, mine, side, day, lane }) {
+  const openTeam = useContext(TeamLinkContext);
   if (!r) return <div className={`mu-card empty ${side}`}><span className="muted small">empty</span></div>;
   const p = data.players[r.sid] || { games: [] };
   const starter = r.slot !== "BN" && r.slot !== "IR";
@@ -635,10 +358,10 @@ const PlayerCard = React.memo(function PlayerCard({ data, r, open, openGame, set
     <div className={`mu-card ${side} ${starter ? "" : "bench"} ${locked ? "done" : ""} ${isOut(p.injury_tag) ? "out" : isDoubt(p.injury_tag) ? "doubt" : ""}`} data-testid={`mu-${r.sid}`}>
       <div className="mu-top">
         <div className="mu-id clickable" onClick={() => open(r.sid)} data-testid={`open-${r.sid}`}>
-        <span data-tip={injuryTip(p.injury_tag, p.injury_note)}><Headshot sleeperId={r.sid} name={r.name} size={34} /></span>
+        <span className="mu-hs" data-tip={injuryTip(p.injury_tag, p.injury_note)}><Headshot sleeperId={r.sid} name={r.name} size={34} />{p.team && <span className="mu-hs-badge" data-tip="" role="link" onClick={openTeam ? (e) => { e.stopPropagation(); openTeam(p.team); } : undefined}><img className="mu-hs-logo" src={teamLogo(p.team)} alt={p.team} /></span>}</span>
         <div className="mu-who">
-          <div className="mu-name" data-clip={r.name}>{r.name}<InjuryTag tag={p.injury_tag} note={p.injury_note} /></div>
-          <div className="small muted mu-sub" data-clip={p.nick && showNicks() ? `“${p.nick}”` : undefined}>{p.team || (p.retired ? "Retired" : "FA")} <PosList list={r.pos} />
+          <div className="mu-name"><span className="mu-nm" data-clip={r.name}>{r.name}</span><InjuryTag tag={p.injury_tag} note={p.injury_note} /></div>
+          <div className="small muted mu-sub" data-clip={p.nick && showNicks() ? `“${p.nick}”` : undefined}>{!p.team && <>{p.retired ? "Retired" : "FA"} </>}<PosList list={r.pos} />
             {p.nick && showNicks() && <span className="nick"> · “{p.nick}”</span>}</div>
         </div>
         </div>
@@ -658,6 +381,13 @@ export function bySlot(rows, positions, irSlots) {
   const bench = fill("BN", Math.max(positions.filter((x) => x === "BN").length, (pool.BN || []).length));
   const ir = fill("IR", Math.max(irSlots || 0, (pool.IR || []).length));
   return { lines, bench, ir };
+}
+
+export function flashEl(el) {
+  el.classList.remove("ap-flash");
+  void el.offsetWidth;
+  el.classList.add("ap-flash");
+  el.addEventListener("animationend", () => el.classList.remove("ap-flash"), { once: true });
 }
 
 export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow, focus }) {
@@ -686,6 +416,15 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
     const rid = data.matchups[idx]?.[0]?.roster_id;
     api.get(`/leagues/${leagueId}/season/plan` + qs({ week: data.week, roster_id: rid })).then(setOther).catch(() => setOther(null));
   }, [idx, isMine, leagueId, data.week, data.matchups]);
+  const flashed = React.useRef(null);
+  useEffect(() => {
+    const leftRid = isMine ? plan.roster_id : data.matchups[idx]?.[0]?.roster_id;
+    if (!focus || flashed.current === focus || !shown || shown.roster_id !== leftRid || !gridRef.current) return;
+    flashed.current = focus;
+    const side = focus.rid === leftRid ? "left" : "right", panel = gridRef.current.closest(".matchup");
+    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    [...panel.querySelectorAll(`.mu-card.${side}`), panel.querySelector(side === "left" ? ".mu-head > .mu-team:not(.right)" : ".mu-head > .mu-team.right")].forEach((el) => el && flashEl(el));
+  });
   const [lane, setLane] = useState(null);
   React.useLayoutEffect(() => {
     const grid = gridRef.current;
@@ -1064,10 +803,10 @@ function BestGames({ leagueId, week, openPid, openGame }) {
   );
 }
 
-export function LeagueView({ data, leagueId, open, openPid, openGame }) {
+export function LeagueView({ data, leagueId, open, openPid, openGame, openMatchup, Standings }) {
   const team = Object.fromEntries(data.teams.map((t) => [t.roster_id, t]));
   const [shown, setShown] = useState(null);
-  const show = (rid) => api.get(`/leagues/${leagueId}/season/plan` + qs({ week: data.week, roster_id: rid })).then(setShown).catch(() => setShown(null));
+  const show = (rid) => (openMatchup ? openMatchup(rid) : api.get(`/leagues/${leagueId}/season/plan` + qs({ week: data.week, roster_id: rid })).then(setShown).catch(() => setShown(null)));
   const standings = [...data.teams].sort((a, b) => b.wins - a.wins || b.fpts - a.fpts);
   return (
     <>
@@ -1080,7 +819,7 @@ export function LeagueView({ data, leagueId, open, openPid, openGame }) {
                 const t = team[m.roster_id] || {}, other = pair.find((x) => x !== m);
                 return (
                   <div key={m.roster_id} className={`lm-row clickable ${t.is_user ? "me" : ""} ${other && (m.points || 0) > (other.points || 0) ? "lead" : ""}`}
-                    onClick={() => show(m.roster_id)} data-tip="Show this team's roster and games">
+                    onClick={() => show(m.roster_id)} data-tip={openMatchup ? "Jump to this team's matchup" : "Show this team's roster and games"}>
                     <TeamName t={t} size={22} mine={!!t.is_user} /><strong>{fp(m.points || 0)}</strong>
                   </div>
                 );
@@ -1097,7 +836,7 @@ export function LeagueView({ data, leagueId, open, openPid, openGame }) {
         </div>
       )}
       <BestGames leagueId={leagueId} week={data.week} openPid={openPid} openGame={openGame} />
-      <div className="panel">
+      {Standings ? <Standings data={data} onPick={show} /> : <div className="panel">
         <h3>Standings</h3>
         <table className="small st-table" data-testid="standings">
           <thead><tr><th>#</th><th>Team</th><th className="num">W</th><th className="num">L</th><th className="num">PF</th><th className="num">FAAB left</th></tr></thead>
@@ -1105,7 +844,7 @@ export function LeagueView({ data, leagueId, open, openPid, openGame }) {
             <tr key={t.roster_id} className={`${t.is_user ? "you-need" : ""} st-row st-${i + 1}`} style={{ "--pct": t.wins + t.losses ? t.wins / (t.wins + t.losses) : 0 }}><td className="st-rank"><b>{i + 1}</b></td><td className="clickable st-team" onClick={() => show(t.roster_id)}><TeamName t={t} size={22} record={false} /></td><td className="num">{t.wins}</td><td className="num">{t.losses}</td>
               <td className="num">{fp(t.fpts)}</td><td className="num">{data.waiver ? `$${(data.faab_budget ?? 100) - (t.faab_used || 0)}` : "?"}</td></tr>))}</tbody>
         </table>
-      </div>
+      </div>}
     </>
   );
 }
@@ -1118,7 +857,7 @@ export function WaiversView({ leagueId, onSelect }) {
   if (w.error) return <div className="panel waivers warn-text" data-testid="waivers-error">{w.error}</div>;
   const faab = w.type === "FAAB";
   const STATS = [["fp", "FP/G"], ["pts", "PTS"], ["reb", "REB"], ["ast", "AST"], ["stl", "STL"], ["blk", "BLK"], ["tpm", "3PM"], ["gp", "GP"]];
-  const val = (c, k) => (k === "value" || k === "upgrade" || k === "bid" ? c[k] : k === "games" ? c.games_left * 100 + c.games_next : c.season?.[k]);
+  const val = (c, k) => (k === "owned" || k === "started" ? c[k] : k === "games" ? c.games_left * 100 + c.games_next : c.season?.[k]);
   const claims = !sort ? w.claims : [...w.claims].sort((a, b) => {
     const x = val(a, sort.k), y = val(b, sort.k);
     return x == null || y == null ? (x == null) - (y == null) : sort.dir * (x - y);
@@ -1126,14 +865,13 @@ export function WaiversView({ leagueId, onSelect }) {
   const th = (k, label, tip, cls = "num") => (
     <th className={`${cls} clickable`} data-tip={tip} onClick={() => setSort(sort?.k !== k ? { k, dir: 1 } : sort.dir === 1 ? { k, dir: -1 } : null)} data-testid={`sort-${k}`}>
       {label}{sort?.k === k && (sort.dir === 1 ? " ▲" : " ▼")}</th>);
-  const top = Math.max(...w.claims.map((c) => c.upgrade), 0.01);
   const until = untilText(Math.max(0, Math.round((Date.parse(w.next_run) - Date.now()) / 60000)));
   const runDay = fmt(w.next_run, { weekday: "short" });
   const hour = `${w.run_hour % 12 || 12} ${w.run_hour < 12 ? "AM" : "PM"}`;
   return (
     <div className="panel waivers" data-testid="waivers">
       <div className="wv-head">
-        <h3>Waiver claims</h3>
+        <h3>Best available</h3>
         <span className="wv-chip">{faab ? "Blind FAAB" : `${w.type} priority`}</span>
         <span className="wv-chip">Runs {w.runs.join(" & ")} · {hour}</span>
         <span className="wv-next" data-testid="waiver-next">Next run <strong>{runDay} {timeOf(w.next_run)}</strong> <span className="muted">in {until}</span></span>
@@ -1144,33 +882,25 @@ export function WaiversView({ leagueId, onSelect }) {
           </span>
         )}
       </div>
-      {w.drop && (
-        <div className="wv-drop clickable" onClick={() => onSelect(w.drop.player_id)}>
-          <Headshot sleeperId={w.drop.sleeper_id} name={w.drop.name} size={32} />
-          <div><div className="small muted">Drop candidate · your weakest</div><strong>{w.drop.name}</strong></div>
-          <span className="wv-drop-val"><span className="small muted">value</span> {w.drop.value.toFixed(2)}</span>
-        </div>
-      )}
       {w.claims.length ? (
         <table className="wv-table">
           <thead><tr><th>Player</th>
             {STATS.map(([k, l]) => th(k, l))}
-            {th("value", "Value", "Rest-of-season value: projection, Lock-In best game and availability.")}
-            {th("upgrade", "Upgrade", "Value over your drop candidate.", "")}
+            {th("owned", "Rostered", "The share of all Sleeper leagues that have him on a roster.")}
+            {th("started", "Started", "The share of all Sleeper leagues that started him this week.")}
             {th("games", "Games once he lands", `A claim lands at the next run (${runDay} ${timeOf(w.next_run)}): his games from then, the rest of this week and next week.`)}
-            {th("bid", "Bid", "A guide: your FAAB left paced over the weeks left, scaled by the upgrade and by how much more he scores than your drop (under 25 % more: min bid), never over a quarter of what's left. Other bids are hidden.")}</tr></thead>
+</tr></thead>
           <tbody>{claims.map((c) => (
             <tr key={c.player_id} className="clickable" onClick={() => onSelect(c.player_id)}>
               <td><div className="wv-player"><Headshot sleeperId={c.sleeper_id} name={c.name} size={44} />
                 <div><strong>{c.name}</strong><InjuryTag tag={c.injury_tag} /><div className="small muted"><TeamLink abbr={c.team} /> · <PosList list={c.pos} /></div>
                 </div></div></td>
               {STATS.map(([k]) => <td key={k} className="num" data-testid={k === "fp" ? "waiver-stats" : undefined}>{c.season ? (k === "fp" ? c.season.fp.toFixed(2) : c.season[k]) : <span className="muted">-</span>}</td>)}
-              <td className="num">{c.value.toFixed(2)}</td>
-              <td><div className="wv-up"><span className="wv-bar"><span style={{ width: `${(c.upgrade / top) * 100}%` }} /></span><span className="ok">+{c.upgrade.toFixed(2)}</span></div></td>
-              <td className="num"><strong>{c.games_left}</strong> <span className="muted">this wk</span> · <strong>{c.games_next}</strong> <span className="muted">next</span></td>
-              <td className="num">{c.bid != null ? <span className="wv-bid">${c.bid}</span> : <span className="muted">-</span>}</td></tr>))}</tbody>
+              <td className="num"><strong>{c.owned != null ? `${c.owned.toFixed(1)}%` : "-"}</strong></td>
+              <td className="num">{c.started != null ? `${c.started.toFixed(1)}%` : "-"}</td>
+              <td className="num"><strong>{c.games_left}</strong> <span className="muted">this wk</span> · <strong>{c.games_next}</strong> <span className="muted">next</span></td></tr>))}</tbody>
         </table>
-      ) : <div className="muted">No free agent is an upgrade over your weakest player.</div>}
+      ) : <div className="muted">No free agents found.</div>}
     </div>
   );
 }

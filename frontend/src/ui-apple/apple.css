@@ -80,20 +80,30 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
 .ap .ap-call-who button { padding: 0; width: 30px; height: 30px; margin-left: -6px; overflow: hidden; background: var(--panel-solid); border: 2px solid var(--panel-solid); }
 .ap-game { color: var(--text); font: inherit; }
 .ap-games { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 0 8px 4px; }.ap-games .ap-row::before { display: none; }
-.ap .ap-game { display: grid; grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr) 66px 62px; gap: 6px; padding-block: 8px; border: 1px solid var(--border); border-radius: 14px; }
-.ap-team { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.ap-team img { flex: none; width: 28px; height: 28px; object-fit: contain; }
+.ap .ap-game { display: grid; grid-template-columns: minmax(0, 1fr) 150px auto; gap: 14px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel-2, transparent); }
+.ap-teams { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ap-team { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ap-team img { flex: none; width: 26px; height: 26px; object-fit: contain; }
 .ap-team strong { font-size: var(--fs-md); font-weight: 700; }
-.ap-team b { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 700; }
-.ap-at { text-align: center; color: var(--muted); font-size: var(--fs-xs); }
-.ap-slot { display: flex; justify-content: flex-end; }
-.ap-game-status { font-size: var(--fs-xs); color: var(--muted); display: flex; align-items: center; justify-content: flex-end; gap: 6px; white-space: nowrap; }
+.ap-team b { margin-left: auto; padding-left: 12px; font-size: var(--fs-lg, 1.15em); font-variant-numeric: tabular-nums; font-weight: 700; }
+.ap-team.lost strong, .ap-team.lost b { color: var(--muted); font-weight: 500; }
+.ap-meta { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 6px; padding-left: 14px; border-left: 1px solid var(--border-inner); min-width: 74px; }
+.ap-mine { display: flex; align-items: center; justify-content: flex-start; padding-left: 14px; border-left: 1px solid var(--border-inner); box-sizing: border-box; }
+.ap-mine > * + * { margin-left: var(--ov, -4px); }
+.ap-mine > * { flex: none; display: flex; width: 39px; height: 39px; }
+.ap-mine .headshot { flex: none; width: 100%; height: 100%; object-fit: cover; object-position: top; border: 0; border-radius: 0; transform: scale(1.3); transform-origin: 50% 12%; }
+.ap-mine > [role="button"] { cursor: pointer; transition: transform 0.12s; }
+.ap-mine > [role="button"]:hover { transform: scale(1.1); z-index: 1; }
+@keyframes ap-flash { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 25%, 75% { box-shadow: 0 0 0 3px var(--primary), 0 0 18px var(--primary); } 50% { box-shadow: 0 0 0 0 transparent; } }
+.ap-flash { animation: ap-flash 1.2s ease-in-out 1; }
+.ap-mine > * { overflow: hidden; clip-path: circle(50%); background: color-mix(in srgb, var(--primary) 14%, var(--panel-2, var(--panel))); border-radius: 50%; }
+.ap-game-status { font-size: var(--fs-xs); color: var(--muted); display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .ap-game.in .ap-game-status { color: var(--live); font-weight: 700; }
 .ap-pill { flex: none; padding: 2px 9px; border-radius: 999px; font-size: var(--fs-2xs); font-weight: 600; background: var(--primary-soft); color: var(--info-t); }
 
 .ap-sheet-wrap { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 28px; background: rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); animation: ap-fade 0.2s ease-out; }
-.ap-sheet { position: relative; width: min(100%, 880px); max-height: 100%; display: flex; flex-direction: column; border-radius: 28px; background: var(--panel-solid);
+.ap-sheet { position: relative; width: min(100%, 880px); height: 90vh; max-height: 100%; display: flex; flex-direction: column; border-radius: 28px; background: var(--panel-solid);
   box-shadow: 0 40px 100px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--border-inner); animation: ap-pop 0.28s cubic-bezier(0.32, 0.72, 0, 1); overflow: hidden; }
 .ap-sheet > .panel { flex: 1; min-height: 0; max-height: none; margin: 0; overflow: auto; padding-top: 54px; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
 @keyframes ap-fade { from { opacity: 0; } }
@@ -135,3 +145,27 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
 
 .ap .team-ranks { gap: 18px; } .ap .team-ranks-row { font-size: var(--fs-sm); }
 .ap table.depth-grid td { padding-block: 6px; } .ap .dg-cell img { width: 28px; height: 28px; }
+.ap .news-wrap > .news-teams { order: 2; }
+.ap-st-head, .ap-st-row { display: grid; grid-template-columns: 44px minmax(0, 1.6fr) 120px minmax(0, 1.2fr) 110px 64px; gap: 14px; align-items: center; padding: 10px 14px; }
+.ap-st-head { font-size: var(--fs-xs); font-weight: 600; color: var(--muted); padding-block: 4px; }
+.ap-st-row { border-radius: 14px; margin-top: 4px; background: var(--panel-2, transparent); }
+.ap-st-row.clickable { cursor: pointer; } .ap-st-row.clickable:hover { background: var(--hover); }
+.ap-st-row.in { box-shadow: inset 0 0 0 1px var(--border-inner); }
+.ap-st-row.me, .ap-st-row.me:hover { background: var(--primary-soft); }
+.ap-st-rank { font-size: var(--fs-2xl); font-weight: 800; text-align: center; font-variant-numeric: tabular-nums; }
+.ap-st-rec, .ap-st-pts { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ap-st-rec strong, .ap-st-pts strong { font-size: var(--fs-md); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ap-st-form { display: flex; gap: 6px; }
+.ap-st-form i { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--border); }
+.ap-st-form i.w { background: var(--ok); border-color: var(--ok); } .ap-st-form i.l { background: var(--danger); border-color: var(--danger); } .ap-st-form i.t { background: var(--muted); border-color: var(--muted); }
+.ap-st-faab { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--muted); }
+.ap-st-cut { display: flex; align-items: center; gap: 10px; margin: 8px 14px 4px; font-size: var(--fs-2xs); font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.ap-st-cut::before, .ap-st-cut::after { content: ""; flex: 1; border-top: 1px dashed var(--border); }
+.ap-sheet > .panel { scrollbar-width: none; } .ap-sheet > .panel::-webkit-scrollbar { display: none; }
+.ap .ap-mascot-row { justify-content: center; background: none; }
+.ap-mascot { margin: 0; flex: none; font: 600 12px/1.15 ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: var(--muted); white-space: pre; background: none; }
+.ap-rec { flex: none; font-size: var(--fs-3xs); font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ap-who { display: inline-flex; gap: 0; padding: 0; overflow: hidden; border-radius: 999px; background: var(--panel-solid); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14); }
+:root[data-theme] .ap-who button { max-width: 150px; padding: 7px 18px; border: 0; border-radius: 0; background: var(--panel-2); color: var(--muted); font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+:root[data-theme] .ap-who button:hover { color: var(--text); background: var(--panel-2); }
+:root[data-theme] .ap-who button.on, :root[data-theme] .ap-who button.on:hover { background: var(--primary); color: var(--on-primary, #fff); }

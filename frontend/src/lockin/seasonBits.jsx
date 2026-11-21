@@ -46,25 +46,25 @@ export const nowOf = (data) => (data.now ? Date.parse(data.now) : Date.now());
 
 export const nextCheckIn = (plan, nowMs) => (plan.timeline?.segments || []).slice(0, -1).map((x) => Date.parse(x.to)).find((ms) => ms > nowMs) ?? null;
 
-export function gamesOn(data, date) {
-  const mine = new Set(data.teams.find((t) => t.is_user)?.players || []);
+export function gamesOn(data, date, rid) {
+  const mine = new Set(data.teams.find((t) => (rid != null ? t.roster_id === rid : t.is_user))?.players || []);
   const out = new Map();
   for (const [sid, p] of Object.entries(data.players)) for (const g of p.games || []) {
     if (g.date !== date || !g.event || !p.team) continue;
     const e = out.get(g.event) || {
       event: g.event, state: g.state, detail: g.detail, tip: g.tip, mine: 0, sel: { game: g, team: p.team, sid, name: p.name },
-      ...(g.home ? { home: p.team, away: g.opp, homeScore: g.score, awayScore: g.opp_score } : { away: p.team, home: g.opp, awayScore: g.score, homeScore: g.opp_score }),
+      ...(g.home ? { home: p.team, away: g.opp, homeScore: g.score, awayScore: g.opp_score, homeRecord: g.record, awayRecord: g.opp_record } : { away: p.team, home: g.opp, awayScore: g.score, homeScore: g.opp_score, awayRecord: g.record, homeRecord: g.opp_record }),
     };
-    if (mine.has(sid)) e.mine += 1;
+    if (mine.has(sid)) { e.mine += 1; (e.mineSids ||= []).push(sid); }
     out.set(g.event, e);
   }
   const rank = { in: 0, pre: 1, post: 2 };
   return [...out.values()].sort((a, b) => (rank[a.state] ?? 1) - (rank[b.state] ?? 1) || Date.parse(a.tip) - Date.parse(b.tip));
 }
 
-export function slate(data) {
+export function slate(data, rid) {
   for (const d of data.dates.filter((x) => x >= data.today)) {
-    const list = gamesOn(data, d);
+    const list = gamesOn(data, d, rid);
     if (list.length) return { date: d, list };
   }
   return { date: data.today, list: [] };

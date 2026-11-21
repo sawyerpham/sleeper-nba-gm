@@ -550,12 +550,13 @@ button.tiny { font-size: var(--fs-3xs); padding: 1px 6px; }
 .news-wrap > .news-col { margin-left: 0; }
 .news-teams { flex: none; width: var(--side-w); min-height: 0; overflow: auto; margin-bottom: 0; }
 .news-teams h3 { margin: 0 0 8px; }
-.tr-team { display: grid; grid-template-columns: 20px 24px minmax(0, 1fr); gap: 8px; align-items: start; padding: 7px 4px; border-radius: 8px; border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent); }
-.tr-team:hover { background: var(--hover); }
-.tr-rank { text-align: right; padding-top: 2px; }
-.tr-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; } .tr-counts { margin-left: auto; display: flex; flex-wrap: wrap; gap: 0 8px; font-size: var(--fs-2xs); font-weight: 700; }
-.tr-names { margin-top: 4px; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; font-size: var(--fs-xs); } .tr-starter { font-weight: 800; }
-.tr-player { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 7px; }
+.tr-team { display: grid; grid-template-columns: 30px 24px minmax(0, 1fr); gap: 8px; align-items: start; padding: 7px 4px; border-radius: 8px; border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent); }
+.tr-team:hover:not(:has(.tr-player:hover)) { background: var(--hover); }
+.tr-rank { text-align: right; font-size: var(--fs-xl); font-weight: 800; line-height: 1; padding-top: 1px; }
+.tr-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; } .tr-counts { margin-left: auto; display: flex; flex-wrap: wrap; gap: 0 8px; font-size: var(--fs-sm); font-weight: 700; }
+.tr-names { margin-top: 4px; display: flex; flex-direction: column; align-items: flex-start; gap: 0; font-size: var(--fs-md); } .tr-starter { font-weight: 800; }
+.tr-player { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 7px; padding: 2px 4px; margin-inline: -4px; border-radius: 6px; }
+.tr-player.clickable:hover { background: var(--hover); }
 @media (max-width: 1100px) { .news-wrap { flex-direction: column; } .news-teams { width: auto; max-height: 40vh; } }
 .waivers { overflow-x: auto; }
 @media (max-width: 1399px) { .news-col { margin-left: 0; } }
@@ -622,6 +623,8 @@ button.tiny { font-size: var(--fs-3xs); padding: 1px 6px; }
 .best-gamecard.clickable { cursor: pointer; } .best-gamecard.clickable:hover { border-color: var(--primary); }
 .best-gc-team { display: flex; align-items: center; gap: 4px; color: var(--muted); font-weight: 700; }
 .best-gc-team strong { margin-left: auto; color: var(--text); } .best-gc-team.his { color: var(--text); }
+.best-gc-team.his { margin-inline: -5px; padding: 2px 5px; border-radius: 5px; background: var(--primary-soft); }
+.best-gc-team:not(.his) { opacity: 0.7; }
 .best-gc-status { color: var(--muted); font-size: var(--fs-3xs); font-weight: 700; text-transform: uppercase; }
 .best-fp { flex: none; min-width: 64px; text-align: right; font-size: var(--fs-xl); font-weight: 900; line-height: 1; }
 .best-fp small { margin-left: 2px; font-size: var(--fs-3xs); color: var(--muted); font-weight: 700; }
@@ -1080,7 +1083,7 @@ header.top .brand .logo .icon { width: 20px; height: 20px; }
 .team-pick-list { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; min-width: 100%; max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-solid, var(--panel)); box-shadow: var(--shadow); scrollbar-width: thin; }
 .team-pick-list button { display: flex; align-items: center; gap: 8px; justify-content: flex-start; text-align: left; white-space: nowrap; border: 0; }
 .team-pick-list button.active { background: var(--primary-soft); }
-.news-team { display: inline-flex; align-items: center; gap: 4px; }
+.news-item .news-team { display: inline-flex; align-items: center; gap: 4px; overflow: visible; }
 
 .profile-top { position: relative; }
 .watch-btn { position: absolute; top: 10px; right: 10px; z-index: 1; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -1089,3 +1092,10 @@ header.top .brand .logo .icon { width: 20px; height: 20px; }
 
 .team-tag { display: inline-flex; align-items: center; gap: 0.3em; vertical-align: middle; }
 .team-tag img { width: 1.2em; height: 1.2em; object-fit: contain; flex: none; }
+.mu-name { display: flex; align-items: center; gap: 6px; }
+.mu-nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mu-name > .inj { flex: none; margin-left: 0; }
+.mu-hs { position: relative; display: inline-flex; flex: none; margin: 6px 0 0 6px; }
+.mu-hs-badge { position: absolute; top: -16%; left: -16%; width: 50%; height: 50%; }
+.mu-hs-badge[role="link"] { cursor: pointer; border-radius: 50%; transition: transform 0.12s; } .mu-hs-badge[role="link"]:hover { transform: scale(1.15); }
+.mu-hs-logo { display: block; width: 100%; height: 100%; padding: 2px; box-sizing: border-box; object-fit: contain; border-radius: 50%; background: var(--panel-solid, var(--panel)); box-shadow: 0 0 0 1px var(--border); }
