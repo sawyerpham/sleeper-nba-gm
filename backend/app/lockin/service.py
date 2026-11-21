@@ -1063,7 +1063,6 @@ def waivers(session, fetch: Fetch, view: dict) -> dict:
                 after[key] = after.get(key, 0) + 1
     me = next(t for t in view["teams"] if t["is_user"])
     rostered = {sid for t in view["teams"] for sid in t["players"]}
-    by_sleeper = {r.sleeper_id: pid for pid, r in session.players.items() if r.sleeper_id}
     try:
         research = fetch(SLEEPER_RESEARCH.format(year=year, week=week), WEEK_TTL) or {}
     except Exception:

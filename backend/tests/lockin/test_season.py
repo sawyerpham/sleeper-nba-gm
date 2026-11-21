@@ -1,10 +1,8 @@
 
 from datetime import date
 
-import pytest
-
 from app.lockin.service import actual_fp, current_week, week_view
-from tests.test_session import JOKIC, fixture_world, make_session
+from tests.test_session import JOKIC, fixture_world, make_session  # noqa: F401  (pytest fixture)
 
 
 def test_week_view_joins_schedule_projections_scores_and_tips(fixture_world):
