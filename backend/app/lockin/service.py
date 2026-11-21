@@ -103,7 +103,7 @@ def current_week(weeks: dict[int, list[str]], today: date) -> int:
 
 
 def espn_day(fetch: Fetch, day: str, today: date) -> dict[str, dict]:
-    """team code -> {tip (UTC ISO), state pre/in/post, detail, opp, home} for one date's games."""
+    """team code -> {tip (UTC ISO), state pre/in/post, detail, opp, home, record, opp_record} for one date's games."""
     ttl = LIVE_TTL if day >= (today - timedelta(days=1)).isoformat() else DAY_TTL
     data = fetch(ESPN_SCOREBOARD.format(day.replace("-", "")), ttl) or {}
     out: dict[str, dict] = {}
@@ -111,11 +111,12 @@ def espn_day(fetch: Fetch, day: str, today: date) -> dict[str, dict]:
         comp = e["competitions"][0]
         teams = {c["homeAway"]: ESPN_TEAM.get(c["team"]["abbreviation"], c["team"]["abbreviation"]) for c in comp["competitors"]}
         score = {c["homeAway"]: c.get("score") for c in comp["competitors"]}
+        rec = {c["homeAway"]: next((r.get("summary") for r in c.get("records") or [] if r.get("type") == "total"), None) for c in comp["competitors"]}
         st = e["status"]["type"]
         for side, team in teams.items():
             other = "away" if side == "home" else "home"
             out[team] = {"tip": e["date"], "state": st["state"], "detail": st.get("shortDetail", ""), "event": e.get("id"),
-                         "opp": teams[other], "home": side == "home",
+                         "opp": teams[other], "home": side == "home", "record": rec[side], "opp_record": rec[other],
                          "score": score[side] if st["state"] != "pre" else None, "opp_score": score[other] if st["state"] != "pre" else None,
                          "period": e["status"].get("period") or 0, "clock": float(e["status"].get("clock") or 0)}
     return out
@@ -207,7 +208,9 @@ def week_view(session, fetch: Fetch, week: int | None = None, today: date | None
                       "is_user": bool(m and m.is_user), "wins": s.get("wins", 0), "losses": s.get("losses", 0),
                       "ties": s.get("ties", 0),
                       "last": ((r.get("metadata") or {}).get("record") or "")[-1:] or None,
+                      "results": (r.get("metadata") or {}).get("record") or "",
                       "fpts": round(s.get("fpts", 0) + s.get("fpts_decimal", 0) / 100, 2),
+                      "fpts_against": round(s.get("fpts_against", 0) + s.get("fpts_against_decimal", 0) / 100, 2),
                       "faab_used": s.get("waiver_budget_used", 0),
                       "players": r.get("players") or [], "starters": r.get("starters") or [], "reserve": r.get("reserve") or []})
 
@@ -245,6 +248,7 @@ def week_view(session, fetch: Fetch, week: int | None = None, today: date | None
                           "proj_min": round(float(p.get("sp") or 0) / 60, 1) if p else None,
                           "period": tip.get("period", 0), "clock": tip.get("clock", 0.0),
                           "score": tip.get("score"), "opp_score": tip.get("opp_score"),
+                          "record": tip.get("record"), "opp_record": tip.get("opp_record"),
                           "b2b": b2b(d, team), "event": tip.get("event"),
                           "box": {k: int(st.get(k) or 0) for k in BOX_KEYS} if played else None})
             g = games[-1]
@@ -275,7 +279,7 @@ def week_view(session, fetch: Fetch, week: int | None = None, today: date | None
             "now": None if preview else datetime.now(tz).isoformat(), "tz": tz.key, "roster_positions": positions,
             "sleeper_gap": gap,
             "reserve_slots": reserve_slots,
-            "team_games": team_games, "injury_tags": injury_tags, "faab_budget": faab_budget, "waiver": waiver,
+            "team_games": team_games, "injury_tags": injury_tags, "faab_budget": faab_budget, "waiver": waiver, "playoff_teams": ls.get("playoff_teams"),
             "teams": teams,
             "matchups": [sides for _, sides in sorted(pairs.items())], "players": players}
 
@@ -588,8 +592,12 @@ def team_plan(session, view: dict, roster_id: int | None = None, manual: dict[st
         oteam = next(t for t in view["teams"] if t["roster_id"] == other["roster_id"])
         oplayers, olocks, _ = _plan_players(session, view, oteam, manual or {})
         oplan = plan_week(oplayers, counts)
+        for _ in range(3):
+            mine_t, theirs = team_total(players), team_total(oplayers)
+            decide_by_win_chance(players, theirs)
+            decide_by_win_chance(oplayers, mine_t)
         theirs = team_total(oplayers)
-        chance = decide_by_win_chance(players, theirs)
+        chance = win_chance(team_total(players), theirs)
         for q in players:
             if q.seat is None and q.locked is None and q.x is not None and q.x_final:
                 q.lock_at = lock_slots(q, players, counts)
@@ -1000,47 +1008,8 @@ def season_player(session, fetch: Fetch, player_id: int, week: int | None = None
 
 FAAB_TOTAL = 100
 WAIVER_TYPES = {0: "rolling", 1: "reverse standings", 2: "FAAB"}
-WAIVER_SHOW = 12
-BID_CAP = 0.25
-
-
-def faab_bid(up: float, faab_left: int, weeks_left: int, min_bid: int = 1, demand: float = 1.0) -> int:
-    """Suggested blind bid: FAAB left paced over the weeks left, so a typical upgrade (2 value points) costs about one
-    week's share, scaled by his upgrade over your weakest player and by `demand` (0-1, waiver_demand), capped at
-    BID_CAP of what is left."""
-    pace = faab_left / max(1, weeks_left)
-    return min(faab_left, max(min_bid, min(round(faab_left * BID_CAP), round(pace * max(0.0, up) / 2 * demand))))
-
-
-FPG_PRIOR_GAMES = 10
-
-
-def steady_fpg(season: dict | None, proj: float | None) -> float:
-    """His FP/G for the demand ratio: this season's, pulled toward Sleeper's projection (scaled: it runs high) as if he
-    had played FPG_PRIOR_GAMES more games at it, so one bad or hot game of your drop candidate (or of the free agent)
-    doesn't swing every bid between the minimum and full. The projection alone before he plays; his own FP/G without one."""
-    from .weekplan import PROJ_SCALE
-
-    fp, gp = (season or {}).get("fp"), (season or {}).get("gp") or 0
-    if not proj:
-        return fp or 0.0
-    if fp is None:
-        return proj * PROJ_SCALE
-    return (gp * fp + FPG_PRIOR_GAMES * proj * PROJ_SCALE) / (gp + FPG_PRIOR_GAMES)
-
-
-def waiver_demand(fpg: float, drop_fpg: float) -> float:
-    """How hard rivals chase him (0-1): nobody drops a player and pays for one who barely outscores him, so 0 up to 25 %
-    over your drop candidate's FP/G, full at 75 % over. Both FP/G are steady_fpg."""
-    return 1.0 if drop_fpg <= 0 else min(1.0, max(0.0, (fpg / drop_fpg - 1.25) / 0.5))
-
-
-LONG_OUT = re.compile(r"surger|indefinite|season-ending|for the season|torn|\btear\b|ruptur|\bACL\b|achilles", re.I)
-
-
-def long_out(fetch: Fetch, sid: str, tag: str | None) -> bool:
-    """Whether an Out / IR player's latest notes say he is done for the season."""
-    return tag in ("Out", "IR") and any(LONG_OUT.search(f"{n['headline']} {n['story']}") for n in player_news(fetch, sid)[:3])
+WAIVER_SHOW = 25
+SLEEPER_RESEARCH = "https://api.sleeper.com/players/nba/research/regular/{year}/{week}"
 
 
 DAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
@@ -1073,10 +1042,9 @@ def season_averages(rows: list[dict], sids: set[str], done: set[str], scoring) -
 
 
 def waivers(session, fetch: Fetch, view: dict) -> dict:
-    """Free agents worth claiming: rest-of-season value (the draft value: projection, Lock-In ceiling, availability),
-    his season averages, the games he plays once he lands (claims process at the next waiver run, the league's
-    waiver_days at waiver_hour: this week's games after it and next week's), the player of yours to drop and a
-    suggested blind bid."""
+    """The best free agents in this league by how many Sleeper leagues roster them (Sleeper's research data, the
+    "% rostered" its app shows; undocumented, on api.sleeper.com), with % started,
+    his season averages and the games he plays once a claim lands (the next waiver run: this week after it and next)."""
     waiver = view.get("waiver")
     if waiver is None:
         return {"error": "Couldn't receive Sleeper waiver and FAAB data.", "claims": []}
@@ -1096,42 +1064,30 @@ def waivers(session, fetch: Fetch, view: dict) -> dict:
     me = next(t for t in view["teams"] if t["is_user"])
     rostered = {sid for t in view["teams"] for sid in t["players"]}
     by_sleeper = {r.sleeper_id: pid for pid, r in session.players.items() if r.sleeper_id}
-    fa_ids = [pid for pid, r in session.players.items()
-              if r.sleeper_id and r.team_abbr and r.sleeper_id not in rostered and r.sleeper_id not in RETIRED
-              and r.sleeper_status != "RET"]
-    mine = [by_sleeper[sid] for sid in me["players"] if sid in by_sleeper and sid not in me["reserve"]]
-    rows = {r.player_id: r for r in session.rank([], fa_ids + mine)}
-    drop = min((rows[pid] for pid in mine if pid in rows), key=lambda r: r.value, default=None)
-    budget = view.get("faab_budget", FAAB_TOTAL)
-    faab = waiver["type"] == "FAAB"
-    faab_left = budget - (me.get("faab_used") or 0)
-    floor = drop.value if drop else 0.0
-    tags = view.get("injury_tags", {})
-    shown = []
-    for pid in sorted((pid for pid in fa_ids if pid in rows and rows[pid].value > floor), key=lambda pid: -rows[pid].value):
-        if len(shown) == WAIVER_SHOW:
-            break
-        if not long_out(fetch, rows[pid].sleeper_id, tags.get(rows[pid].sleeper_id)):
-            shown.append(pid)
+    try:
+        research = fetch(SLEEPER_RESEARCH.format(year=year, week=week), WEEK_TTL) or {}
+    except Exception:
+        return {"error": "Couldn't reach Sleeper's ownership data.", "claims": []}
+    free = sorted(((pid, research[r.sleeper_id]) for pid, r in session.players.items()
+                   if r.sleeper_id in research and r.sleeper_id not in rostered and r.team_abbr
+                   and r.sleeper_id not in RETIRED and r.sleeper_status != "RET"),
+                  key=lambda x: -(x[1].get("owned") or 0))[:WAIVER_SHOW]
+    rows = {r.player_id: r for r in session.rank([], [pid for pid, _ in free])}
     stat_rows = [e for w in range(1, week + 1)
                  for e in fetch(f"{SLEEPER}/stats/nba/{year}/{w}?season_type=regular", LIVE_TTL if w == week else DAY_TTL) or []]
     done = {g.get("game_id") for g in schedule if g.get("status") == "complete"}
-    avg = season_averages(stat_rows, {rows[pid].sleeper_id for pid in shown} | ({drop.sleeper_id} if drop else set()),
-                          done, session.league.scoring)
-    fpg = lambda r: steady_fpg(avg.get(r.sleeper_id), r.proj_fpts)
-    drop_fpg = fpg(drop) if drop else 0.0
-    weeks_left = max((int(g["week"]) for g in schedule), default=week) - week + 1
+    avg = season_averages(stat_rows, {rows[pid].sleeper_id for pid, _ in free if pid in rows}, done, session.league.scoring)
     out = []
-    for pid in shown:
-        r = rows[pid]
-        up = r.value - (drop.value if drop else 0)
-        bid = faab_bid(up, faab_left, weeks_left, waiver.get("min_bid") or 1, waiver_demand(fpg(r), drop_fpg)) if faab else None
-        out.append({"player_id": pid, "sleeper_id": r.sleeper_id, "name": r.full_name, "team": r.team_abbr,
-                    "pos": r.eligibility, "value": round(r.value, 2), "proj_fpg": r.proj_fpts, "injury": r.injury_status,
-                    "injury_tag": view.get("injury_tags", {}).get(r.sleeper_id), "season": avg.get(r.sleeper_id),
-                    "games_left": after.get((r.team_abbr, week), 0), "games_next": after.get((r.team_abbr, week + 1), 0),
-                    "upgrade": round(up, 2), "bid": bid})
-    return {"faab_left": faab_left, "drop": {"player_id": drop.player_id, "sleeper_id": drop.sleeper_id, "name": drop.full_name,
-                                             "value": round(drop.value, 2)} if drop else None,
-            "claims": out, "budget": budget if faab else None, "type": waiver["type"],
-            "next_run": run.isoformat(), "runs": [DAY_NAMES[d] for d in lg.waiver_days], "run_hour": lg.waiver_hour}
+    for pid, res in free:
+        r = rows.get(pid)
+        if r:
+            out.append({"player_id": pid, "sleeper_id": r.sleeper_id, "name": r.full_name, "team": r.team_abbr,
+                        "pos": r.eligibility, "owned": res.get("owned"), "started": res.get("started"),
+                        "proj_fpg": r.proj_fpts, "injury": r.injury_status,
+                        "injury_tag": view.get("injury_tags", {}).get(r.sleeper_id), "season": avg.get(r.sleeper_id),
+                        "games_left": after.get((r.team_abbr, week), 0), "games_next": after.get((r.team_abbr, week + 1), 0)})
+    budget = view.get("faab_budget", FAAB_TOTAL)
+    faab = waiver["type"] == "FAAB"
+    return {"faab_left": budget - (me.get("faab_used") or 0), "claims": out, "budget": budget if faab else None,
+            "type": waiver["type"], "next_run": run.isoformat(), "runs": [DAY_NAMES[d] for d in lg.waiver_days],
+            "run_hour": lg.waiver_hour}

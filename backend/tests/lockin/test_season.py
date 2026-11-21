@@ -204,60 +204,6 @@ def test_acquisitions_draft_price_then_moves_in_order():
         ("drafted", "me", 24), ("dropped", "me", None), ("claimed", "rival", 7)]
 
 
-def test_faab_bid_paces_the_budget_over_the_season():
-    """Faab bid paces the budget over the season."""
-    from app.lockin.service import faab_bid
-
-    assert faab_bid(6.68, 89, 23) == 13
-    assert faab_bid(3.18, 89, 23) == 6
-    assert faab_bid(40, 89, 23) == 22
-    assert faab_bid(0.1, 89, 23) == 1
-    assert faab_bid(6, 10, 1) == 2
-    assert faab_bid(6, 0, 5) == 0
-    assert faab_bid(6.68, 89, 23, demand=0.3) == 4
-
-
-def test_waiver_demand_needs_him_to_outscore_your_drop():
-    """Waiver demand needs him to outscore your drop."""
-    from app.lockin.service import waiver_demand
-
-    assert waiver_demand(10.4, 5.0) == 1.0
-    assert waiver_demand(6.0, 5.0) == 0.0
-    assert waiver_demand(4.0, 5.0) == 0.0
-    assert waiver_demand(7.5, 5.0) == 0.5
-    assert waiver_demand(3.0, 0.0) == 1.0
-
-
-def test_the_demand_ratio_uses_fpg_steadied_by_the_projection():
-    """One bad game of your drop candidate must not send every free agent's bid to full."""
-    from app.lockin.service import FPG_PRIOR_GAMES, steady_fpg, waiver_demand
-    from app.lockin.weekplan import PROJ_SCALE
-
-    proj = 8.0 * PROJ_SCALE
-    one_bad_game = steady_fpg({"fp": 1.0, "gp": 1}, 8.0)
-    assert one_bad_game == pytest.approx((1.0 + FPG_PRIOR_GAMES * proj) / (1 + FPG_PRIOR_GAMES))
-    assert waiver_demand(8.0, 1.0) == 1.0 and waiver_demand(8.0, one_bad_game) == 0.0
-    assert steady_fpg({"fp": 6.0, "gp": 30}, 8.0) == pytest.approx((180 + FPG_PRIOR_GAMES * proj) / 40)
-    assert steady_fpg(None, 8.0) == pytest.approx(proj)
-    assert steady_fpg({"fp": 6.0, "gp": 4}, None) == 6.0
-
-
-def test_long_out_reads_the_tag_and_the_latest_notes():
-    """Long out reads the tag and the latest notes."""
-    from app.lockin import service
-
-    notes = [{"headline": "Cason Wallace (labrum) out indefinitely", "story": ""}]
-    orig = service.player_news
-    service.player_news = lambda fetch, sid: notes
-    try:
-        assert service.long_out(None, "2586", "Out")
-        assert not service.long_out(None, "2586", "DTD")
-        notes[0] = {"headline": "Coby White - Out with calf strain", "story": "out Monday"}
-        assert not service.long_out(None, "1", "Out")
-    finally:
-        service.player_news = orig
-
-
 def test_waivers_say_so_when_sleeper_sent_no_waiver_settings():
     """Waivers say so when sleeper sent no waiver settings."""
     from app.lockin.service import waivers
