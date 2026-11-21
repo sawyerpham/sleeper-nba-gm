@@ -10,12 +10,6 @@ season it runs a lineup engine for Sleeper's **Lock-In** format: at any minute o
 which finished games to lock, which bench player to swap in before the next tip, and how much each call changes the
 chance of winning the matchup. It is used every week by a 12-team league and pushes its calls to Telegram.
 
-![The Season tab in week 4](docs/season-week.png)
-
-*The Season tab: your best lineup against this week's opponent, every player's games with projections, scores and
-padlocks, the arrows for the moves Sleeper still needs, and on the right the win probability under each strategy and
-the games worth locking.*
-
 ## What it does
 
 **In season (Lock-In leagues)**
@@ -27,9 +21,16 @@ the games worth locking.*
 - Keep or swap calls while games are live: where a starter's game is headed versus the bench player tipping later.
 - Injury watch (GTD / OUT) with the backup to start, the week's lockable games ranked by win-probability added, and the
   opponent's remaining projection and banked points.
+- Today: win chance, the next check-in, the week's lockable games and a "Do now" list of swaps and injury calls, with a
+  switch between the two managers in the matchup that shows either side. League Tonight lists the night's games with
+  each team's record and marks your players, who are one click from their lineup card.
 - Live game cards from ESPN (score, box scores in league scoring, top performers, depth charts), player profiles with
-  game logs and news, NBA team cards with records, ranks and schedules, the week's best games across the whole NBA,
-  best available free agents by Sleeper % rostered, league standings.
+  game logs and news, NBA team cards with records, ranks and schedules, the week's best games across the whole NBA.
+- League: the week's matchups, standings with record, points for and against, last five results, FAAB left and the
+  playoff line (clicking a manager jumps to their matchup), and the best games of the week.
+- Waivers: the best free agents in your league by Sleeper's % rostered and % started, with season averages and the
+  games each would play once a claim lands.
+- News: notes for your players, your league and free agents, with a teams report ranking NBA teams by starters hurt.
 - Telegram pushes: each GTD / OUT / swap / lock call once at its alarm time, and the lineup moves due before a tip.
 
 **Before the season (auction drafts)**
@@ -44,7 +45,7 @@ the games worth locking.*
 ```
   React 19 + Vite  (frontend/src)             FastAPI, Python 3.13  (backend/app)          Outside
  ┌───────────────────────────────┐   /api   ┌───────────────────────────────────┐    ┌───────────────────┐
- │ Season · League · News        │ ───────▶ │ lockin/   week_view, team_plan    │ ─▶ │ Sleeper API       │
+ │ Today · League · News         │ ───────▶ │ lockin/   week_view, team_plan    │ ─▶ │ Sleeper API       │
  │ Waivers · Draft · Settings    │ ◀─────── │           weekplan  (the engine)  │ ─▶ │ ESPN scoreboard   │
  │ one UI, light and dark        │          │ draft/    auction room, bid calls │ ─▶ │ stats.nba.com     │
  └───────────────────────────────┘          │ core/     league session, pull    │    └───────────────────┘
@@ -86,7 +87,8 @@ toward the league's 0.45. The same recursion carries the second moment, so every
 a questionable player's 60 % of a 20 is far less certain than a healthy player's 12. The call is not "which is
 bigger" but which gives the higher chance to win the matchup: the week's totals are summed and
 P(win) = Φ(Δ / √(σ²<sub>me</sub> + σ²<sub>opp</sub>)), with the deciding slot's chance of scoring nothing counted
-apart from the bell curve. Both chances are shown on every card (`weekplan.py: wait_moments, decide_by_win_chance`).
+apart from the bell curve. Both chances are shown on every card (`weekplan.py: wait_moments, decide_by_win_chance`). Both managers in a matchup
+decide against each other over a few rounds, so the two sides' chances always sum to 100 %.
 
 **Seating a lineup under multi-position eligibility.** Slots are PG PG SG SG SF SF PF PF C C and most players fit
 two or three. Seating highest value first and sliding already-seated players along augmenting paths is optimal here
@@ -109,7 +111,8 @@ reconciliation matches on normalized name and team, then unique name, then birth
 nothing is dropped silently and every non-trivial match lands in a report shown in Settings.
 
 **Working with Sleeper as it is.** The multi-megabyte player file may be fetched once a day, so it sits behind an
-on-disk guard that is never bypassed at startup. Sleeper serves one lineup day at a time and flips to the next in the early
+on-disk guard that is never bypassed at startup. Sleeper's "% rostered" figures come from an undocumented endpoint on `api.sleeper.com` (its public API has no such
+field), so the Waivers list shows an error rather than guessing if it changes. Sleeper serves one lineup day at a time and flips to the next in the early
 morning, so the app knows when the lineup it reads is yesterday's. Whether a rival locked a game is inferred by
 comparing Sleeper's counted points with the box scores, and a finished week takes Sleeper's final count over any
 saved answer.
@@ -151,11 +154,11 @@ about 0.03 from sample noise alone), and real margins still run wider than the p
 
 ## Testing and CI
 
-- 302 backend tests (`pytest`) run offline against captured real API responses under `backend/tests/fixtures`:
+- 314 backend tests (`pytest`) run offline against captured real API responses under `backend/tests/fixtures`:
   the engine, the API, reconciliation, scoring, the week plan and the Telegram watcher.
 - `frontend/src/lockin/swaps.check.mjs` replays every lineup swap the UI can propose and asserts each step is legal.
 - Playwright end-to-end scripts in `frontend/e2e`: a mock auction draft driven entirely through the browser, and
-  screenshot / computed-style diffs for CSS refactors.
+  screenshot / computed-style diffs for CSS refactors (`e2e/ui-shots.mjs` still carries options for the removed UIs).
 - GitHub Actions runs `ruff`, the test suite, the swap checks, the production build and the Docker build on every push.
 
 ## Run it
@@ -223,14 +226,14 @@ backend/app/
 backend/tests/      pytest suite; fixtures/ holds captured API responses
 frontend/src/
   core/      shell, settings, player sidebar and search, shared widgets
-  draft/     the Draft tab          lockin/   the Season tabs, swaps.js, time zone helpers
-  ui-apple/  the app shell and its styles
+  draft/     the Draft tab          lockin/   the Season views, swaps.js, time zone helpers
+  ui-apple/  the app shell and its styles (the only UI)    themes.css  the Apple light / dark tokens
 shared/nba_fantasy_shared/   models, providers, reconcile, scoring, storage
 ```
 
 ## Scope
 
-Sleeper leagues only. The Season tab supports the Lock-In format; the Draft tab supports auction drafts. The app is
+Sleeper leagues only. The in-season views support the Lock-In format; the Draft tab supports auction drafts. The app is
 single-user with no login: it is meant to run on your own machine or a private container. Projections and news come
 from Sleeper's feeds; stats.nba.com throttles aggressively and blocks some cloud networks, so the first data pull is
 best run from a home connection.
