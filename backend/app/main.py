@@ -21,7 +21,7 @@ from nba_fantasy_shared.providers.nba_api_provider import NbaApiProvider
 from nba_fantasy_shared.providers.sleeper_provider import SleeperProvider
 from nba_fantasy_shared.storage import JsonStore
 
-from . import config, notify
+from . import calculations, config, notify
 from .core.api import data, leagues, players
 from .core.engine.draft_state import DraftError
 from .core.services.app_state import AppState, PullAlreadyRunning
@@ -67,6 +67,7 @@ def create_app(state: AppState | None = None) -> FastAPI:
     app.include_router(draft.router, prefix="/api")
     app.include_router(season.router, prefix="/api")
     app.include_router(notify.router, prefix="/api")
+    app.include_router(calculations.router, prefix="/api")
 
     @app.get("/api/health")
     def health() -> dict:
