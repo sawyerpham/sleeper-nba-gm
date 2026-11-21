@@ -12,6 +12,8 @@ ignore = ["E501", "E731"]
 [lint.per-file-ignores]
 # pytest fixtures are imported so they're in scope, then taken as arguments: that's how pytest finds them
 "backend/tests/**" = ["F811"]
+# package __init__ files only re-export
+"**/__init__.py" = ["F401"]
 
 [lint.isort]
 known-first-party = ["app", "nba_fantasy_shared"]
