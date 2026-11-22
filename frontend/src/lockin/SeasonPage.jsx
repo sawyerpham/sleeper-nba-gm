@@ -11,7 +11,7 @@ import DragScroll from "../core/DragScroll.jsx";
 import { useWatch } from "../core/watch.js";
 import { useNBAMatches, findMatch, watchUrl } from "./streams.jsx";
 import InjuryTag, { injuryTip, isDoubt, isOut } from "../core/InjuryTag.jsx";
-import { fmt, setZone, timeOf } from "./tz.js";
+import { fmt, setZone, timeOf, tipInfo } from "./tz.js";
 import { reseat, swapSteps } from "./swaps.js";
 import Icon from "../core/Icon.jsx";
 
@@ -159,11 +159,7 @@ export function GamePanel({ sel, data, leagueId, onOpenPid, onClose }) {
     if (n) owner[normName(n)] = { sid, team: t.user || t.name, mine: t.is_user };
   }
   const watch = sel.game.state !== "post" ? watchUrl(findMatch(matches, sel.game, sel.team)) : null;
-  const dayKey = (ms) => fmt(ms, { year: "numeric", month: "numeric", day: "numeric" });
-  const relDay = !g?.tip ? "" : dayKey(g.tip) === dayKey(Date.now()) ? "Today" : dayKey(g.tip) === dayKey(Date.now() + 864e5) ? "Tomorrow" : fmt(g.tip, { weekday: "short", month: "short", day: "numeric" });
-  const when = g?.tip ? `${relDay}${relDay === "Today" || relDay === "Tomorrow" ? "," : " ·"} ${fmt(g.tip, { hour: "numeric", minute: "2-digit" })}` : "";
-  const mins = g?.tip ? Math.floor((new Date(g.tip).getTime() - Date.now()) / 60000) : 0;
-  const countdown = mins <= 0 ? "Tips soon" : [[Math.floor(mins / 1440), "d"], [Math.floor(mins / 60) % 24, "h"], [mins % 60, "m"]].filter(([n]) => n).map(([n, u]) => `${n}${u}`).join(" ");
+  const { mins, countdown, when } = tipInfo(g?.tip);
   const status = !g ? "" : g.state === "in" ? quarters(g.detail) : g.state === "post" ? "Final" : countdown;
   return (
     <div className="panel scroll game-panel" data-testid="game-panel">

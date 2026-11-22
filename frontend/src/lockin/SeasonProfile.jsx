@@ -1,6 +1,6 @@
 import React from "react";
-import { TeamTag } from "../core/TeamLink.jsx";
-import { fmt } from "./tz.js";
+import TeamLink, { TeamTag } from "../core/TeamLink.jsx";
+import { fmt, tipInfo } from "./tz.js";
 import DragScroll from "../core/DragScroll.jsx";
 import InjuryTag from "../core/InjuryTag.jsx";
 
@@ -11,25 +11,64 @@ const mmdd = (d) => d.slice(5).replace("-", "/");
 const longDate = (ms) => fmt(ms, { month: "short", day: "numeric", year: "numeric" }).replace(",", "");
 const quarters = (d) => (d || "").replace(/^(.+) - (\d)(?:st|nd|rd|th)$/, "Q$2 $1").replace(/^(.+) - (\d?OT)$/, "$2 $1").replace(/\b(\d)(?:st|nd|rd|th)\b/g, "Q$1");
 
+/** One team of a game header, as the game popup draws it: logo and abbreviation with a big line under it (record or score). */
+function TeamSide({ abbr, line, cls, right }) {
+  return (
+    <div className={`gp-team ${right ? "gp-home" : ""}`}>
+      <TeamLink abbr={abbr}><img src={`https://sleepercdn.com/images/team_logos/nba/${abbr.toLowerCase()}.png`} alt="" width={40} height={40} /></TeamLink>
+      <div><div className="gp-abbr"><TeamLink abbr={abbr} /></div><div className={cls}>{line}</div></div>
+    </div>
+  );
+}
+
 export function SeasonSummary({ sea, onOpenGame, onOpenMatchup }) {
   const g = sea.last_game, a = sea.averages, live = g?.state === "in";
   const stat = (label, value) => <div className="sp-stat"><span>{label}</span><strong>{value}</strong></div>;
   const openable = g?.event && onOpenGame;
+  const next = (sea.games || []).find((x) => x.state === "pre") || sea.season_log.find((r) => r.status === "pre_game" && r.date > sea.today);
+  const { mins, countdown, when } = tipInfo(next?.tip);
   return (
     <div data-testid="season-summary">
       {g && (
-        <div className={`sp-game ${live ? "live" : ""} ${openable ? "clickable" : ""}`} data-testid="last-game"
+        <div className={`sp-game sp-last ${live ? "live" : ""} ${openable ? "clickable" : ""}`} data-testid="last-game"
           onClick={openable ? () => onOpenGame({ game: g, team: g.team, sid: sea.sleeper_id }) : undefined}
           data-tip={openable ? "Open the game" : undefined}>
-          <div className="sp-game-top">
-            <span className="small muted">{live ? <span className="sp-live">LIVE</span> : "Last game"} · {mmdd(g.date)}</span>
-            <span className="small">{live ? quarters(g.detail) : "Final"}</span>
+          <div className="gp-score">
+            {(g.home ? [[g.opp, g.opp_pts], [g.team, g.team_pts]] : [[g.team, g.team_pts], [g.opp, g.opp_pts]]).map(([abbr, pts], i) => (
+              <React.Fragment key={abbr}>
+                {i === 1 && (
+                  <div className="gp-status">
+                    <span className={live ? "gp-live" : ""}>{live ? quarters(g.detail) : "Final"}</span>
+                    <span className="small muted">{fmt(`${g.date}T12:00:00Z`, { weekday: "short", month: "short", day: "numeric" })}</span>
+                  </div>
+                )}
+                <TeamSide abbr={abbr} line={pts ?? "—"} cls="gp-pts" right={i === 1} />
+              </React.Fragment>
+            ))}
           </div>
-          <div className="sp-game-mid">
-            <div className="sp-score"><strong><TeamTag abbr={g.team} /></strong> {g.team_pts ?? "—"} <span className="muted">{g.home ? "vs" : "@"}</span> <strong><TeamTag abbr={g.opp} /></strong> {g.opp_pts ?? "—"}</div>
+          <div className="sp-last-row">
+            <div className="small muted">{g.min} min · {g.pts} pts · {g.reb} reb · {g.ast} ast · {g.stl} stl · {g.blk} blk · {g.to} to{g.fga != null && <> · {g.fgm}/{g.fga} FG · {g.ftm}/{g.fta} FT</>}</div>
             <div className="sp-fp"><span>{f2(g.fp)}</span><small>FP</small></div>
           </div>
-          <div className="small muted">{g.min} min · {g.pts} pts · {g.reb} reb · {g.ast} ast · {g.stl} stl · {g.blk} blk · {g.to} to{g.fga != null && <> · {g.fgm}/{g.fga} FG · {g.ftm}/{g.fta} FT</>}</div>
+        </div>
+      )}
+      {next && sea.team && (
+        <div className="sp-game sp-next" data-testid="next-game">
+          <div className="gp-score">
+            {(next.home ? [[next.opp, next.opp_record], [sea.team, next.record]] : [[sea.team, next.record], [next.opp, next.opp_record]]).map(([abbr, rec], i) => (
+              <React.Fragment key={abbr}>
+                {i === 1 && (
+                  <div className="gp-status">
+                    {mins > 0 && <span className="small muted">TIPS IN</span>}
+                    <span>{next.tip ? countdown : fmt(`${next.date}T12:00:00Z`, { weekday: "short", month: "short", day: "numeric" })}</span>
+                    {when && <span className="small muted">{when}</span>}
+                  </div>
+                )}
+                <TeamSide abbr={abbr} line={rec || "—"} cls="gp-record" right={i === 1} />
+              </React.Fragment>
+            ))}
+          </div>
+          {next.proj != null && <div className="small muted sp-next-proj">Projected {f1(next.proj)} FP</div>}
         </div>
       )}
       <div className="sec">
