@@ -139,6 +139,35 @@ def me(user: dict = Depends(current_user)) -> dict:
 admin_router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
 
+class BotTokenIn(BaseModel):
+    """PUT /admin/telegram body: a bot token from @BotFather, or "" to remove the bot."""
+    token: str
+
+
+@admin_router.get("/telegram")
+def admin_telegram(request: Request) -> dict:
+    """The bot alerts go out from (its @username, never the token), where its token comes from, and how many chats are linked."""
+    from . import notify
+
+    state = get_state(request)
+    saved = state.accounts.setting(notify.TOKEN_SETTING)
+    return {"configured": notify.configured(), "bot": notify.bot_username() if notify.configured() else None,
+            "source": "app" if saved else ".env" if notify.configured() else None,
+            "linked": state.accounts.stats()["telegram_linked"]}
+
+
+@admin_router.put("/telegram")
+def admin_set_telegram(body: BotTokenIn, request: Request) -> dict:
+    """Switch the bot alerts go out from ("" removes it); every linked chat is unlinked when it changes. 400 for a token
+    Telegram doesn't accept."""
+    from . import notify
+
+    try:
+        return notify.set_token(get_state(request).accounts, body.token)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+
+
 @admin_router.get("/stats")
 def admin_stats(request: Request) -> dict:
     """The admin panel's numbers: accounts.stats() plus the size of the player pool and how many leagues are on disk."""

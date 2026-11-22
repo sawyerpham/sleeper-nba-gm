@@ -71,7 +71,7 @@ def create_app(state: AppState | None = None) -> FastAPI:
     app.include_router(leagues.router, prefix="/api", dependencies=signed_in)
     app.include_router(draft.router, prefix="/api", dependencies=signed_in)
     app.include_router(season.router, prefix="/api", dependencies=signed_in)
-    app.include_router(notify.router, prefix="/api", dependencies=signed_in)
+    app.include_router(notify.router, prefix="/api", dependencies=admin)
     app.include_router(calculations.router, prefix="/api")
 
     @app.get("/api/health")

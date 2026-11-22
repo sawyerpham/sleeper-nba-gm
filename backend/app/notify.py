@@ -173,11 +173,62 @@ def handle_update(accounts, update: dict) -> str | None:
     return "To get alerts here, open the app's Settings > Notifications and tap Link Telegram."
 
 
+TOKEN_SETTING = "telegram_bot_token"
+TOKEN_FORMAT = re.compile(r"^\d{5,}:[A-Za-z0-9_-]{30,}$")
+
+
+def apply_token(accounts) -> None:
+    """Use the bot token the admin set in the app (accounts setting; "" = removed) over the one from backend/.env."""
+    saved = accounts.setting(TOKEN_SETTING)
+    if saved is None:
+        return
+    if saved:
+        os.environ["TELEGRAM_BOT_TOKEN"] = saved
+    else:
+        os.environ.pop("TELEGRAM_BOT_TOKEN", None)
+    _bot.clear()
+
+
+def check_token(token: str) -> str:
+    """The bot's @username for a token (Telegram's getMe); ValueError when the token is malformed or Telegram refuses it.
+    Errors never carry the token."""
+    if not TOKEN_FORMAT.match(token or ""):
+        raise ValueError("That doesn't look like a bot token (it's like 123456789:AA... from @BotFather)")
+    try:
+        r = requests.get(TELEGRAM.format(token, "getMe"), timeout=10).json()
+    except (requests.RequestException, ValueError) as exc:
+        raise ValueError("Couldn't reach Telegram, try again") from exc
+    if not r.get("ok"):
+        raise ValueError("Telegram didn't accept that token")
+    return r["result"].get("username")
+
+
+def set_token(accounts, token: str | None) -> dict:
+    """Admin: switch the bot (None or "" removes it). Every linked chat is unlinked, since a different bot can't message
+    people who never pressed Start in it; the same token again changes nothing. Returns the bot's username and how
+    many chats were unlinked."""
+    token = (token or "").strip()
+    bot = check_token(token) if token else None
+    if token == (os.environ.get("TELEGRAM_BOT_TOKEN") or ""):
+        return {"bot": bot, "unlinked": 0}
+    unlinked = accounts.unlink_all()
+    accounts.set_setting(TOKEN_SETTING, token)
+    apply_token(accounts)
+    log.info("telegram bot changed to %s, %d chats unlinked", bot, unlinked)
+    return {"bot": bot, "unlinked": unlinked}
+
+
 def bot_loop(accounts) -> None:
     """Long-poll Telegram for messages to the bot forever and answer them (handle_update). Polling needs no public URL, so
-    it works the same locally and on a server; only one process may poll a bot at a time."""
-    offset = 0
+    it works the same locally and on a server; only one process may poll a bot at a time. Idles while no token is set,
+    and starts over (offset 0) when the admin switches bots."""
+    offset, token = 0, None
     while True:
+        if not configured():
+            time.sleep(5)
+            continue
+        if os.environ["TELEGRAM_BOT_TOKEN"] != token:
+            offset, token = 0, os.environ["TELEGRAM_BOT_TOKEN"]
         try:
             for update in _call("getUpdates", http_timeout=BOT_POLL_S + 10, offset=offset, timeout=BOT_POLL_S, allowed_updates='["message"]') or []:
                 offset = update["update_id"] + 1
@@ -378,7 +429,7 @@ def slate_hot(fetch, now: datetime, today) -> bool:
 
 
 def watch_once(state, sent: set[str], tags: dict | None = None, last: dict | None = None) -> None:
-    """One poll: for every league whose owner linked Telegram, compute today's plan and send to the owner's chat each newly
+    """One poll: for every league whose owner is an admin and linked Telegram (alerts are admin-only), compute today's plan and send to the owner's chat each newly
     due watch line their settings want, the injury-tag changes on the roster (`tags`: league -> sid -> last tag seen), and
     the lineup moves due (one message). Leagues of users without a chat are skipped before any Sleeper call. With `last`
     (league -> monotonic time of its last poll), a league is polled only every QUIET_S while no game is live or close
@@ -392,7 +443,7 @@ def watch_once(state, sent: set[str], tags: dict | None = None, last: dict | Non
     hot = last is None or slate_hot(fetch, datetime.now(timezone.utc), today_ct())
     for lid in state.leagues.list_ids():
         owner = accounts.user(accounts.owner(lid) or 0)
-        chat = owner and owner["tg_chat_id"]
+        chat = owner and owner["admin"] and owner["tg_chat_id"]
         if not chat or (not hot and time.monotonic() - last.get(lid, float("-inf")) < QUIET_S):
             continue
         if last is not None:
@@ -436,12 +487,13 @@ def watch_once(state, sent: set[str], tags: dict | None = None, last: dict | Non
 
 
 def start_watcher(state) -> None:
-    """Start the watcher thread that polls every POLL_S seconds and the bot thread that answers /start and /stop (no-op
-    unless the bot token is set). Sent keys persist in cache/notified.json."""
+    """Start the watcher thread that polls every POLL_S seconds and the bot thread that answers /start and /stop. Both idle
+    while no bot token is set (backend/.env, or the Admin tab), so a token set later works without a restart. Sent keys
+    persist in cache/notified.json."""
     load_env()
+    apply_token(state.accounts)
     if not configured():
-        log.info("telegram not configured (backend/.env): notifications off")
-        return
+        log.info("telegram not configured yet (backend/.env or Admin tab): notifications off until a bot token is set")
     path = state.store.root / "cache" / "notified.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     handler = logging.FileHandler(path.parent / "notify.log", encoding="utf-8")
@@ -460,7 +512,8 @@ def start_watcher(state) -> None:
         while True:
             before = len(sent)
             try:
-                watch_once(state, sent, tags, last)
+                if configured():
+                    watch_once(state, sent, tags, last)
                 if len(sent) != before:
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_text(json.dumps(sorted(sent)), encoding="utf-8")

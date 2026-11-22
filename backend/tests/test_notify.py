@@ -82,7 +82,9 @@ def test_notify_api_reports_the_link_and_saves_the_prefs(tmp_path, fixtures_dir,
     store = JsonStore(tmp_path)
     client = TestClient(create_app(AppState(store, FixtureStatsProvider(fixtures_dir), FixturePlatformProvider(fixtures_dir))))
     assert client.get("/api/notify").status_code == 401
-    me = sign_in(client, "fan@test.local")
+    sign_in(client, "fan@test.local")
+    assert client.get("/api/notify").status_code == 403          # alerts are admin-only
+    me = sign_in(client)
     r = client.get("/api/notify")
     assert r.status_code == 200 and r.json() == {"configured": False, "prefs": notify.NotifyPrefs().model_dump()}
     r = client.put("/api/notify/prefs", json={"lock": False, "lock_min_wpa": 5})
@@ -268,12 +270,16 @@ def test_the_message_that_reports_a_season_ending_injury_says_sorry_once(monkeyp
 
 
 def linked_owner():
-    """Accounts where league "lg" belongs to a user whose Telegram chat 7 is linked, and "unlinked" to one with no chat."""
+    """Accounts where league "lg" belongs to the admin, whose Telegram chat 7 is linked, and "unlinked" to a non-admin
+    (alerts are admin-only, so that league is skipped even with chat 8 linked)."""
     from app.accounts import Accounts
 
+    from .conftest import ADMIN
+
     acc = Accounts(":memory:")
-    uid, other = (acc.verify_login(acc.request_login(e, None))[1]["id"] for e in ("a@test.local", "b@test.local"))
+    uid, other = (acc.verify_login(acc.request_login(e, None))[1]["id"] for e in (ADMIN, "b@test.local"))
     acc.consume_link(acc.link_token(uid), 7, "Sam")
+    acc.consume_link(acc.link_token(other), 8, "Bo")          # a non-admin's chat: never sent to
     acc.own("lg", uid)
     acc.own("unlinked", other)
     return acc

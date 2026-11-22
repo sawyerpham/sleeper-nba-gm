@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, email TEXT UNIQUE NOT 
 CREATE TABLE IF NOT EXISTS tokens (hash TEXT PRIMARY KEY, kind TEXT NOT NULL, email TEXT, user_id INTEGER, expires REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS leagues (league_id TEXT PRIMARY KEY, user_id INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS events (at REAL NOT NULL, kind TEXT NOT NULL, user_id INTEGER, email TEXT, ip TEXT);
+CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 CREATE INDEX IF NOT EXISTS events_kind_at ON events (kind, at);
 CREATE INDEX IF NOT EXISTS leagues_user ON leagues (user_id);
 """
@@ -229,12 +230,28 @@ class Accounts:
         """Unlink a user's Telegram chat (from Settings)."""
         self._q("UPDATE users SET tg_chat_id = NULL, tg_name = NULL WHERE id = ?", user_id)
 
+    def unlink_all(self) -> int:
+        """Unlink every Telegram chat (the bot changed: a new bot can't message chats that never started it); how many."""
+        n = self._one("SELECT COUNT(*) FROM users WHERE tg_chat_id IS NOT NULL")
+        self._q("UPDATE users SET tg_chat_id = NULL, tg_name = NULL")
+        return int(n or 0)
+
+    # --- server settings (admin) ---
+
+    def setting(self, key: str) -> str | None:
+        """A server setting, None when never set."""
+        return self._one("SELECT value FROM settings WHERE key = ?", key)
+
+    def set_setting(self, key: str, value: str) -> None:
+        """Save a server setting."""
+        self._q("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", key, value)
+
     # --- admin stats ---
 
     def stats(self) -> dict:
         """Counts for the admin panel: users, activity, leagues, Telegram, sign-ins and pushes, sign-ups per day for 14 days,
         and the 100 most recently seen users."""
-        now, day = time.time(), 24 * 3600
+        now, day, admins = time.time(), 24 * 3600, admin_emails()
 
         def count(sql: str, *args) -> int:
             """A COUNT(*) query's number."""
@@ -251,6 +268,7 @@ class Accounts:
                             FROM users u LEFT JOIN leagues l ON l.user_id = u.id GROUP BY u.id ORDER BY u.last_seen DESC LIMIT 100""")
         return {
             "users": count("SELECT COUNT(*) FROM users"),
+            "admins": count(f"SELECT COUNT(*) FROM users WHERE email IN ({','.join('?' * len(admins))})", *admins) if admins else 0,
             "new_7d": count("SELECT COUNT(*) FROM users WHERE created_at > ?", now - 7 * day),
             "active_24h": count("SELECT COUNT(*) FROM users WHERE last_seen > ?", now - day),
             "active_7d": count("SELECT COUNT(*) FROM users WHERE last_seen > ?", now - 7 * day),
@@ -262,5 +280,6 @@ class Accounts:
             "login_emails_24h": events("login_email", now - day),
             "signups_by_day": [{"day": d, "n": by_day.get(d, 0)} for d in days],
             "recent": [{"email": r["email"], "created_at": r["created_at"], "last_seen": r["last_seen"],
-                        "telegram": bool(r["tg"]), "leagues": r["leagues"]} for r in recent],
+                        "telegram": bool(r["tg"]), "leagues": r["leagues"], "role": "admin" if r["email"] in admins else "user"}
+                       for r in recent],
         }

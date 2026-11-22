@@ -79,7 +79,9 @@ def test_admin_only_routes_and_the_admin_takes_over_old_leagues(app):
     assert admin.get("/api/leagues/old").status_code == 200
     stats = admin.get("/api/admin/stats").json()
     assert stats["users"] == 2 and stats["leagues"] == 1 and stats["active_24h"] == 2 and stats["logins_24h"] == 2
-    assert {r["email"] for r in stats["recent"]} == {ADMIN, "fan@test.local"} and len(stats["signups_by_day"]) == 14
+    assert {r["email"]: r["role"] for r in stats["recent"]} == {ADMIN: "admin", "fan@test.local": "user"} and stats["admins"] == 1
+    assert len(stats["signups_by_day"]) == 14
+    assert fan.get("/api/notify").status_code == 403 and fan.post("/api/notify/link").status_code == 403
 
 
 def _start(text, chat_id=7, kind="private"):
@@ -157,3 +159,35 @@ def test_backup_has_the_accounts_and_leagues_but_not_the_caches(tmp_path):
     assert {"app.db", "leagues", "leagues/lg.json"} <= names and not any(n.startswith("cache") for n in names)
     assert sqlite3.connect(tmp_path / "restore" / "app.db").execute("SELECT email FROM users").fetchall() == [("a@test.local",)]
     assert not old.exists() and not (tmp_path / "backups" / "app.db.tmp").exists()
+
+
+def test_admin_switches_the_bot_and_everyone_relinks(app, monkeypatch):
+    """Only the admin can set the bot token; a bad token is refused; a new bot unlinks every chat; the token never comes back."""
+    import os
+
+    state = app.state.app_state
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.setattr(notify, "_bot", {})
+    good = "123456789:" + "A" * 35
+    monkeypatch.setattr(notify, "check_token", lambda t: "new_bot" if t == good else (_ for _ in ()).throw(ValueError("Telegram didn't accept that token")))
+    fan, admin = TestClient(app), TestClient(app)
+    fan_id = sign_in(fan, "fan@test.local")["id"]
+    sign_in(admin)
+    state.accounts.consume_link(state.accounts.link_token(fan_id), 7, "Sam")
+    assert fan.put("/api/admin/telegram", json={"token": good}).status_code == 403
+    assert admin.put("/api/admin/telegram", json={"token": "nope"}).status_code == 400
+    assert admin.put("/api/admin/telegram", json={"token": good}).json() == {"bot": "new_bot", "unlinked": 1}
+    assert os.environ["TELEGRAM_BOT_TOKEN"] == good and state.accounts.user(fan_id)["tg_chat_id"] is None
+    monkeypatch.setattr(notify, "bot_username", lambda: "new_bot")
+    got = admin.get("/api/admin/telegram").json()
+    assert got == {"configured": True, "bot": "new_bot", "source": "app", "linked": 0} and good not in str(got)
+    assert admin.put("/api/admin/telegram", json={"token": ""}).json()["bot"] is None
+    assert "TELEGRAM_BOT_TOKEN" not in os.environ and admin.get("/api/admin/telegram").json()["configured"] is False
+
+
+def test_bot_token_format_is_checked_before_any_call(monkeypatch):
+    """A malformed token never reaches Telegram (it would land in the request URL)."""
+    monkeypatch.setattr(notify.requests, "get", lambda *a, **k: (_ for _ in ()).throw(AssertionError("called Telegram")))
+    for bad in ("", "abc", "123:short", "123456789:" + "A" * 35 + "/../x"):
+        with pytest.raises(ValueError, match="bot token"):
+            notify.check_token(bad)
