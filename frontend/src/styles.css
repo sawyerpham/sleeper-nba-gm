@@ -503,6 +503,9 @@ table.small th, .plan-table th, .money-table th, .market-table th { background: 
 body::before { content: ""; position: fixed; inset: 80px; z-index: -1; pointer-events: none;
   background: var(--wall, none) center bottom / auto 100% no-repeat; image-rendering: pixelated; opacity: 0.3; }
 :root[data-wall]:not([data-wall=""]) { --panel: rgba(12, 14, 18, 0.75); }
+/* The darker panels the wallpapers use are the dark-mode default too. [data-theme][data-wall] is there to outrank the
+   theme's own --panel (themes.css, html:root[data-theme="apple"]); App sets data-wall even when no wallpaper is chosen. */
+@media (prefers-color-scheme: dark) { :root[data-theme][data-wall] { --panel: rgba(12, 14, 18, 0.75); } }
 :root[data-wall]:not([data-wall=""]) body::before { opacity: 0.25; }
 .wall-pick { display: flex; align-items: center; gap: 14px; } .wall-pick h3 { margin: 0; }
 :root :is(.badge, .verdict, .tier-cell, .tier-tag, .role-tag, .inj, .toast-tag, .chips .chip) { box-shadow: inset 0 0 0 999px rgba(10, 12, 16, 0.45); }
