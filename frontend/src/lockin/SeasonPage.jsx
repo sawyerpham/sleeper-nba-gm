@@ -14,6 +14,7 @@ import InjuryTag, { injuryTip, isDoubt, isOut } from "../core/InjuryTag.jsx";
 import { fmt, setZone, timeOf, tipInfo } from "./tz.js";
 import { reseat, swapSteps } from "./swaps.js";
 import Icon from "../core/Icon.jsx";
+import useBackdrop from "../core/useBackdrop.js";
 
 const REFRESH_MS = 60000;
 
@@ -34,6 +35,8 @@ const useMedia = (q) => useSyncExternalStore(
   () => window.matchMedia(q).matches);
 const useNarrow = () => useMedia(NARROW);
 const useThin = () => useMedia("(max-width: 999px)");
+/** Phone width: matches the 699px breakpoint in ui-apple/apple.css. */
+const useMobile = () => useMedia("(max-width: 699px)");
 
 export function TeamName({ t, cls = "", size = 24, record = true, mine = false }) {
   const rec = record && t.wins != null;
@@ -395,15 +398,22 @@ export function flashEl(el) {
   el.addEventListener("animationend", () => el.classList.remove("ap-flash"), { once: true });
 }
 
-export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow, focus }) {
+export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow, focus, pill }) {
+  const narrow = useNarrow(), thin = useThin(), mobile = useMobile(), gutter = mobile ? 0 : narrow ? 60 : ARROW_GUTTER;
   const idxOf = (rid) => data.matchups.findIndex((pair) => pair.some((m) => m.roster_id === rid));
   const mineIdx = Math.max(0, idxOf(plan.roster_id));
   const [idx, setIdx] = useState(() => (focus && idxOf(focus.rid) >= 0 ? idxOf(focus.rid) : mineIdx));
-  useEffect(() => { if (focus && idxOf(focus.rid) >= 0) setIdx(idxOf(focus.rid)); }, [focus]);
-  useEffect(() => { onShow?.(idx === mineIdx ? plan.roster_id : data.matchups[idx]?.[0]?.roster_id); }, [idx]);
+  // Thin screens draw one side only: the picked roster's (a search or League jump, or the manager pill), if it's in this matchup.
+  // pill = {rid}, a new object per manager-pill tap; declared before the focus effect so a jump wins on mount.
+  const [pick, setPick] = useState(() => focus?.rid ?? pill?.rid ?? null);
+  useEffect(() => { if (pill) setPick(pill.rid); }, [pill]);
+  useEffect(() => { if (focus && idxOf(focus.rid) >= 0) { setIdx(idxOf(focus.rid)); setPick(focus.rid); } }, [focus]);
+  const pair = data.matchups[idx] || [];
+  const leftRid = thin && pair.some((m) => m.roster_id === pick) ? pick : idx === mineIdx ? plan.roster_id : pair[0]?.roster_id;
+  useEffect(() => { onShow?.(leftRid); }, [leftRid]);
   const [other, setOther] = useState(null);
-  const isMine = idx === mineIdx;
-  const shown = isMine ? plan : other;
+  const isMine = leftRid === plan.roster_id;
+  const shown = isMine ? plan : other?.roster_id === leftRid ? other : null;
   const [at, setAt] = useState(null);
   const tl = shown?.timeline, nowMs = data.now ? Date.parse(data.now) : Date.now();
   const atMs = Math.max(at ?? nowMs, nowMs);
@@ -415,15 +425,12 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
   const me = differs && view === "sleeper" ? bestLineup(shown, atMs, data.roster_positions, true, gamesOf) : best;
   const seg = me.seg;
   const gridRef = React.useRef(null);
-  const narrow = useNarrow(), thin = useThin(), gutter = narrow ? 60 : ARROW_GUTTER;
   useEffect(() => {
     if (isMine) { setOther(null); return; }
-    const rid = data.matchups[idx]?.[0]?.roster_id;
-    api.get(`/leagues/${leagueId}/season/plan` + qs({ week: data.week, roster_id: rid })).then(setOther).catch(() => setOther(null));
-  }, [idx, isMine, leagueId, data.week, data.matchups]);
+    api.get(`/leagues/${leagueId}/season/plan` + qs({ week: data.week, roster_id: leftRid })).then(setOther).catch(() => setOther(null));
+  }, [leftRid, isMine, leagueId, data.week, data.matchups]);
   const flashed = React.useRef(null);
   useEffect(() => {
-    const leftRid = isMine ? plan.roster_id : data.matchups[idx]?.[0]?.roster_id;
     if (!focus || flashed.current === focus || !shown || shown.roster_id !== leftRid || !gridRef.current) return;
     flashed.current = focus;
     const side = focus.rid === leftRid ? "left" : "right", panel = gridRef.current.closest(".matchup");
@@ -460,7 +467,7 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
       <button className="mu-arrow neon-arrow right" onClick={() => step(1)} data-tip="Next matchup" aria-label="Next matchup" data-testid="mu-next"><NeonArrow dir="right" /></button>
     </>
   );
-  if (!shown) return <div className="panel matchup"><div className="mu-head">{nav}<div className="muted">Loading matchup {idx + 1} of {n}…</div></div></div>;
+  if (!shown) return <div className="panel matchup"><div className="mu-head">{!mobile && nav}<div className="muted">Loading matchup {idx + 1} of {n}…</div></div></div>;
   const o = shown.opponent;
   const L = bySlot(me.rows, data.roster_positions, data.reserve_slots);
   const R = o ? bySlot(them.rows, data.roster_positions, data.reserve_slots) : { lines: [], bench: [], ir: [] };
@@ -480,11 +487,11 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
   );
   const benchAt = L.lines.length + 2, irAt = benchAt + nBench + (nBench ? 1 : 0);
   return (
-    <div className={`panel matchup ${thin ? "thin" : ""}`} data-testid="my-week" style={{ "--gut": `${gutter}px` }}>
-      {tl?.segments.length > 0 && <Timeline tl={tl} nowMs={nowMs} atMs={atMs} setAt={setAt} view={differs ? view : "best"} setView={setView} differs={differs} />}
+    <div className={`panel matchup ${thin ? "thin" : ""} ${mobile ? "mobile" : ""}`} data-testid="my-week" style={{ "--gut": `${gutter}px` }}>
+      {!mobile && tl?.segments.length > 0 && <Timeline tl={tl} nowMs={nowMs} atMs={atMs} setAt={setAt} view={differs ? view : "best"} setView={setView} differs={differs} />}
       {gap && <div className="small muted mu-gap" data-testid="sleeper-gap">Sleeper still shows yesterday's lineup: the arrows start from it, so skip any move you've already made.</div>}
       <div className="mu-head">
-        <button className="mu-arrow neon-arrow" onClick={() => step(-1)} data-tip="Previous matchup" aria-label="Previous matchup" data-testid="mu-prev"><NeonArrow dir="left" /></button>
+        {!mobile && <button className="mu-arrow neon-arrow" onClick={() => step(-1)} data-tip="Previous matchup" aria-label="Previous matchup" data-testid="mu-prev"><NeonArrow dir="left" /></button>}
         <div className="mu-team">
           <TeamName t={shown} cls="mc-name" size={34} mine={isMine} />
           <span className="small muted">{shown.games_left} left</span>
@@ -492,19 +499,19 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
         </div>
         <div className="mu-mid">
           <span className="small muted">{idx + 1}/{n}</span>
-          {!isMine && <button className="tiny" onClick={() => setIdx(mineIdx)}>mine</button>}
+          {!isMine && <button className="tiny" onClick={() => { setIdx(mineIdx); setPick(plan.roster_id); }}>mine</button>}
         </div>
         {!thin && <div className="mu-team right">
           {o && <span className="mu-score"><span className="mc-points">{fp(o.points)}</span>{Math.abs(o.expected - o.points) >= 0.005 && <span className="mu-exp-total">{o.expected}</span>}</span>}
           {o && <span className="small muted">{o.games_left} left · {o.locked} locked</span>}
           {o ? <TeamName t={o} cls="mc-name" size={34} /> : <span className="mc-name">no opponent</span>}
         </div>}
-        <button className="mu-arrow neon-arrow" onClick={() => step(1)} data-tip="Next matchup" aria-label="Next matchup" data-testid="mu-next"><NeonArrow dir="right" /></button>
+        {!mobile && <button className="mu-arrow neon-arrow" onClick={() => step(1)} data-tip="Next matchup" aria-label="Next matchup" data-testid="mu-next"><NeonArrow dir="right" /></button>}
       </div>
       <div className="mu-scroll">
       <div className="mu-grid with-arrows" ref={gridRef} style={{ gridTemplateRows: tracks.join(" "), minHeight: minH }}>
-        <SwapArrows pairs={me.pairs} side="left" gutter={gutter} names={(sid) => data.players[sid]?.name || sid} />
-        {!thin && <SwapArrows pairs={them.pairs} side="right" gutter={gutter} names={(sid) => data.players[sid]?.name || sid} />}
+        {!mobile && <SwapArrows pairs={me.pairs} side="left" gutter={gutter} names={(sid) => data.players[sid]?.name || sid} />}
+        {!thin && !mobile && <SwapArrows pairs={them.pairs} side="right" gutter={gutter} names={(sid) => data.players[sid]?.name || sid} />}
         {tl && lane && xs.xs?.size > 0 && [["l", lane.l], ["r", lane.r]].filter(([, x]) => x != null).map(([k, x]) => (
           <div key={k} className="time-line" data-testid={`time-line-${k}`} style={{ left: x + laneAt(xs.xs, atMs, Date.parse(tl.start), Date.parse(tl.end), lane.w) - 1 }} />
         ))}
@@ -721,6 +728,8 @@ export function NewsView({ leagueId, open, refreshKey }) {
   const [q, setQ] = useState(""), [nba, setNba] = useState(""), [mgr, setMgr] = useState(""), [inj, setInj] = useState(false), [tab, setTab] = useState("mine");
   const [watched] = useWatch(leagueId);
   const watchKey = watched.join(",");
+  const mobile = useMobile(), [teamsOpen, setTeamsOpen] = useState(false);
+  const backdrop = useBackdrop(() => setTeamsOpen(false));
   useEffect(() => {
     api.get(`/leagues/${leagueId}/season/news`).then((n) => { setNews(n); setError(""); }).catch((e) => setError(e.message));
   }, [leagueId, refreshKey, watchKey]);
@@ -742,9 +751,17 @@ export function NewsView({ leagueId, open, refreshKey }) {
   const empty = { mine: "No recent notes on your players", watched: watched.length ? "No recent notes on your watched players" : "No watched players yet: open a player and press Watch", league: "No notes", free: "No notes" }[tab];
   return (
     <div className="news-wrap">
-    <TeamsReport leagueId={leagueId} open={open} refreshKey={refreshKey} />
+    {!mobile && <TeamsReport leagueId={leagueId} open={open} refreshKey={refreshKey} />}
+    {mobile && teamsOpen && createPortal(
+      <div className="ap-sheet-wrap teams-pop" {...backdrop}>
+        <div className="ap-sheet">
+          <button className="small teams-pop-x" onClick={() => setTeamsOpen(false)} aria-label="Close teams report"><Icon name="x" /></button>
+          <TeamsReport leagueId={leagueId} open={open} refreshKey={refreshKey} />
+        </div>
+      </div>, document.querySelector(".ap") || document.body)}
     <div className="news-col">
       <div className="panel news-filters" data-testid="news-filters">
+        {mobile && <button type="button" onClick={() => setTeamsOpen(true)} data-testid="teams-report-open">Teams Report</button>}
         <input type="search" placeholder="Search player, team, manager or note…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="news-search" />
         <TeamPick value={nba} onChange={setNba} teams={nbaTeams} />
         {tab === "league" && <select value={mgr} onChange={(e) => setMgr(e.target.value)} data-testid="news-manager"><option value="">All managers</option>{managers.map((m) => <option key={m}>{m}</option>)}</select>}

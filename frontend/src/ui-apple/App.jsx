@@ -6,6 +6,7 @@ import DraftPage from "../draft/DraftPage.jsx";
 import Headshot from "../core/Headshot.jsx";
 import Icon from "../core/Icon.jsx";
 import { TipLayer } from "../core/Terms.jsx";
+import useBackdrop from "../core/useBackdrop.js";
 import { TeamLinkContext } from "../core/TeamLink.jsx";
 import { SEASON_VIEWS, SettingsModal, useAppState } from "../core/Shell.jsx";
 import useSeason from "../lockin/useSeason.js";
@@ -59,6 +60,7 @@ export default function App({ user }) {
 function AppleSeason({ leagueId, leagueName, view, onWeek }) {
   const s = useSeason(leagueId, onWeek);
   const [focusRid, setFocusRid] = useState(null);
+  const [pill, setPill] = useState(null);
   useEffect(() => {
     if (!s.cur) return undefined;
     const k = (e) => e.key === "Escape" && s.close();
@@ -66,6 +68,7 @@ function AppleSeason({ leagueId, leagueName, view, onWeek }) {
     return () => window.removeEventListener("keydown", k);
   });
   const [other, setOther] = useState(null);
+  const backdrop = useBackdrop(s.close);
   const week = s.data?.week, myRid = s.plan?.roster_id;
   useEffect(() => {
     setOther(null);
@@ -84,7 +87,7 @@ function AppleSeason({ leagueId, leagueName, view, onWeek }) {
         <div className="ap-top">
           <h1 className="ap-title">{TITLES[view]}<span>{leagueName}</span></h1>
           {(view === "week" || view === "league") && <WeekNav s={s} />}
-          {view === "week" && <ManagerPill data={data} rid={away ? focusRid : plan.roster_id} onPick={setFocusRid} />}
+          {view === "week" && <ManagerPill data={data} rid={away ? focusRid : plan.roster_id} onPick={(rid) => { setFocusRid(rid); setPill({ rid }); }} />}
           {s.error && <span className="small warn-text">{s.error}</span>}
           <SeasonTools s={s} leagueId={leagueId} />
         </div>
@@ -96,7 +99,7 @@ function AppleSeason({ leagueId, leagueName, view, onWeek }) {
                 <Slate data={data} s={s} rid={away ? focusRid : plan.roster_id} />
                 <Calls data={data} plan={shown} />
               </div>
-              <WeekView key={data.week} data={data} plan={plan} open={s.open} openGame={s.openGame} setLock={s.setLock} leagueId={leagueId} onShow={setFocusRid} focus={s.matchup} />
+              <WeekView key={data.week} data={data} plan={plan} open={s.open} openGame={s.openGame} setLock={s.setLock} leagueId={leagueId} onShow={setFocusRid} focus={s.matchup} pill={pill} />
             </section>
           </div>
         )}
@@ -105,7 +108,7 @@ function AppleSeason({ leagueId, leagueName, view, onWeek }) {
         {view === "waivers" && <div className="ap-scroll"><WaiversView leagueId={leagueId} onSelect={s.openPid} /></div>}
       </div>
       {s.cur && (
-        <div className="ap-sheet-wrap" onMouseDown={(e) => e.target === e.currentTarget && s.close()}>
+        <div className="ap-sheet-wrap" {...backdrop}>
           <div className="ap-sheet" data-testid="card-sheet">
             <CardNav s={s} />
             <CurrentCard s={s} leagueId={leagueId} />

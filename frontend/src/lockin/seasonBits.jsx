@@ -36,7 +36,7 @@ export function WeekNav({ s }) {
 export function SeasonTools({ s, leagueId }) {
   return (
     <span className="season-tools-x">
-      <span className="season-search"><PlayerSearch leagueId={leagueId} onSelect={(p) => s.openPid(p.player_id)} onSelectTeam={s.openTeam} placeholder="Any player or team…" testId="season-search" /></span>
+      <span className="season-search"><PlayerSearch leagueId={leagueId} onSelect={(p) => s.openPid(p.player_id)} onSelectTeam={s.openTeam} managers={s.data?.teams} onSelectManager={s.openMatchup} placeholder="Player, team or manager…" testId="season-search" /></span>
       <button className="small primary icon-btn" onClick={s.sync} disabled={s.syncing} data-testid="sync" aria-label="Sync with Sleeper"><Icon name="refresh" className={s.syncing ? "spin" : ""} /></button>
     </span>
   );

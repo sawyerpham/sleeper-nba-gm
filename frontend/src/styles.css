@@ -804,6 +804,8 @@ main:has(.season-grid) { max-width: none; padding: 12px 16px; flex: 1; min-heigh
 .matchup.thin .mu-grid { grid-template-columns: 46px minmax(0, 1fr); min-width: 420px; }
 .matchup.thin .mu-grid.with-arrows { padding-right: 0; }
 .matchup.thin .mu-slot { order: -1; }
+.matchup.mobile .mu-head:has(.mu-mid) { grid-template-columns: minmax(0, 1fr) auto; }
+.matchup.mobile .mu-grid { min-width: 0; }
 .swap-arrows { position: absolute; left: 0; top: 0; height: 100%; overflow: visible; pointer-events: none; }
 .swap-arrows.right { left: auto; right: 0; transform: scaleX(-1); }
 .chips-lane { position: relative; flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: center; }

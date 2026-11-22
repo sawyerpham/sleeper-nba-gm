@@ -11,7 +11,8 @@ const TEAMS = ("ATL Atlanta Hawks,BOS Boston Celtics,BKN Brooklyn Nets,CHA Charl
   "POR Portland Trail Blazers,SAC Sacramento Kings,SAS San Antonio Spurs,TOR Toronto Raptors,UTA Utah Jazz,WAS Washington Wizards")
   .split(",").map((t) => ({ abbr: t.slice(0, 3), name: t.slice(4) }));
 
-export default function PlayerSearch({ leagueId, onSelect, onSelectTeam, placeholder = "Search player…", testId = "search-input", autoFocus = false }) {
+/** Search box over players, plus NBA teams (with onSelectTeam) and the league's managers (managers = data.teams, with onSelectManager). */
+export default function PlayerSearch({ leagueId, onSelect, onSelectTeam, managers, onSelectManager, placeholder = "Search player…", testId = "search-input", autoFocus = false }) {
   const [q, setQ] = useState("");
   const [hits, setHits] = useState([]);
   const [open, setOpen] = useState(false);
@@ -20,6 +21,8 @@ export default function PlayerSearch({ leagueId, onSelect, onSelectTeam, placeho
 
   const needle = q.trim().toLowerCase();
   const teams = onSelectTeam && needle.length >= 2 ? TEAMS.filter((t) => t.abbr.toLowerCase() === needle || t.name.toLowerCase().includes(needle)) : [];
+  const mgrs = onSelectManager && managers && needle.length >= 2
+    ? managers.filter((m) => [m.user, m.name].some((x) => x?.toLowerCase().includes(needle))) : [];
 
   useEffect(() => {
     if (!q.trim()) {
@@ -39,9 +42,9 @@ export default function PlayerSearch({ leagueId, onSelect, onSelectTeam, placeho
   const choose = (p) => {
     setOpen(false);
     setQ("");
-    p.abbr ? onSelectTeam(p.abbr) : onSelect(p);
+    p.roster_id != null ? onSelectManager(p.roster_id) : p.abbr ? onSelectTeam(p.abbr) : onSelect(p);
   };
-  const rows = [...teams, ...hits];
+  const rows = [...mgrs, ...teams, ...hits];
 
   return (
     <div className="search-wrap">
@@ -61,6 +64,11 @@ export default function PlayerSearch({ leagueId, onSelect, onSelectTeam, placeho
       />
       {open && rows.length > 0 && (
         <div className="dropdown" onMouseLeave={() => setOpen(false)}>
+          {mgrs.map((m) => (
+            <div key={`m${m.roster_id}`} onClick={() => choose(m)} data-testid={`search-manager-${m.roster_id}`}>
+              {m.user || m.name} <span className="muted">{m.user && m.name !== m.user ? `${m.name} · ` : ""}matchup</span>
+            </div>
+          ))}
           {teams.map((t) => (
             <div key={t.abbr} onClick={() => choose(t)} data-testid={`search-team-${t.abbr}`}>
               {t.name} <span className="muted">{t.abbr} · team card</span>

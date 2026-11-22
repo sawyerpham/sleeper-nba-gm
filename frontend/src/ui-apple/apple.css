@@ -124,19 +124,34 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
   .ap-fill { min-height: 80vh; }
 }
 @media (max-width: 1299px) { .ap { grid-template-columns: 76px minmax(0, 1fr); } .ap-brand-text, .ap .ap-nav button { font-size: 0; } .ap .ap-nav button { justify-content: center; padding: 6px; } .ap .ap-brand { justify-content: center; margin: 10px 4px 12px; padding: 4px; } .ap-nav { padding: 0 4px; } .ap-health { font-size: 0; margin: 0 10px; } }
+/* Phone: the sidebar becomes a fixed top bar of icons (logo, tabs, settings), evenly spread. */
 @media (max-width: 699px) {
   .ap { grid-template-columns: minmax(0, 1fr); }
-  .ap-side { position: fixed; inset: auto 0 0 0; height: 68px; flex-direction: row; justify-content: space-around; padding: 6px 8px; }
-  .ap-side::before { inset: 4px 8px; border-radius: 22px; }
-  .ap-brand, .ap-gap, .ap-health { display: none; }
-  .ap-nav { flex-direction: row; padding: 0; }
-  main.ap-main { padding-bottom: 80px; }
+  .ap-side { position: fixed; inset: 0 0 auto 0; height: calc(60px + env(safe-area-inset-top)); flex-direction: row; align-items: center; justify-content: space-around;
+    gap: 0; padding: env(safe-area-inset-top) 10px 0; }
+  .ap-side::before { inset: calc(env(safe-area-inset-top) + 4px) 6px 4px; border-radius: 20px; }
+  .ap-brand-text, .ap-gap, .ap-health { display: none; }
+  .ap .ap-brand { margin: 0; padding: 0; }
+  .ap-brand-icon { width: 34px; height: 34px; border-radius: 10px; font-size: var(--fs-xl); }
+  .ap-nav { display: contents; }
+  .ap .ap-nav button { padding: 5px; gap: 0; }
+  .ap-games { grid-template-columns: minmax(0, 1fr); }
+  .ap .ap-game { grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; }
+  .ap-mine, .ap-meta { padding-left: 10px; min-width: 0; }
+  main.ap-main, main.ap-main:not(:has(.ap-page)) { padding: calc(64px + env(safe-area-inset-top)) 0 0; }
+  main.ap-main:not(:has(.ap-page)) { padding-inline: 12px; }
   .ap-page { padding: 14px 12px; }
   .ap-top { flex-wrap: wrap; gap: 10px; }
   .season-tools-x { width: 100%; }
   .ap-title { font-size: var(--fs-5xl); }
-  .ap-sheet-wrap { padding: 12px 12px 80px; }
+  .ap-sheet-wrap { padding: 48px 12px; }
+  .modal { min-width: 0; max-width: calc(100vw - 24px); }
+  .settings-modal { width: calc(100vw - 24px); height: calc(100vh - 96px); }
 }
+/* News → Teams Report popup (phone): below the player/team cards it opens. */
+.teams-pop { z-index: 39; }
+.teams-pop .news-teams { width: auto; max-height: none; }
+.ap .teams-pop-x { position: absolute; top: 14px; right: 16px; z-index: 3; width: 30px; height: 30px; padding: 0; display: grid; place-items: center; }
 
 .ap .news-list > .panel { padding-inline: 14px; }
 .ap .news-item .headshot, .ap .news-item img:first-child { width: 34px; height: 34px; }

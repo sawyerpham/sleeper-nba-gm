@@ -5,6 +5,7 @@ import SettingsPage from "./SettingsPage.jsx";
 import NotifyPage from "./NotifyPage.jsx";
 import Icon from "./Icon.jsx";
 import { signOut } from "./Auth.jsx";
+import useBackdrop from "./useBackdrop.js";
 
 
 const WALLPAPERS = [
@@ -74,10 +75,11 @@ export function useAppState() {
 }
 
 export function SettingsModal({ app, user }) {
-  if (!app.settingsOpen) return null;
   const close = () => app.setSettingsOpen(false);
+  const backdrop = useBackdrop(close);
+  if (!app.settingsOpen) return null;
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && close()} data-testid="settings-modal">
+    <div className="modal-backdrop" {...backdrop} data-testid="settings-modal">
       <div className="modal settings-modal">
         <button className="small settings-close" onClick={close} aria-label="Close settings" data-testid="settings-close"><Icon name="x" /></button>
       <div className="panel section-card" data-testid="section-account"><h2>Account</h2>
