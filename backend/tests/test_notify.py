@@ -138,7 +138,7 @@ def test_one_injury_is_one_message_through_the_watcher(monkeypatch):
     monkeypatch.setattr(service, "week_view", lambda *a, **k: {**view, "players": {"1": {"name": "A", "injury_tag": tag["v"]}}})
     monkeypatch.setattr(service, "team_plan", lambda *a, **k: plan)
     monkeypatch.setattr(service, "read_locks", lambda *a: {})
-    monkeypatch.setattr(service, "http_fetch", lambda p: None)
+    monkeypatch.setattr(service, "http_fetch", lambda *a, **k: None)
     monkeypatch.setattr(notify, "read_prefs", lambda accounts, uid: notify.NotifyPrefs().model_dump())
     msgs = []
     monkeypatch.setattr(notify, "send", lambda text, chat, accounts=None: chat == 7 and (msgs.append(text) or True))
@@ -205,7 +205,7 @@ def test_an_injured_starter_gets_one_message_with_the_injury_and_days(monkeypatc
                                                                "players": {"1": {"name": "Jaren Jackson Jr.", "injury_tag": tag["v"]}}})
     monkeypatch.setattr(service, "team_plan", lambda *a, **k: plan)
     monkeypatch.setattr(service, "read_locks", lambda *a: {})
-    monkeypatch.setattr(service, "http_fetch", lambda p: None)
+    monkeypatch.setattr(service, "http_fetch", lambda *a, **k: None)
     monkeypatch.setattr(service, "espn_injuries", lambda f: {notify.normalize_name("Jaren Jackson Jr."): _row("2026-12-14")} if rows["on"] else {})
     monkeypatch.setattr(notify, "read_prefs", lambda accounts, uid: notify.NotifyPrefs().model_dump())
     msgs = []
@@ -251,7 +251,7 @@ def test_the_message_that_reports_a_season_ending_injury_says_sorry_once(monkeyp
                                                                "players": {"1": {"name": "Jaren Jackson Jr.", "injury_tag": tag["v"]}}})
     monkeypatch.setattr(service, "team_plan", lambda *a, **k: plan)
     monkeypatch.setattr(service, "read_locks", lambda *a: {})
-    monkeypatch.setattr(service, "http_fetch", lambda p: None)
+    monkeypatch.setattr(service, "http_fetch", lambda *a, **k: None)
     monkeypatch.setattr(service, "espn_injuries", lambda f: row if tag["v"] else {})
     monkeypatch.setattr(notify, "read_prefs", lambda accounts, uid: notify.NotifyPrefs().model_dump())
     msgs = []
@@ -277,3 +277,46 @@ def linked_owner():
     acc.own("lg", uid)
     acc.own("unlinked", other)
     return acc
+
+
+def test_sleeper_budget_keeps_room_for_page_loads():
+    """Background calls stop at their cap while page loads still go through, and both wait out the window instead of failing."""
+    from nba_fantasy_shared.providers.sleeper_limit import SleeperLimiter
+
+    t, slept = [0.0], []
+    lim = SleeperLimiter(cap=5, background_cap=3, window_s=60, clock=lambda: t[0], sleep=lambda s: (slept.append(s), t.__setitem__(0, t[0] + s)))
+    for _ in range(3):
+        lim.acquire(background=True)
+    assert not slept and lim.used() == 3
+    lim.acquire(), lim.acquire()
+    assert not slept and lim.used() == 5
+    lim.acquire(background=True)            # 5 used, background cap 3: waits until 3 calls have aged out
+    assert slept and t[0] >= 60 and lim.used() <= 3
+
+
+def test_watcher_polls_every_minute_only_near_games(monkeypatch):
+    """With no game live or within 2 h, a league is polled once per QUIET_S; a live game makes every round poll."""
+    from types import SimpleNamespace
+
+    from app import notify
+    from app.lockin import service
+
+    calls, live = [], {"on": False}
+
+    def session(state, lid):
+        """Record the poll and stop there (the plan itself is covered elsewhere)."""
+        calls.append(lid)
+        raise ValueError("stop")
+
+    monkeypatch.setattr(service, "http_fetch", lambda *a, **k: None)
+    monkeypatch.setattr(service, "espn_day", lambda f, d, today: {"BOS": {"state": "in" if live["on"] else "pre", "tip": "2099-01-01T00:00Z"}})
+    monkeypatch.setattr("app.core.api.deps._session", session)
+    state = SimpleNamespace(store=None, platform=None, leagues=SimpleNamespace(list_ids=lambda: ["lg", "unlinked"]), accounts=linked_owner())
+    last: dict = {}
+    for _ in range(3):
+        notify.watch_once(state, set(), {}, last)
+    assert calls == ["lg"]                  # quiet: first round only; the unlinked league never
+    live["on"] = True
+    notify.watch_once(state, set(), {}, last)
+    notify.watch_once(state, set(), {}, last)
+    assert calls == ["lg", "lg", "lg"]

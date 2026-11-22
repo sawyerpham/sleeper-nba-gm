@@ -36,6 +36,8 @@ from .core.api.deps import get_state
 log = logging.getLogger(__name__)
 ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 POLL_S = 60
+QUIET_S = 15 * 60
+HOT_BEFORE_S = 2 * 3600
 MOVE_LEAD_MIN = 30
 TELEGRAM = "https://api.telegram.org/bot{}/{}"
 BOT_POLL_S = 50
@@ -358,24 +360,46 @@ def wanted(w: dict, prefs: dict, players_by_sid: dict) -> bool:
     return bool(prefs.get({"gtd": "dtd", "injury": "out"}.get(k, k), True))
 
 
-def watch_once(state, sent: set[str], tags: dict | None = None) -> None:
+def slate_hot(fetch, now: datetime, today) -> bool:
+    """Whether alerts can be due soon: an NBA game (yesterday's or today's, ESPN) is live or tips within HOT_BEFORE_S.
+    Every lock / swap / OUT / GTD call and lineup move is timed off a tip, so outside that only injury-tag changes
+    can come up, and those can wait QUIET_S. True when the scoreboard can't be read."""
+    from .lockin.service import espn_day
+
+    try:
+        for day in (today - timedelta(days=1), today):
+            for g in espn_day(fetch, day.isoformat(), today).values():
+                if g["state"] == "in" or (g["state"] == "pre" and g.get("tip") and _t(g["tip"]) - now <= timedelta(seconds=HOT_BEFORE_S)):
+                    return True
+    except Exception as exc:
+        log.info("scoreboard check failed, polling anyway: %s", exc)
+        return True
+    return False
+
+
+def watch_once(state, sent: set[str], tags: dict | None = None, last: dict | None = None) -> None:
     """One poll: for every league whose owner linked Telegram, compute today's plan and send to the owner's chat each newly
     due watch line their settings want, the injury-tag changes on the roster (`tags`: league -> sid -> last tag seen), and
-    the lineup moves due (one message). Leagues of users without a chat are skipped before any Sleeper call."""
+    the lineup moves due (one message). Leagues of users without a chat are skipped before any Sleeper call. With `last`
+    (league -> monotonic time of its last poll), a league is polled only every QUIET_S while no game is live or close
+    (slate_hot). Its Sleeper calls are background calls (the smaller share of the server's Sleeper budget)."""
     from .core.api.deps import _session
-    from .lockin.service import espn_injuries, http_fetch, read_locks, team_plan, week_view
+    from .lockin.service import espn_injuries, http_fetch, read_locks, team_plan, today_ct, week_view
 
     tags = {} if tags is None else tags
     accounts = state.accounts
+    fetch = http_fetch(state.platform, background=True)
+    hot = last is None or slate_hot(fetch, datetime.now(timezone.utc), today_ct())
     for lid in state.leagues.list_ids():
         owner = accounts.user(accounts.owner(lid) or 0)
         chat = owner and owner["tg_chat_id"]
-        if not chat:
+        if not chat or (not hot and time.monotonic() - last.get(lid, float("-inf")) < QUIET_S):
             continue
+        if last is not None:
+            last[lid] = time.monotonic()
         prefs = read_prefs(accounts, owner["id"])
         try:
             session = _session(state, lid)
-            fetch = http_fetch(state.platform)
             view = week_view(session, fetch, None)
             plan = team_plan(session, view, None, read_locks(state.store, lid, view["week"]))
             espn = espn_injuries(fetch)
@@ -429,13 +453,14 @@ def start_watcher(state) -> None:
     except (OSError, ValueError):
         sent = set()
     tags: dict = {}
+    last: dict = {}
 
     def loop() -> None:
         """Poll forever, saving the sent keys after each round."""
         while True:
             before = len(sent)
             try:
-                watch_once(state, sent, tags)
+                watch_once(state, sent, tags, last)
                 if len(sent) != before:
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_text(json.dumps(sorted(sent)), encoding="utf-8")

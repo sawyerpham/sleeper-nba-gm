@@ -19,6 +19,7 @@ from ..reconcile.names import normalize_name
 from ..storage.json_store import JsonStore
 from .base import CallFailed, CallRunner, FetchReport, ProgressCallback, as_int, emit, make_report, utcnow
 from .nba_api_provider import parse_height, search_refs
+from .sleeper_limit import LimitedSession
 
 log = logging.getLogger(__name__)
 
@@ -176,7 +177,7 @@ class SleeperProvider:
         """Create the provider (no network calls). `store` holds the caches; `session`, `base_url`, `cache_max_age` and `now` are injectable for tests."""
         self.store = store
         self.runner = runner or CallRunner()
-        self.session = session or requests.Session()
+        self.session = session or LimitedSession()
         self.base_url = base_url.rstrip("/")
         self.cache_max_age = cache_max_age
         self._now = now

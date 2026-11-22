@@ -19,6 +19,7 @@ from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 from nba_fantasy_shared.models.players import GameLine
+from nba_fantasy_shared.providers.sleeper_limit import priority
 from nba_fantasy_shared.reconcile.names import normalize_name
 from nba_fantasy_shared.scoring import base_points
 from nba_fantasy_shared.scoring.formula import score_game
@@ -58,14 +59,17 @@ Fetch = Callable[[str, int], Any]
 _cache: dict[str, tuple[float, Any]] = {}
 
 
-def http_fetch(platform: Any) -> Fetch:
-    """GET JSON through the Sleeper provider's HTTP session, cached per URL for `ttl` seconds; None on 404."""
+def http_fetch(platform: Any, background: bool = False) -> Fetch:
+    """GET JSON through the Sleeper provider's HTTP session, cached per URL for `ttl` seconds (shared by every user, so
+    owners of the same Sleeper league share each call); None on 404. `background` calls (the watcher) get the smaller
+    share of the server-wide Sleeper budget (sleeper_limit)."""
     def fetch(url: str, ttl: int) -> Any:
         """Cached GET: reuse a response younger than `ttl` seconds, else fetch it."""
         hit = _cache.get(url)
         if hit and time.monotonic() - hit[0] < ttl:
             return hit[1]
-        resp = platform.session.get(url, timeout=10)
+        with priority(background):
+            resp = platform.session.get(url, timeout=10)
         data = None if resp.status_code == 404 else (resp.raise_for_status() or resp.json())
         _cache[url] = (time.monotonic(), data)
         return data
