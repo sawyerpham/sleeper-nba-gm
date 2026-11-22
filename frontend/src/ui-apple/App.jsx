@@ -147,7 +147,7 @@ function Widgets({ data, plan, shown, open }) {
         {next && <span className="ap-foot">in {untilText(Math.ceil((next - nowMs) / 60000))}</span>}
       </div>
       <div className="ap-widget ap-lock-widget" data-testid="lockable">
-        <span className="ap-label">Lockable games{!wait && lockable.length > 0 && ` · ${lockable.length}`}</span>
+        <span className="ap-label">Lockable games</span>
         {wait ? <span className="ap-foot">loading</span> : !lockable.length ? <span className="ap-foot">No lock is worth making right now.</span> : (
           <div className="ap-locks">
             {lockable.slice(0, 6).map((r) => {
