@@ -459,7 +459,10 @@ def watch_once(state, sent: set[str], tags: dict | None = None, last: dict | Non
     accounts = state.accounts
     fetch = http_fetch(state.platform, background=True)
     hot = last is None or slate_hot(fetch, datetime.now(timezone.utc), today_ct())
-    for lid in state.leagues.list_ids():
+    # Two of one owner's leagues on the same Sleeper league (an old copy plus a re-import) alert once, from the
+    # sleeper-<id> one (the id the import creates, and the one the app picks on a new device).
+    seen: set[tuple[int, str]] = set()
+    for lid in sorted(state.leagues.list_ids(), key=lambda i: not i.startswith("sleeper-")):
         owner = accounts.user(accounts.owner(lid) or 0)
         chat = owner and owner["telegram"] and owner["tg_chat_id"]
         if not chat or (not hot and time.monotonic() - last.get(lid, float("-inf")) < QUIET_S):
@@ -469,6 +472,10 @@ def watch_once(state, sent: set[str], tags: dict | None = None, last: dict | Non
         prefs = read_prefs(accounts, owner["id"])
         try:
             session = _session(state, lid)
+            sleeper_id = session.league.sleeper_league_id if session else None
+            if sleeper_id and (owner["id"], sleeper_id) in seen:
+                continue
+            seen.add((owner["id"], sleeper_id))
             view = week_view(session, fetch, None)
             plan = team_plan(session, view, None, read_locks(state.store, lid, view["week"]))
             espn = espn_injuries(fetch)

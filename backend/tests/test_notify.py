@@ -154,6 +154,42 @@ def test_one_injury_is_one_message_through_the_watcher(monkeypatch):
     assert len(msgs) == 1
 
 
+def test_two_copies_of_one_sleeper_league_alert_once(monkeypatch):
+    """Replay of 11-22: an owner had "tobedecided" and a re-imported "sleeper-1" on the same Sleeper league, and every
+    alert arrived twice. Only the sleeper-<id> copy is watched; a different Sleeper league of the same owner still is."""
+    from types import SimpleNamespace
+
+    from app import notify
+    from app.core.api import deps
+    from app.lockin import service
+
+    sleeper = {"tobedecided": "1", "sleeper-1": "1", "other": "2"}
+    polled = []
+
+    def session(state, lid):
+        """A session whose league points at its Sleeper league."""
+        polled.append(lid)
+        return SimpleNamespace(league=SimpleNamespace(sleeper_league_id=sleeper[lid]))
+
+    monkeypatch.setattr(deps, "_session", session)
+    monkeypatch.setattr(service, "week_view", lambda *a, **k: {"today": "2026-11-22", "tz": "UTC", "week": 1, "players": {}})
+    monkeypatch.setattr(service, "team_plan", lambda *a, **k: {"players": [], "today": {}})
+    monkeypatch.setattr(service, "read_locks", lambda *a: {})
+    monkeypatch.setattr(service, "http_fetch", lambda *a, **k: None)
+    monkeypatch.setattr(service, "espn_injuries", lambda *a: {})
+    acc = linked_owner()
+    uid = acc.owner("lg")
+    for lid in sleeper:
+        acc.own(lid, uid)
+    state = SimpleNamespace(store=None, platform=None, leagues=SimpleNamespace(list_ids=lambda: ["tobedecided", "sleeper-1", "other"]), accounts=acc)
+    notify.watch_once(state, set(), {})
+    assert polled == ["sleeper-1", "tobedecided", "other"]   # tobedecided is looked at, then dropped as a duplicate
+    watched = []
+    monkeypatch.setattr(service, "week_view", lambda s, *a, **k: watched.append(s.league.sleeper_league_id) or {"today": "2026-11-22", "tz": "UTC", "week": 1, "players": {}})
+    notify.watch_once(state, set(), {})
+    assert watched == ["1", "2"]
+
+
 def _row(back, what="Right knee", comment=""):
     """An ESPN injury row as espn_injuries returns it."""
     from datetime import date
