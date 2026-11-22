@@ -78,8 +78,6 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
 .ap-call-icon { flex: none; width: 30px; height: 30px; display: grid; place-items: center; font-size: var(--fs-lg); border-radius: 9px; color: #fff; background: var(--st); }
 .ap-call-body { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
 .ap-call-when { flex: none; font-size: var(--fs-sm); font-weight: 600; color: var(--muted); }
-.ap-call-who { flex: none; display: flex; }
-.ap .ap-call-who button { padding: 0; width: 30px; height: 30px; margin-left: -6px; overflow: hidden; background: var(--panel-solid); border: 2px solid var(--panel-solid); }
 .ap-game { color: var(--text); font: inherit; }
 .ap-games { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 0 8px 4px; }.ap-games .ap-row::before { display: none; }
 .ap .ap-game { display: grid; grid-template-columns: minmax(0, 1fr) 150px auto; gap: 14px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel-2, transparent); }

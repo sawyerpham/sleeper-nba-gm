@@ -94,7 +94,7 @@ function AppleSeason({ leagueId, leagueName, view, onWeek }) {
               <Widgets data={data} plan={plan} shown={shown} open={s.open} />
               <div className="ap-pair">
                 <Slate data={data} s={s} rid={away ? focusRid : plan.roster_id} />
-                <Calls data={data} plan={shown} s={s} />
+                <Calls data={data} plan={shown} />
               </div>
               <WeekView key={data.week} data={data} plan={plan} open={s.open} openGame={s.openGame} setLock={s.setLock} leagueId={leagueId} onShow={setFocusRid} focus={s.matchup} />
             </section>
@@ -180,7 +180,7 @@ const MASCOT = String.raw`    /\_/\
  '.   |   .'
    '-...-'`;
 
-function Calls({ data, plan, s }) {
+function Calls({ data, plan }) {
   const calls = plan ? callsOf(data, plan) : [];
   return (
     <section className="panel ap-group" data-testid="calls">
@@ -192,9 +192,6 @@ function Calls({ data, plan, s }) {
           <span className="ap-call-icon"><Icon name={CALL_ICON[c.kind] || "alert"} /></span>
           <span className="ap-call-body"><strong>{c.title}</strong>{c.text && <span className="small muted">{c.text}</span>}</span>
           <span className="ap-call-when">{!c.when || c.when === "now" ? "Now" : timeOf(c.when)}</span>
-          <span className="ap-call-who">{[c.sid, c.sid2].filter(Boolean).map((sid) => (
-            <button key={sid} onClick={() => s.open(sid)} title={data.players[sid]?.name}><Headshot sleeperId={sid} name={data.players[sid]?.name || ""} size={30} /></button>
-          ))}</span>
         </div>
       ))}
     </section>
