@@ -25,7 +25,8 @@ export function SeasonSummary({ sea, onOpenGame, onOpenMatchup }) {
   const g = sea.last_game, a = sea.averages, live = g?.state === "in";
   const stat = (label, value) => <div className="sp-stat"><span>{label}</span><strong>{value}</strong></div>;
   const openable = g?.event && onOpenGame;
-  const next = (sea.games || []).find((x) => x.state === "pre") || sea.season_log.find((r) => r.status === "pre_game" && r.date > sea.today);
+  const next = sea.next_game;
+  const nextOpenable = next?.event && onOpenGame;
   const { mins, countdown, when } = tipInfo(next?.tip);
   return (
     <div data-testid="season-summary">
@@ -53,7 +54,9 @@ export function SeasonSummary({ sea, onOpenGame, onOpenMatchup }) {
         </div>
       )}
       {next && sea.team && (
-        <div className="sp-game sp-next" data-testid="next-game">
+        <div className={`sp-game sp-next ${nextOpenable ? "clickable" : ""}`} data-testid="next-game"
+          onClick={nextOpenable ? () => onOpenGame({ game: next, team: sea.team, sid: sea.sleeper_id }) : undefined}
+          data-tip={nextOpenable ? "Open the game" : undefined}>
           <div className="gp-score">
             {(next.home ? [[next.opp, next.opp_record], [sea.team, next.record]] : [[sea.team, next.record], [next.opp, next.opp_record]]).map(([abbr, rec], i) => (
               <React.Fragment key={abbr}>

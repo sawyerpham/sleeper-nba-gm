@@ -1044,6 +1044,19 @@ def team_ranks(rows: list[dict], team: str, done: set[str]) -> dict | None:
     return out
 
 
+def next_game_of(week_games: list[dict], season_log: list[dict], team: str | None, fetch: Fetch, today: str) -> dict | None:
+    """His next game that hasn't tipped: from this week's games when one is left (they carry ESPN's event, tip and records),
+    else the next date in the season schedule, filled in from that day's ESPN scoreboard so the game card can open it."""
+    g = next((x for x in week_games if x.get("state") == "pre"), None)
+    if g or not team:
+        return g
+    row = next((r for r in season_log if r.get("status") == "pre_game" and r["date"] > today), None)
+    if not row:
+        return None
+    espn = espn_day(fetch, row["date"], date.fromisoformat(today)).get(team) or {}
+    return {**row, "state": "pre", **{k: espn.get(k) for k in ("tip", "event", "record", "opp_record")}}
+
+
 def season_player(session, fetch: Fetch, player_id: int, week: int | None = None) -> dict:
     """Owner, this week's games, recent game log, ranks and news for any player (rostered or not)."""
     rec = session.players.get(player_id)
@@ -1101,6 +1114,7 @@ def season_player(session, fetch: Fetch, player_id: int, week: int | None = None
                 "team_pts": (wk or {}).get("score") or last["team_pts"], "opp_pts": (wk or {}).get("opp_score") or last["opp_pts"],
                 "event": (wk or {}).get("event") or (espn_day(fetch, last["date"], date.fromisoformat(view["today"])).get(team_abbr) or {}).get("event")}
     research = (fetch(f"{SLEEPER}/players/nba/research/regular/{year}/{view['week']}", WEEK_TTL) or {}).get(sid) or {}
+    next_game = next_game_of(me.get("games", []), season_log, team_abbr, fetch, view["today"])
 
     adp = sorted(((r.projection or {}).get("adp_std"), pid) for pid, r in session.players.items()
                  if (r.projection or {}).get("adp_std"))
@@ -1120,7 +1134,7 @@ def season_player(session, fetch: Fetch, player_id: int, week: int | None = None
             "team_ranks": team_ranks(season_rows, team_abbr, {g.get("game_id") for g in schedule if g.get("status") == "complete"})
             if team_abbr else None,
             "acquired": acquisitions(session, fetch, view, sid),
-            "season_log": season_log, "averages": averages, "games_played": len(done), "last_game": last,
+            "season_log": season_log, "averages": averages, "games_played": len(done), "last_game": last, "next_game": next_game,
             "owned": research.get("owned"), "started": research.get("started"),
             "news": player_news(fetch, sid)}
 
