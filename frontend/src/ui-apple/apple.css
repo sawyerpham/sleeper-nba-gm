@@ -4,7 +4,7 @@
   box-shadow: var(--shadow); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); z-index: -1; }
 .ap-side > * { position: relative; }
 .ap .ap-brand { display: flex; align-items: center; gap: 12px; margin: 10px 10px 12px; padding: 8px; border-radius: 16px; background: transparent; text-align: left; }
-.ap-brand-icon { flex: none; width: 42px; height: 42px; display: grid; place-items: center; font-size: 24px; border-radius: 12px; color: #fff;
+.ap-brand-icon { flex: none; width: 42px; height: 42px; display: grid; place-items: center; font-size: var(--fs-2xl); border-radius: 12px; color: #fff;
   background: linear-gradient(160deg, #ff9f0a, #ff6a00); box-shadow: 0 4px 12px rgba(255, 106, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
 .ap-brand-text { min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
 .ap-brand-text strong { font-size: var(--fs-md); font-weight: 700; }
@@ -13,7 +13,7 @@
 .ap .ap-nav button { display: flex; align-items: center; gap: 12px; padding: 7px 10px; border-radius: 12px; background: transparent; color: var(--text); font-size: var(--fs-md); font-weight: 500; text-align: left; }
 .ap .ap-nav button:hover { background: var(--hover); }
 .ap .ap-nav button.active { background: color-mix(in srgb, var(--primary) 16%, transparent); color: var(--text); font-weight: 600; }
-.ap-tile { width: 30px; height: 30px; display: grid; place-items: center; font-size: 17px; border-radius: 9px; color: #fff; background: var(--c);
+.ap-tile { width: 30px; height: 30px; display: grid; place-items: center; font-size: var(--fs-lg); border-radius: 9px; color: #fff; background: var(--c);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2); }
 .ap-gap { flex: 1; }
 .ap-health { margin: 0 14px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; border-radius: 12px; font-size: var(--fs-xs); font-weight: 600; background: var(--bad); color: var(--bad-t); }
@@ -73,7 +73,7 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
 .ap-empty { color: var(--muted); font-size: var(--fs-sm); }
 .ap-call { --st: var(--muted); }
 .ap-call.bad { --st: var(--danger); } .ap-call.even { --st: var(--q); } .ap-call.good { --st: var(--ok); }
-.ap-call-icon { flex: none; width: 30px; height: 30px; display: grid; place-items: center; font-size: 17px; border-radius: 9px; color: #fff; background: var(--st); }
+.ap-call-icon { flex: none; width: 30px; height: 30px; display: grid; place-items: center; font-size: var(--fs-lg); border-radius: 9px; color: #fff; background: var(--st); }
 .ap-call-body { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
 .ap-call-when { flex: none; font-size: var(--fs-sm); font-weight: 600; color: var(--muted); }
 .ap-call-who { flex: none; display: flex; }
@@ -163,7 +163,7 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
 .ap-st-cut::before, .ap-st-cut::after { content: ""; flex: 1; border-top: 1px dashed var(--border); }
 .ap-sheet > .panel { scrollbar-width: none; } .ap-sheet > .panel::-webkit-scrollbar { display: none; }
 .ap .ap-mascot-row { justify-content: center; background: none; }
-.ap-mascot { margin: 0; flex: none; font: 600 12px/1.15 ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: var(--muted); white-space: pre; background: none; }
+.ap-mascot { margin: 0; flex: none; font: 600 var(--fs-2xs)/1.15 ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: var(--muted); white-space: pre; background: none; }
 .ap-rec { flex: none; font-size: var(--fs-3xs); font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
 .ap-who { display: inline-flex; gap: 0; padding: 0; overflow: hidden; border-radius: 999px; background: var(--panel-solid); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14); }
 :root[data-theme] .ap-who button { max-width: 150px; padding: 7px 18px; border: 0; border-radius: 0; background: var(--panel-2); color: var(--muted); font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
