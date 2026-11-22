@@ -591,8 +591,6 @@ function Timeline({ tl, nowMs, atMs, setAt, view, setView, differs }) {
   const frac = (ms) => Math.min(1, Math.max(0, (ms - start) / (end - start)));
   const at = (ms) => `calc(${frac(ms)} * (100% - 16px) + 8px)`;
   const days = Array.from({ length: 7 }, (_, i) => start + i * 86400000 + 12 * 3600000);
-  const next = tl.segments.slice(0, -1).map((s) => Date.parse(s.to)).find((ms) => ms > nowMs);
-  const until = untilText(next ? Math.ceil((next - nowMs) / 60000) : 0);
   return (
     <div className="timeline" data-testid="timeline">
       <button className="tl-next" onClick={() => setView(view === "best" ? "sleeper" : "best")} disabled={!differs} data-testid="lineup-toggle"
@@ -610,11 +608,6 @@ function Timeline({ tl, nowMs, atMs, setAt, view, setView, differs }) {
           <span className="tl-time" style={{ left: at(atMs) }} data-testid="timeline-time">{fmt(atMs, { hour: "numeric", minute: "2-digit" })}</span>
         </div>
       </div>
-      {next && <button className="tl-next" onClick={() => setAt(next)} data-testid="next-check"
-        data-tip="The next time the lineup changes: open Sleeper then and make every swap at once. Click to show that lineup.">
-        <span className="tl-next-head"><span className="tl-next-label">Next check-in</span><span className="tl-next-in">in {until}</span></span>
-        <strong>{fmt(next, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</strong>
-      </button>}
     </div>
   );
 }
