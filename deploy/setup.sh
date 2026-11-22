@@ -22,6 +22,7 @@ sudo netfilter-persistent save
 mkdir -p ~/app/backend/data
 
 line="0 9 * * * cd $HOME/app/deploy && docker compose -f compose.prod.yml exec -T app python -m app.backup >> $HOME/backup.log 2>&1"
-(crontab -l 2>/dev/null | grep -v app.backup; echo "$line") | crontab -
+# A fresh server has no crontab yet: `crontab -l` fails, so don't let pipefail stop the script there.
+{ crontab -l 2>/dev/null | grep -v app.backup || true; echo "$line"; } | crontab -
 
 echo "Done. Log out and back in (for the docker group), then follow README > Deploy from step 4."
