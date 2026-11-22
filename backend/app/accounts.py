@@ -1,6 +1,8 @@
 """Accounts (P39): users, magic-link login, sessions, league ownership, Telegram links and usage events, in one SQLite
 file (data/app.db). Every token (login, session, Telegram link) is stored as its SHA-256 hash, so a copy of the database
-can't be used to sign in. Admins are the emails listed in ADMIN_EMAILS (comma-separated)."""
+can't be used to sign in. Account types: "owner" (the emails in ADMIN_EMAILS, comma-separated; can't be changed in the
+app, so nobody can lock the owner out), "admin" (promoted by an owner or admin in the Admin tab) and "user". Owners and
+admins both count as admin."""
 
 from __future__ import annotations
 
@@ -18,7 +20,10 @@ LOGIN_TTL = 15 * 60
 SESSION_TTL = 30 * 24 * 3600
 LINK_TTL = 10 * 60
 SEEN_EVERY = 60
-EMAIL = re.compile(r"^[^@\s]{1,64}@[^@\s]+\.[^@\s]{2,}$")
+# Plain addresses only: letters, digits and . _ % + - before the @, a dotted domain after it. No spaces, quotes, angle
+# brackets, commas or line breaks, so an address can't smuggle extra recipients, headers or markup into the email.
+EMAIL = re.compile(r"^[a-z0-9._%+-]{1,64}@(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$")
+ROLES = ("user", "admin")
 # (event kind, key column, max count, window seconds)
 LIMITS = {
     "login_email": [("email", 3, 15 * 60), ("ip", 10, 3600)],
@@ -52,6 +57,11 @@ def admin_emails() -> set[str]:
     return {e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip()}
 
 
+def role_of(email: str, role: str | None) -> str:
+    """An account's type: owner (in ADMIN_EMAILS), else its saved role."""
+    return "owner" if email in admin_emails() else ("admin" if role == "admin" else "user")
+
+
 def normalize_email(email: str) -> str:
     """The email lower-cased and trimmed; ValueError when it doesn't look like one."""
     email = (email or "").strip().lower()
@@ -73,6 +83,8 @@ class Accounts:
         with self._lock:
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.executescript(SCHEMA)
+            if "role" not in {r[1] for r in self._db.execute("PRAGMA table_info(users)")}:
+                self._db.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'")
 
     def _q(self, sql: str, *args) -> list[sqlite3.Row]:
         """Run one statement and return its rows."""
@@ -146,8 +158,24 @@ class Accounts:
         self._q("DELETE FROM tokens WHERE hash = ? AND kind = 'session'", _hash(session or ""))
 
     def _user(self, row: sqlite3.Row) -> dict:
-        """A users row as a dict, with `admin` from ADMIN_EMAILS."""
-        return {**dict(row), "admin": row["email"] in admin_emails()}
+        """A users row as a dict with its account type (`kind`: owner / admin / user) and `admin` (owner or admin)."""
+        kind = role_of(row["email"], row["role"])
+        return {**dict(row), "kind": kind, "admin": kind != "user"}
+
+    def set_role(self, user_id: int, role: str) -> dict:
+        """Make a user an admin or a plain user (ValueError for an owner, who is set in ADMIN_EMAILS, or an unknown role).
+        A user who stops being an admin loses their Telegram link, since alerts are admin-only."""
+        if role not in ROLES:
+            raise ValueError(f"role must be one of {', '.join(ROLES)}")
+        user = self.user(user_id)
+        if user is None:
+            raise LookupError(user_id)
+        if user["kind"] == "owner":
+            raise ValueError("Owners are set in ADMIN_EMAILS on the server and can't be changed here")
+        self._q("UPDATE users SET role = ? WHERE id = ?", role, user_id)
+        if role == "user":
+            self.unlink_user(user_id)
+        return self.user(user_id)
 
     def user(self, user_id: int) -> dict | None:
         """A user by id."""
@@ -251,7 +279,7 @@ class Accounts:
     def stats(self) -> dict:
         """Counts for the admin panel: users, activity, leagues, Telegram, sign-ins and pushes, sign-ups per day for 14 days,
         and the 100 most recently seen users."""
-        now, day, admins = time.time(), 24 * 3600, admin_emails()
+        now, day = time.time(), 24 * 3600
 
         def count(sql: str, *args) -> int:
             """A COUNT(*) query's number."""
@@ -264,11 +292,11 @@ class Accounts:
         by_day = {r[0]: r[1] for r in self._q(
             "SELECT date(created_at, 'unixepoch') d, COUNT(*) FROM users WHERE created_at > ? GROUP BY d", now - 14 * day)}
         days = [time.strftime("%Y-%m-%d", time.gmtime(now - k * day)) for k in range(13, -1, -1)]
-        recent = self._q("""SELECT u.email, u.created_at, u.last_seen, u.tg_chat_id IS NOT NULL tg, COUNT(l.league_id) leagues
+        recent = self._q("""SELECT u.id, u.email, u.role, u.created_at, u.last_seen, u.tg_chat_id IS NOT NULL tg, COUNT(l.league_id) leagues
                             FROM users u LEFT JOIN leagues l ON l.user_id = u.id GROUP BY u.id ORDER BY u.last_seen DESC LIMIT 100""")
         return {
             "users": count("SELECT COUNT(*) FROM users"),
-            "admins": count(f"SELECT COUNT(*) FROM users WHERE email IN ({','.join('?' * len(admins))})", *admins) if admins else 0,
+            "admins": sum(role_of(r["email"], r["role"]) != "user" for r in self._q("SELECT email, role FROM users")),
             "new_7d": count("SELECT COUNT(*) FROM users WHERE created_at > ?", now - 7 * day),
             "active_24h": count("SELECT COUNT(*) FROM users WHERE last_seen > ?", now - day),
             "active_7d": count("SELECT COUNT(*) FROM users WHERE last_seen > ?", now - 7 * day),
@@ -279,7 +307,7 @@ class Accounts:
             "logins_24h": events("login", now - day) + events("signup", now - day),
             "login_emails_24h": events("login_email", now - day),
             "signups_by_day": [{"day": d, "n": by_day.get(d, 0)} for d in days],
-            "recent": [{"email": r["email"], "created_at": r["created_at"], "last_seen": r["last_seen"],
-                        "telegram": bool(r["tg"]), "leagues": r["leagues"], "role": "admin" if r["email"] in admins else "user"}
+            "recent": [{"id": r["id"], "email": r["email"], "created_at": r["created_at"], "last_seen": r["last_seen"],
+                        "telegram": bool(r["tg"]), "leagues": r["leagues"], "role": role_of(r["email"], r["role"])}
                        for r in recent],
         }

@@ -45,17 +45,25 @@ function BotSettings() {
 }
 
 /** Admin tab: usage numbers, sign-ups over 14 days, the most recently seen users, and the data pull. */
+const KIND = { owner: "Owner", admin: "Admin", user: "User" };
+
 export default function AdminPage({ onPoolChanged }) {
   const [st, setSt] = useState(null);
   const [error, setError] = useState("");
+  const load = () => api.get("/admin/stats").then(setSt).catch((e) => setError(e.message));
   useEffect(() => {
-    const load = () => api.get("/admin/stats").then(setSt).catch((e) => setError(e.message));
     load();
     const t = setInterval(load, 30000);
     return () => clearInterval(t);
   }, []);
+  const setRole = async (u, role) => {
+    const what = role === "admin" ? `Make ${u.email} an admin? They'll see this tab, run data pulls and can promote others.` : `Make ${u.email} a regular user again?`;
+    if (!window.confirm(what)) return;
+    setError("");
+    try { await api.put(`/admin/users/${u.id}/role`, { role }); load(); } catch (e) { setError(e.message); }
+  };
   const tiles = st ? [
-    ["Users", st.users, `${st.admins} admin · +${st.new_7d} this week`],
+    ["Users", st.users, `${st.admins} admin · ${st.new_7d} new this week`],
     ["Active today", st.active_24h, `${st.active_7d} this week`],
     ["Leagues", st.leagues, `${st.leagues_on_disk} on disk`],
     ["Alerts sent", st.sent_24h, `${st.sent_7d} this week`],
@@ -86,10 +94,12 @@ export default function AdminPage({ onPoolChanged }) {
           <section className="panel">
             <h3>Users <span className="small muted">most recently seen first</span></h3>
             <table className="ap-admin-users">
-              <thead><tr><th>Email</th><th>Type</th><th>Joined</th><th>Last seen</th><th>Leagues</th><th>Telegram</th></tr></thead>
+              <thead><tr><th>Email</th><th>Type</th><th>Joined</th><th>Last seen</th><th>Leagues</th><th>Telegram</th><th><span className="sr-only">Change type</span></th></tr></thead>
               <tbody>
                 {st.recent.map((u) => (
-                  <tr key={u.email}><td>{u.email}</td><td><span className={`ap-role ${u.role}`}>{u.role === "admin" ? "Admin" : "User"}</span></td><td>{when(u.created_at)}</td><td>{when(u.last_seen)}</td><td>{u.leagues}</td><td>{u.telegram ? "linked" : "-"}</td></tr>
+                  <tr key={u.id}><td>{u.email}</td><td><span className={`ap-role ${u.role}`}>{KIND[u.role]}</span></td><td>{when(u.created_at)}</td><td>{when(u.last_seen)}</td><td>{u.leagues}</td><td>{u.telegram ? "linked" : "-"}</td>
+                    <td>{u.role === "owner" ? <span className="small muted" title="Set in ADMIN_EMAILS on the server">fixed</span>
+                      : <button className="small" onClick={() => setRole(u, u.role === "admin" ? "user" : "admin")} data-testid={`role-${u.id}`}>{u.role === "admin" ? "Make user" : "Make admin"}</button>}</td></tr>
                 ))}
               </tbody>
             </table>

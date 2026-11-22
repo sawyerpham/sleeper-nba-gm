@@ -10,9 +10,9 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -33,6 +33,18 @@ log = logging.getLogger(__name__)
 
 API_VERSION = "0.1.0"
 DEFAULT_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000"]
+# Scripts only from this site (no inline or injected script can run even if some text slipped through unescaped), no
+# framing (clickjacking), no Referer (the sign-in link carries its token in the URL). Images, fonts and stream lookups
+# come from other sites (Sleeper / ESPN / CDNs, Google Fonts), so those stay open to https.
+SECURITY_HEADERS = {
+    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                               "font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' https:; "
+                               "media-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+}
 STATIC_DIR = Path(os.environ.get("STATIC_DIR", config.BACKEND_ROOT.parent / "frontend" / "dist"))
 
 
@@ -46,7 +58,7 @@ def build_default_state(data_dir=None) -> AppState:
 
 
 def create_app(state: AppState | None = None) -> FastAPI:
-    """Build the FastAPI app: CORS for the dev servers, the auth and admin routers, the data (admin only) / players / leagues /
+    """Build the FastAPI app: the CSRF guard and security headers, the auth and admin routers, the data (admin only) / players / leagues /
     draft / season / notify routers under /api behind sign-in (and league ownership, auth.current_user), the public calculators, a health check, error handlers (draft errors 400, unknown league 404, pull already running 409), and the built frontend at / when STATIC_DIR exists."""
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -60,8 +72,24 @@ def create_app(state: AppState | None = None) -> FastAPI:
 
     app = FastAPI(title="NBA Fantasy Tool API", version=API_VERSION, lifespan=lifespan)
     app.state.app_state = state
-    app.add_middleware(CORSMiddleware, allow_origins=DEFAULT_ORIGINS, allow_credentials=True,
-                       allow_methods=["*"], allow_headers=["*"])
+
+    @app.middleware("http")
+    async def guard(request: Request, call_next):
+        """Two protections on every request. (1) A request that changes something (POST / PUT / PATCH / DELETE) from a
+        browser must come from this site: its Origin must be this host, APP_URL or a local dev server, so another site
+        can't make a signed-in visitor's browser act for them (CSRF; the SameSite=Lax cookie already blocks most of it).
+        Clients that send no Origin (curl, tests) aren't browsers and pass. (2) Security headers on every response
+        (SECURITY_HEADERS); API answers are also never cached."""
+        origin = request.headers.get("origin")
+        if request.method not in ("GET", "HEAD", "OPTIONS") and origin is not None:
+            allowed = {request.headers.get("host", ""), urlsplit(auth.app_url()).netloc} | {urlsplit(o).netloc for o in DEFAULT_ORIGINS}
+            if urlsplit(origin).netloc not in allowed:
+                return JSONResponse(status_code=403, content={"detail": "Cross-site request refused"})
+        response = await call_next(request)
+        response.headers.update(SECURITY_HEADERS)
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
 
     signed_in, admin = [Depends(auth.current_user)], [Depends(auth.require_admin)]
     app.include_router(auth.router, prefix="/api")

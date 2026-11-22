@@ -8,4 +8,6 @@ document.addEventListener("focusin", (e) => {
   if (e.target instanceof HTMLInputElement && e.target.type === "number") e.target.select();
 });
 
+document.documentElement.dataset.theme = "apple";   // before the sign-in gate, so the login page has the app's theme too
+
 createRoot(document.getElementById("root")).render(<AuthGate>{(user) => <App user={user} />}</AuthGate>);

@@ -196,3 +196,5 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
 .ap-admin-bot input { flex: 1; min-width: 220px; }
 .ap-role { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: var(--fs-xs); font-weight: 600; background: var(--panel-2); }
 .ap-role.admin { background: color-mix(in srgb, #5856d6 22%, transparent); }
+.ap-role.owner { background: color-mix(in srgb, #ff9500 24%, transparent); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

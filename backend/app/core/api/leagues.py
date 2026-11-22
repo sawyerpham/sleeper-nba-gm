@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from dataclasses import asdict
 
@@ -14,7 +15,7 @@ from ..engine import roster
 from ..services.app_state import AppState
 from ..services.league_repository import default_managers, validate_league_id
 from .deps import _session, get_state
-from .schemas import CreateLeague, KeeperEvaluateIn, KeeperHistoryIn, ManagerPatch, SleeperApplyIn, SleeperPreviewIn
+from .schemas import SLEEPER_ID, CreateLeague, KeeperEvaluateIn, KeeperHistoryIn, ManagerPatch, SleeperApplyIn, SleeperPreviewIn
 
 router = APIRouter(prefix="/leagues", tags=["leagues"])
 
@@ -84,8 +85,11 @@ def get_settings(league_id: str, state: AppState = Depends(get_state)) -> League
 
 @router.put("/{league_id}/settings")
 def put_settings(league_id: str, body: LeagueSettings, state: AppState = Depends(get_state)) -> LeagueSettings:
-    """Replace a league's settings (validated; valuations recompute when scoring changed)."""
+    """Replace a league's settings (validated; valuations recompute when scoring changed). The Sleeper ids must be
+    numbers (they go into Sleeper URLs)."""
     _session(state, league_id)
+    if any(not re.fullmatch(SLEEPER_ID, i) for i in [body.sleeper_league_id or "0", *body.sleeper_history_league_ids]):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Sleeper league ids are numbers")
     try:
         session = state.replace_league_settings(league_id, body)
     except ValueError as exc:

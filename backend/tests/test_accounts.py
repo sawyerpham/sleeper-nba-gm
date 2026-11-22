@@ -79,7 +79,7 @@ def test_admin_only_routes_and_the_admin_takes_over_old_leagues(app):
     assert admin.get("/api/leagues/old").status_code == 200
     stats = admin.get("/api/admin/stats").json()
     assert stats["users"] == 2 and stats["leagues"] == 1 and stats["active_24h"] == 2 and stats["logins_24h"] == 2
-    assert {r["email"]: r["role"] for r in stats["recent"]} == {ADMIN: "admin", "fan@test.local": "user"} and stats["admins"] == 1
+    assert {r["email"]: r["role"] for r in stats["recent"]} == {ADMIN: "owner", "fan@test.local": "user"} and stats["admins"] == 1
     assert len(stats["signups_by_day"]) == 14
     assert fan.get("/api/notify").status_code == 403 and fan.post("/api/notify/link").status_code == 403
 
@@ -191,3 +191,64 @@ def test_bot_token_format_is_checked_before_any_call(monkeypatch):
     for bad in ("", "abc", "123:short", "123456789:" + "A" * 35 + "/../x"):
         with pytest.raises(ValueError, match="bot token"):
             notify.check_token(bad)
+
+
+@pytest.mark.parametrize("bad", [
+    "a@b.co\r\nBcc: victim@x.com", "a@b.co,c@d.co", "<script>alert(1)</script>@x.com", '"a b"@x.com', "a@b.co>", "a@b",
+    "a@-b.co", "a@b.co' OR '1'='1", "x" * 65 + "@b.co", "a@b.c0", "",
+])
+def test_emails_that_try_to_inject_are_refused(app, bad):
+    """Line breaks (extra headers), commas (extra recipients), markup and quotes never get through the email check."""
+    assert TestClient(app).post("/api/auth/login", json={"email": bad}).status_code == 400
+
+
+def test_owner_promotes_and_demotes_and_nobody_else_can(app):
+    """Owners and admins change user types; an owner can't be changed; a demoted admin loses admin pages and Telegram."""
+    state = app.state.app_state
+    owner, fan, other = TestClient(app), TestClient(app), TestClient(app)
+    sign_in(owner)
+    fan_id = sign_in(fan, "fan@test.local")["id"]
+    other_id = sign_in(other, "other@test.local")["id"]
+    owner_id = state.accounts.user_by_email(ADMIN)["id"]
+    assert fan.put(f"/api/admin/users/{other_id}/role", json={"role": "admin"}).status_code == 403
+    assert fan.put(f"/api/admin/users/{fan_id}/role", json={"role": "admin"}).status_code == 403    # no self-promotion
+    assert owner.put(f"/api/admin/users/{fan_id}/role", json={"role": "boss"}).status_code == 422
+    assert owner.put(f"/api/admin/users/{owner_id}/role", json={"role": "user"}).status_code == 400
+    assert owner.put("/api/admin/users/999/role", json={"role": "admin"}).status_code == 404
+    assert owner.put(f"/api/admin/users/{fan_id}/role", json={"role": "admin"}).json()["role"] == "admin"
+    assert fan.get("/api/auth/me").json() == {"id": fan_id, "email": "fan@test.local", "admin": True, "kind": "admin"}
+    assert fan.get("/api/admin/stats").json()["admins"] == 2
+    assert fan.put(f"/api/admin/users/{owner_id}/role", json={"role": "user"}).status_code == 400   # admins can't demote the owner
+    state.accounts.consume_link(state.accounts.link_token(fan_id), 9, "Fan")
+    assert owner.put(f"/api/admin/users/{fan_id}/role", json={"role": "user"}).json()["role"] == "user"
+    assert fan.get("/api/admin/stats").status_code == 403 and state.accounts.user(fan_id)["tg_chat_id"] is None
+
+
+def test_cross_site_writes_are_refused_and_headers_are_set(app):
+    """Another site can't make a signed-in browser change things; every response carries the security headers."""
+    c = TestClient(app)
+    sign_in(c)
+    evil = {"Origin": "https://evil.example"}
+    assert c.post("/api/leagues", json={"league_id": "x", "name": "X"}, headers=evil).status_code == 403
+    assert c.post("/api/auth/logout", headers=evil).status_code == 403
+    assert c.post("/api/leagues", json={"league_id": "x", "name": "X"}, headers={"Origin": "http://testserver"}).status_code == 201
+    r = c.get("/api/leagues", headers=evil)                      # reads are fine: the browser won't hand them to evil.example
+    assert r.status_code == 200 and r.headers["X-Frame-Options"] == "DENY" and r.headers["Cache-Control"] == "no-store"
+    assert "script-src 'self'" in r.headers["Content-Security-Policy"] and r.headers["Referrer-Policy"] == "no-referrer"
+
+
+def test_text_fields_are_bounded_and_ids_cant_escape(app):
+    """Sleeper ids are numbers only (they go into URLs), league ids can't hold paths, names have a length cap."""
+    c = TestClient(app)
+    sign_in(c)
+    assert c.post("/api/leagues", json={"league_id": "../../etc", "name": "X"}).status_code == 400
+    assert c.post("/api/leagues", json={"league_id": "lg", "name": "x" * 101}).status_code == 422
+    assert c.post("/api/leagues", json={"league_id": "lg", "name": ""}).status_code == 422
+    assert c.post("/api/leagues", json={"league_id": "lg", "name": "<img src=x onerror=alert(1)>"}).status_code == 201
+    for sid in ("1/../../v1/user/x", "123?x=1", "abc", ""):
+        assert c.post("/api/leagues/lg/sleeper/preview", json={"sleeper_league_id": sid}).status_code == 422, sid
+    settings = c.get("/api/leagues/lg/settings").json()
+    assert c.put("/api/leagues/lg/settings", json={**settings, "sleeper_league_id": "1/../x"}).status_code == 400
+    assert c.put("/api/leagues/lg/settings", json={**settings, "sleeper_history_league_ids": ["9", "x/y"]}).status_code == 400
+    assert c.patch("/api/leagues/lg/managers/m1", json={"name": "y" * 61}).status_code == 422
+    assert c.patch("/api/leagues/lg/managers/m1", json={"sleeper_user_id": "1 OR 1=1"}).status_code == 422

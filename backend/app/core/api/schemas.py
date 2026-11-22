@@ -10,6 +10,8 @@ from nba_fantasy_shared.models.draft import KeeperRecord
 from nba_fantasy_shared.models.league import LeagueSettings, Manager, ManagerBehavior
 from nba_fantasy_shared.models.players import SlotType
 
+# Sleeper ids are numbers; they go into Sleeper URLs, so nothing else (a "/" or "..") may get through.
+SLEEPER_ID = r"^\d{1,24}$"
 
 class PullRequest(BaseModel):
     """Body of POST /data/pull: which sources to pull and the force-Sleeper and skip-game-logs switches."""
@@ -20,24 +22,24 @@ class PullRequest(BaseModel):
 
 class OverridePatch(BaseModel):
     """Body for patching a player's overrides (his notes)."""
-    notes: str | None = None
+    notes: str | None = Field(None, max_length=2000)
 
 
 class CreateLeague(BaseModel):
     """Body to create a league, optionally with settings and managers."""
-    league_id: str
-    name: str
+    league_id: str = Field(max_length=64)
+    name: str = Field(min_length=1, max_length=100)
     settings: LeagueSettings | None = None
     managers: list[Manager] | None = None
 
 
 class ManagerPatch(BaseModel):
     """Partial update of a manager (every field optional)."""
-    name: str | None = None
+    name: str | None = Field(None, min_length=1, max_length=60)
     is_user: bool | None = None
     budget_total: int | None = None
     behavior: ManagerBehavior | None = None
-    sleeper_user_id: str | None = None
+    sleeper_user_id: str | None = Field(None, pattern=SLEEPER_ID)
     sleeper_roster_id: int | None = None
 
 
@@ -111,7 +113,7 @@ class KeeperHistoryIn(BaseModel):
 
 class SleeperPreviewIn(BaseModel):
     """Body to preview a Sleeper league's settings."""
-    sleeper_league_id: str
+    sleeper_league_id: str = Field(pattern=SLEEPER_ID)
 
 
 SleeperApplyField = Literal["name", "scoring", "roster_slots", "num_managers", "keepers"]
@@ -119,5 +121,5 @@ SleeperApplyField = Literal["name", "scoring", "roster_slots", "num_managers", "
 
 class SleeperApplyIn(BaseModel):
     """Body to apply chosen fields (name, scoring, roster slots, manager count, keepers) from a Sleeper league."""
-    sleeper_league_id: str
+    sleeper_league_id: str = Field(pattern=SLEEPER_ID)
     apply: list[SleeperApplyField]

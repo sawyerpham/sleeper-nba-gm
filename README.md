@@ -202,12 +202,20 @@ Checks: `python -m pytest -q tests` and `ruff check` for the backend, `node src/
 
 Every page needs an account. You sign in with your email: the app emails a one-time link (valid 15 minutes) through
 [Resend](https://resend.com), and the session lasts 30 days. There are two types of account: **User** (sees only their
-own leagues) and **Admin** (the emails in `ADMIN_EMAILS`). Admins also get Telegram alerts, the Notifications settings
-and an **Admin** tab: every user with their type, activity, sign-ups, alerts sent, the Telegram bot, and the data pull.
+own leagues), **Admin** and **Owner**. Owners are the emails in `ADMIN_EMAILS` and can't be changed in the app, so you
+can't lock yourself out; owners and admins make anyone else an admin or a user again from the Admin tab. Admins and owners
+get Telegram alerts, the Notifications settings and the **Admin** tab: every user with their type, activity, sign-ups,
+alerts sent, the Telegram bot, and the data pull.
+
+Security: every write from a browser must come from this site (a CSRF check on the Origin header, on top of the SameSite
+session cookie); every response carries a strict Content-Security-Policy (scripts only from this site), no framing and
+no Referer; emails are limited to plain addresses (no line breaks, quotes, commas or markup); Sleeper ids must be numbers
+and names have length caps; all database queries are parameterized and React escapes everything it shows. In production
+Caddy also caps request bodies at 1 MB and sends HSTS.
 
 Settings go in `backend/.env` (gitignored):
 ```
-ADMIN_EMAILS=you@example.com            # comma-separated; admins get the Admin tab and the data pull
+ADMIN_EMAILS=you@example.com            # comma-separated owners (permanent admins)
 RESEND_API_KEY=re_...                   # without it the sign-in link is printed in the backend log (local dev)
 MAIL_FROM=NBA Fantasy <login@yourdomain.com>   # a sender on a domain verified in Resend
 APP_URL=http://localhost:5173           # where the emailed link points; https://... in production (makes the cookie Secure)

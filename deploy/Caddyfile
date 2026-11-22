@@ -1,4 +1,10 @@
 {$DOMAIN} {
 	encode zstd gzip
+	# The app's largest real request is a league's managers list; 1 MB stops anyone filling the disk or memory with huge bodies.
+	request_body {
+		max_size 1MB
+	}
+	# Browsers only ever reach this site over HTTPS once they've seen it (the app adds the other security headers itself).
+	header Strict-Transport-Security "max-age=31536000"
 	reverse_proxy app:8000
 }
