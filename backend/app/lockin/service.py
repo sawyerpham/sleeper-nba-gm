@@ -45,6 +45,13 @@ SLEEPER_INJURY = {"GTD": "day_to_day", "DTD": "day_to_day", "Questionable": "day
                   "Probable": "healthy", "Out": "out_short_term", "Suspended": "out_short_term", "Sus": "out_short_term",
                   "IR": "out_long_term"}
 LOCKS_FILE = "season_locks.json"
+_LONG_INJURY = re.compile(r"surgery|fracture|rupture|torn|tear|broken|dislocat|\bacl\b|achilles", re.I)
+
+
+def ir_worthy(injury: str, note: str | None) -> bool:
+    """Is an absence foreseeably longer than a week (worth an IR slot)? Sleeper has no return dates, so: its IR status,
+    out for the season, or an Out whose note names a structural injury. Illness, soreness, bruises, strains: no."""
+    return injury in ("out_long_term", "out_season") or (injury == "out_short_term" and bool(_LONG_INJURY.search(note or "")))
 
 Fetch = Callable[[str, int], Any]
 _cache: dict[str, tuple[float, Any]] = {}
@@ -572,7 +579,7 @@ def locked_points(players) -> float:
     return round(sum(p.locked for p in players if p.locked is not None), 2)
 
 
-def team_plan(session, view: dict, roster_id: int | None = None, manual: dict[str, str] | None = None) -> dict:
+def team_plan(session, view: dict, roster_id: int | None = None, manual: dict[str, str] | None = None, fetch: Fetch | None = None) -> dict:
     """The week plan (engine/weekplan.py) for one team of a week_view (default: yours), with lock status, the
     opponent's outlook, every lock / pass / swap decided by the chance to win the week, and today's lineup."""
     from .weekplan import _minus_minutes, bench_lock_chance, decide_by_win_chance, lock_slots, plan_today, plan_week, scenario_total, swap_win_chance, team_total, win_chance
@@ -646,9 +653,26 @@ def team_plan(session, view: dict, roster_id: int | None = None, manual: dict[st
     active = [q for q in players if q.slot != "IR"]
     healthy_ir = [q.name for q in players if q.slot == "IR" and q.injury not in out_now]
     ir_open = max(0, view.get("reserve_slots", 0) - sum(1 for q in players if q.slot == "IR"))
+    outs = (*out_now, "out_season")
+    espn = espn_injuries(fetch) if fetch and ir_open and any(q.injury in outs for q in active) else {}
+
+    def long_out(q) -> bool:
+        """An unlocked Out player foreseeably gone more than IR_MIN_DAYS. Sleeper IR / out-for-season; else ESPN's return date;
+        else (no ESPN row) a structural-injury note, else what the news says."""
+        if q.locked is not None or q.injury not in outs:
+            return False
+        if q.injury in ("out_long_term", "out_season"):
+            return True
+        if row := espn.get(normalize_name(q.name)):
+            return (row["back"] - date.fromisoformat(view["today"])).days > IR_MIN_DAYS
+        if ir_worthy(q.injury, view["players"].get(q.sid, {}).get("injury_note")):
+            return True
+        left = days_still_out(player_news(fetch, q.sid, 8), datetime.now(timezone.utc)) if fetch else None
+        return left is not None and left > IR_MIN_DAYS
+
     roster_state = {"active": len(active), "limit": len(view["roster_positions"]), "ir_open": ir_open,
                     "illegal": healthy_ir if len(active) + len(healthy_ir) > len(view["roster_positions"]) else [],
-                    "ir_candidates": [q.name for q in active if q.injury in out_now] if ir_open else []}
+                    "ir_candidates": [q.name for q in active if long_out(q)] if ir_open else []}
     return {**_team_tag(team),
             "expected": plan.expected, "slots": counts,
             "points": locked_points(players), "win_chance": round(chance, 3) if chance is not None else None,
@@ -787,7 +811,57 @@ INJURY_TAG = re.compile(r"\((?!rest\)|personal\))[a-z][a-z /-]*\)")
 INJURY_WORD = re.compile(r"injur|illness|sore|sprain|strain|tear\b|torn|surgery|fractur|concussion|achilles|out indefinitely", re.I)
 
 
-def player_news(fetch: Fetch, sid: str) -> list[dict]:
+_WORDS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "twelve": 12}
+_NUM = r"(\d+|" + "|".join(_WORDS) + r")"
+_SPAN = re.compile(rf"(?:miss|out|sidelined|absence|return|timeline|re-?evaluat\w*).{{0,40}}?\b{_NUM}(?:[\s-]*(?:to|–|-)[\s-]*{_NUM})?(?:\s+more)?[\s-]*(day|week|month)s?\b", re.I)
+_SEASON = re.compile(r"rest of the (?:season|year)|for the season|season-ending|out indefinitely|miss the remainder|late-season return|later this season|at some point this season", re.I)
+_BACK = re.compile(r"cleared to (?:return|play)|has returned|is available|upgraded to (?:probable|questionable)|back in the lineup|expected to play", re.I)
+IR_MIN_DAYS = 7
+_UNIT_DAYS = {"day": 1, "week": 7, "month": 30}
+
+
+ESPN_INJURIES = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/injuries"
+
+
+def espn_injuries(fetch: Fetch) -> dict[str, dict]:
+    """ESPN's injury report as {normalized player name: {"back": estimated return date, "what": "Right knee", "comment": ESPN's
+    short note}} (every injured player carries a return date); {} if it fails."""
+    try:
+        data = fetch(ESPN_INJURIES, NEWS_TTL) or {}
+        out = {}
+        for t in data.get("injuries", []):
+            for i in t.get("injuries", []):
+                d = i.get("details") or {}
+                if d.get("returnDate"):
+                    what = " ".join(x for x in (d.get("side"), d.get("type")) if x and x != "Not Specified").lower().capitalize()
+                    out[normalize_name(i["athlete"]["displayName"])] = {"back": date.fromisoformat(d["returnDate"][:10]), "what": what,
+                                                                         "comment": i.get("shortComment") or ""}
+        return out
+    except Exception:
+        return {}
+
+
+def days_still_out(news: list[dict], now: datetime) -> float | None:
+    """From a player's news (newest first, `player_news` items), how many days he is still expected out, or None when no
+    story gives a duration. Reads headline + story: the lower bound of "6-8 weeks" / "at least six weeks", counted from the
+    story's date; "rest of the season" is 999; a newer "cleared to return" beats an older duration. Week-to-week and
+    day-to-day give no number, so they never count."""
+    for n in news:
+        text = f"{n['headline']} {n['story']}"
+        if _BACK.search(text):
+            return 0.0
+        end = None
+        if _SEASON.search(text):
+            end = 999.0
+        elif m := _SPAN.search(text):
+            num = lambda s: int(s) if s.isdigit() else _WORDS[s.lower()]
+            end = num(m.group(1)) * _UNIT_DAYS[m.group(3).lower()]
+        if end is not None and n.get("published"):
+            return end - (now - datetime.fromisoformat(n["published"])).total_seconds() / 86400
+    return None
+
+
+def player_news(fetch: Fetch, sid: str, limit: int = 4) -> list[dict]:
     """Latest fantasy notes (RotoWire, FantasyPros) on one player, from the feed the Sleeper app shows; [] if it fails."""
     try:
         feed = fetch(SLEEPER_NEWS.format(sid), NEWS_TTL) or []
@@ -802,7 +876,7 @@ def player_news(fetch: Fetch, sid: str) -> list[dict]:
         out.append({"published": datetime.fromtimestamp(a["published"] / 1000, timezone.utc).isoformat() if a.get("published") else None,
                     "headline": m["title"].strip(), "story": (m.get("description") or "").strip(),
                     "injury": bool(INJURY_TAG.search(text) or INJURY_WORD.search(text))})
-    return out[:4]
+    return out[:limit]
 
 
 def season_news(view: dict, fetch: Fetch, free: list[str] = (), watch: list[str] = ()) -> dict:

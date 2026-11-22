@@ -64,9 +64,10 @@ def plan(league_id: str, week: int | None = Query(None, ge=1), roster_id: int | 
     """Lock / pass / where to seat every player of one team this week (default: yours), today's lineup and the opponent."""
     session = _session(state, league_id)
     try:
-        view = week_view(session, _fetch(state), week, today)
+        fetch = _fetch(state)
+        view = week_view(session, fetch, week, today)
         manual = read_locks(state.store, league_id, view["week"])
-        return team_plan(session, view, roster_id, manual)
+        return team_plan(session, view, roster_id, manual, fetch)
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 

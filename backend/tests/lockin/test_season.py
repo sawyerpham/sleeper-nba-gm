@@ -1,7 +1,7 @@
 
 from datetime import date
 
-from app.lockin.service import actual_fp, current_week, week_view
+from app.lockin.service import actual_fp, current_week, days_still_out, ir_worthy, week_view
 from tests.test_session import JOKIC, fixture_world, make_session  # noqa: F401  (pytest fixture)
 
 
@@ -165,7 +165,7 @@ def test_news_merges_my_players_newest_first_and_flags_injuries():
              "b": [note("Bo Ta - Resting Monday", "Ta (rest) won't play Monday.", 1_792_100_000_000)],
              "c": [note("Cy Ga - Suffers torn Achilles", "Ga suffered a season-ending Achilles tear, Shams Charania reports.", 1_792_200_000_000)],
              "f": [note("Ben Simmons - Suffers torn Achilles", "Simmons tore his right Achilles.", 1_792_300_000_000)]}
-    fetch = lambda url, ttl: feeds[url.split("/")[-2]]
+    fetch = lambda url, ttl: {} if "injuries" in url else feeds[url.split("/")[-2]]
 
     view = {"teams": [{"is_user": True, "name": "me", "user": "meuser", "players": ["a", "b"]},
                       {"is_user": False, "name": "rival", "user": "rivaluser", "players": ["c"]}],
@@ -379,3 +379,77 @@ def test_team_card_schedule_stats_and_injury_report(fixture_world):
     rep = injury_report(hurt)
     assert [t["abbr"] for t in rep] == ["BKN", "LAL", "MEM"] and rep[0]["starters_out"] == 1 and rep[1]["starters_q"] == 1
     assert (rep[2]["out"], rep[2]["q"], rep[2]["starters_out"]) == (1, 1, 0) and rep[1]["players"][0]["name"] == "E"
+
+
+def test_ir_only_for_foreseeable_long_absences():
+    """Sleeper IR status or a structural-injury note qualifies; illness, bruise, strain, spasms, healthy don't."""
+    assert ir_worthy("out_long_term", None) and ir_worthy("out_season", "")
+    assert ir_worthy("out_short_term", "Achilles - Surgery") and ir_worthy("out_short_term", "Foot - Fracture")
+    assert not any(ir_worthy("out_short_term", n) for n in ("Illness", "Hip - Bruise", "Calf - Strain", "Back - Spasms", None))
+    assert not ir_worthy("healthy", "Knee - Surgery")
+
+
+def _story(head, text, published):
+    """A news item in player_news's shape."""
+    return {"headline": head, "story": text, "published": published, "injury": True}
+
+
+def test_days_still_out_reads_durations_from_news():
+    """Real FantasyPros/RotoWire wording (Jaren Jackson Jr., torn MCL): lower bound of the range, counted from the story's date."""
+    from datetime import datetime, timezone
+    now = datetime(2026, 11, 21, tzinfo=timezone.utc)
+    mcl = _story("Jaren Jackson Jr. (knee) to miss 6-8 weeks", "Jaren Jackson Jr. has been diagnosed with a torn MCL in his right knee and will be sidelined for 6-8 weeks.", "2026-10-28T00:00:00+00:00")
+    assert round(days_still_out([mcl], now)) == 42 - 24
+    least = _story("Jaren Jackson - Expected to miss at least six weeks", "", "2026-11-21T00:00:00+00:00")
+    assert days_still_out([least], now) == 42
+    assert days_still_out([_story("X out for the season", "", "2026-11-20T00:00:00+00:00")], now) > 900
+    assert days_still_out([_story("X cleared to return", "", "2026-11-20T00:00:00+00:00"), mcl], now) == 0
+    for vague in ("X (knee) is week-to-week", "X is day-to-day with a sore hip", "X suffers knee injury Monday"):
+        assert days_still_out([_story(vague, "", "2026-11-20T00:00:00+00:00")], now) is None
+    assert days_still_out([], now) is None
+
+
+def test_ir_candidate_comes_from_news_when_sleeper_only_says_out(fixture_world):
+    """Sleeper marks him just Out, but the news says 6-8 weeks: he's an IR candidate; a different Out player is not."""
+    from datetime import datetime, timezone
+
+    from app.lockin.service import team_plan
+
+    s = make_session(fixture_world)
+    pl = lambda sid, inj="healthy": {"player_id": None, "name": sid, "team": "DEN", "pos": ["PG"], "injury": inj,
+                                     "injury_note": "", "retired": False, "games": []}
+    view = {"today": "2026-10-16", "dates": [], "roster_positions": ["PG", "SG", "BN"], "reserve_slots": 1, "matchups": [],
+            "players": {"a": pl("a"), "jj": pl("jj", "out_short_term"), "ill": pl("ill", "out_short_term")},
+            "teams": [{"roster_id": 1, "name": "me", "is_user": True, "players": ["a", "jj", "ill"], "starters": ["a", "jj"], "reserve": []}]}
+    ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    feeds = {"jj": [{"published": ms, "metadata": {"title": "JJ (knee) to miss 6-8 weeks", "description": "Torn MCL, sidelined for 6-8 weeks."}}],
+             "ill": [{"published": ms, "metadata": {"title": "ill is out with an illness", "description": "Day-to-day."}}]}
+    fetch = lambda url, ttl: {} if "injuries" in url else feeds[url.split("/")[-2]]
+    assert team_plan(s, view, fetch=fetch)["roster"]["ir_candidates"] == ["jj"]
+    assert team_plan(s, view)["roster"]["ir_candidates"] == []
+
+
+def test_days_still_out_live_wording_cases():
+    """Wording seen in the live feed: 'two more weeks' counts; 'will return at some point this season' is long, not back."""
+    from datetime import datetime, timezone
+    now = datetime(2026, 11, 21, tzinfo=timezone.utc)
+    hali = _story("Tyrese Haliburton - Expected to miss at least two more weeks", "", "2026-11-20T00:00:00+00:00")
+    assert round(days_still_out([hali], now)) == 13
+    dv = _story("Donte DiVincenzo (Achilles) expected to return at some point this season", "Connelly believes DiVincenzo will return at some point this season", "2026-10-05T00:00:00+00:00")
+    assert days_still_out([dv], now) > 900
+
+
+def test_espn_return_date_decides_when_it_has_a_row(fixture_world):
+    """ESPN's return date beats the news text: 8+ days out = IR candidate, 'tomorrow' = not, even if the news says weeks."""
+    from app.lockin.service import ESPN_INJURIES, team_plan
+
+    s = make_session(fixture_world)
+    pl = lambda sid, inj="healthy": {"player_id": None, "name": sid, "team": "DEN", "pos": ["PG"], "injury": inj,
+                                     "injury_note": "", "retired": False, "games": []}
+    view = {"today": "2026-11-21", "dates": [], "roster_positions": ["PG", "SG", "BN"], "reserve_slots": 2, "matchups": [],
+            "players": {"a": pl("a"), "far": pl("far", "out_short_term"), "near": pl("near", "out_short_term")},
+            "teams": [{"roster_id": 1, "name": "me", "is_user": True, "players": ["a", "far", "near"], "starters": ["a", "far"], "reserve": []}]}
+    row = lambda name, back: {"athlete": {"displayName": name}, "details": {"returnDate": back}}
+    espn = {"injuries": [{"injuries": [row("far", "2026-12-14"), row("near", "2026-11-22")]}]}
+    fetch = lambda url, ttl: espn if url == ESPN_INJURIES else []
+    assert team_plan(s, view, fetch=fetch)["roster"]["ir_candidates"] == ["far"]

@@ -559,7 +559,7 @@ def today_watch(players: list[PlanPlayer], today: str, seat: dict[int, str | Non
              and _today(p, today) and not _today(p, today).started and p.injury not in OUT]
     for p in players:
         g = _today(p, today)
-        if p.slot not in ("BN", "IR") and g and (not g.started or sits_out(p, g)) and p.injury in OUT:
+        if p.slot not in ("BN", "IR") and p.locked is None and g and (not g.started or sits_out(p, g)) and p.injury in OUT:
             fits = [b for b in players if b is not p and b.slot in ("BN",) and seat.get(id(b)) and _today(b, today)]                 or [b for b in bench if p.slot in roster.candidate_slots(b.eligibility)]
             backup = max(fits, key=lambda b: _today(b, today).proj or 0, default=None)
             lines.append({"kind": "out", "sid": p.sid, "name": p.name, "slot": p.slot, "by": g.tip, "alarm": "now",
