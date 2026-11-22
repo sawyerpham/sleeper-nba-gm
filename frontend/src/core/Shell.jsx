@@ -91,7 +91,7 @@ export function SettingsModal({ app, user }) {
         </select>
       </div>
       </div>
-      {user.admin && <div className="panel section-card" data-testid="section-notify"><h2>Notifications</h2>
+      {user.telegram && <div className="panel section-card" data-testid="section-notify"><h2>Notifications</h2>
         <NotifyPage />
       </div>}
       <div className="panel section-card" data-testid="section-league"><h2>League</h2>

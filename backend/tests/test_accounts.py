@@ -216,7 +216,7 @@ def test_owner_promotes_and_demotes_and_nobody_else_can(app):
     assert owner.put(f"/api/admin/users/{owner_id}/role", json={"role": "user"}).status_code == 400
     assert owner.put("/api/admin/users/999/role", json={"role": "admin"}).status_code == 404
     assert owner.put(f"/api/admin/users/{fan_id}/role", json={"role": "admin"}).json()["role"] == "admin"
-    assert fan.get("/api/auth/me").json() == {"id": fan_id, "email": "fan@test.local", "admin": True, "kind": "admin"}
+    assert fan.get("/api/auth/me").json() == {"id": fan_id, "email": "fan@test.local", "admin": True, "telegram": True, "kind": "admin"}
     assert fan.get("/api/admin/stats").json()["admins"] == 2
     assert fan.put(f"/api/admin/users/{owner_id}/role", json={"role": "user"}).status_code == 400   # admins can't demote the owner
     state.accounts.consume_link(state.accounts.link_token(fan_id), 9, "Fan")
@@ -252,3 +252,24 @@ def test_text_fields_are_bounded_and_ids_cant_escape(app):
     assert c.put("/api/leagues/lg/settings", json={**settings, "sleeper_history_league_ids": ["9", "x/y"]}).status_code == 400
     assert c.patch("/api/leagues/lg/managers/m1", json={"name": "y" * 61}).status_code == 422
     assert c.patch("/api/leagues/lg/managers/m1", json={"sleeper_user_id": "1 OR 1=1"}).status_code == 422
+
+
+def test_premium_gets_telegram_but_not_the_admin_tab(app):
+    """Premium: Notifications and Telegram linking yes, Admin tab and role changes no; back to user drops the link."""
+    state = app.state.app_state
+    owner, fan = TestClient(app), TestClient(app)
+    sign_in(owner)
+    fan_id = sign_in(fan, "fan@test.local")["id"]
+    assert fan.get("/api/notify").status_code == 403
+    assert owner.put(f"/api/admin/users/{fan_id}/role", json={"role": "premium"}).json()["role"] == "premium"
+    me = fan.get("/api/auth/me").json()
+    assert me["kind"] == "premium" and me["telegram"] is True and me["admin"] is False
+    assert fan.get("/api/notify").status_code == 200 and fan.put("/api/notify/prefs", json={"lock": False}).status_code == 200
+    assert fan.get("/api/admin/stats").status_code == 403
+    assert fan.put(f"/api/admin/users/{fan_id}/role", json={"role": "admin"}).status_code == 403
+    assert owner.get("/api/admin/stats").json()["premium"] == 1
+    state.accounts.consume_link(state.accounts.link_token(fan_id), 9, "Fan")
+    owner.put(f"/api/admin/users/{fan_id}/role", json={"role": "admin"})
+    assert state.accounts.user(fan_id)["tg_chat_id"] == 9                     # premium -> admin keeps the link
+    owner.put(f"/api/admin/users/{fan_id}/role", json={"role": "user"})
+    assert state.accounts.user(fan_id)["tg_chat_id"] is None and fan.get("/api/notify").status_code == 403

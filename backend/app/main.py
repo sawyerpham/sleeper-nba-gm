@@ -91,7 +91,7 @@ def create_app(state: AppState | None = None) -> FastAPI:
             response.headers["Cache-Control"] = "no-store"
         return response
 
-    signed_in, admin = [Depends(auth.current_user)], [Depends(auth.require_admin)]
+    signed_in, admin, telegram = [Depends(auth.current_user)], [Depends(auth.require_admin)], [Depends(auth.require_telegram)]
     app.include_router(auth.router, prefix="/api")
     app.include_router(auth.admin_router, prefix="/api")
     app.include_router(data.router, prefix="/api", dependencies=admin)
@@ -99,7 +99,7 @@ def create_app(state: AppState | None = None) -> FastAPI:
     app.include_router(leagues.router, prefix="/api", dependencies=signed_in)
     app.include_router(draft.router, prefix="/api", dependencies=signed_in)
     app.include_router(season.router, prefix="/api", dependencies=signed_in)
-    app.include_router(notify.router, prefix="/api", dependencies=admin)
+    app.include_router(notify.router, prefix="/api", dependencies=telegram)
     app.include_router(calculations.router, prefix="/api")
 
     @app.get("/api/health")

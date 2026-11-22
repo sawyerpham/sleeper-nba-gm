@@ -65,6 +65,13 @@ def current_user(request: Request) -> dict:
     return user
 
 
+def require_telegram(user: dict = Depends(current_user)) -> dict:
+    """The signed-in user when their account type includes Telegram alerts (premium, admin, owner); 403 otherwise."""
+    if not user["telegram"]:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Telegram alerts come with a premium account")
+    return user
+
+
 def require_admin(user: dict = Depends(current_user)) -> dict:
     """The signed-in user when they are an admin; 403 otherwise."""
     if not user["admin"]:
@@ -128,7 +135,7 @@ def logout(request: Request, response: Response) -> dict:
 
 def me_of(user: dict) -> dict:
     """What the frontend needs about the signed-in user."""
-    return {"id": user["id"], "email": user["email"], "admin": user["admin"], "kind": user["kind"]}
+    return {"id": user["id"], "email": user["email"], "admin": user["admin"], "telegram": user["telegram"], "kind": user["kind"]}
 
 
 @router.get("/me")
@@ -171,12 +178,12 @@ def admin_set_telegram(body: BotTokenIn, request: Request) -> dict:
 
 class RoleIn(BaseModel):
     """PUT /admin/users/{id}/role body."""
-    role: Literal["user", "admin"]
+    role: Literal["user", "premium", "admin"]
 
 
 @admin_router.put("/users/{user_id}/role")
 def admin_set_role(user_id: int, body: RoleIn, request: Request) -> dict:
-    """Make a user an admin or a plain user. Owners (ADMIN_EMAILS) can't be changed here; 400 for them, 404 for no such user."""
+    """Set a user's type (user, premium or admin). Owners (ADMIN_EMAILS) can't be changed here; 400 for them, 404 for no such user."""
     accounts = get_state(request).accounts
     try:
         user = accounts.set_role(user_id, body.role)
@@ -184,7 +191,7 @@ def admin_set_role(user_id: int, body: RoleIn, request: Request) -> dict:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such user") from exc
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
-    log.info("%s made %s a%s %s", request.state.user["email"], user["email"], "n" if body.role == "admin" else "", body.role)
+    log.info("%s set %s to %s", request.state.user["email"], user["email"], body.role)
     return {"id": user["id"], "email": user["email"], "role": user["kind"]}
 
 

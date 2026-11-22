@@ -270,8 +270,8 @@ def test_the_message_that_reports_a_season_ending_injury_says_sorry_once(monkeyp
 
 
 def linked_owner():
-    """Accounts where league "lg" belongs to the admin, whose Telegram chat 7 is linked, and "unlinked" to a non-admin
-    (alerts are admin-only, so that league is skipped even with chat 8 linked)."""
+    """Accounts where league "lg" belongs to the owner, whose Telegram chat 7 is linked, and "unlinked" to a plain user
+    (no Telegram on that account type, so that league is skipped even with chat 8 linked)."""
     from app.accounts import Accounts
 
     from .conftest import ADMIN
@@ -279,7 +279,7 @@ def linked_owner():
     acc = Accounts(":memory:")
     uid, other = (acc.verify_login(acc.request_login(e, None))[1]["id"] for e in (ADMIN, "b@test.local"))
     acc.consume_link(acc.link_token(uid), 7, "Sam")
-    acc.consume_link(acc.link_token(other), 8, "Bo")          # a non-admin's chat: never sent to
+    acc.consume_link(acc.link_token(other), 8, "Bo")          # a plain user's chat: never sent to
     acc.own("lg", uid)
     acc.own("unlinked", other)
     return acc

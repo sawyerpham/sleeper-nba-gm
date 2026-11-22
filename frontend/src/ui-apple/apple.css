@@ -198,3 +198,4 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
 .ap-role.admin { background: color-mix(in srgb, #5856d6 22%, transparent); }
 .ap-role.owner { background: color-mix(in srgb, #ff9500 24%, transparent); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.ap-role.premium { background: color-mix(in srgb, #34c759 24%, transparent); }

@@ -201,11 +201,11 @@ Checks: `python -m pytest -q tests` and `ruff check` for the backend, `node src/
 ### Accounts and sign-in
 
 Every page needs an account. You sign in with your email: the app emails a one-time link (valid 15 minutes) through
-[Resend](https://resend.com), and the session lasts 30 days. There are two types of account: **User** (sees only their
-own leagues), **Admin** and **Owner**. Owners are the emails in `ADMIN_EMAILS` and can't be changed in the app, so you
-can't lock yourself out; owners and admins make anyone else an admin or a user again from the Admin tab. Admins and owners
-get Telegram alerts, the Notifications settings and the **Admin** tab: every user with their type, activity, sign-ups,
-alerts sent, the Telegram bot, and the data pull.
+[Resend](https://resend.com), and the session lasts 30 days. Account types: **User** (sees only their own leagues),
+**Premium** (adds Telegram alerts and the Notifications settings), **Admin** and **Owner**. Owners are the emails in
+`ADMIN_EMAILS` and can't be changed in the app, so you can't lock yourself out; owners and admins set anyone else's type
+from the Admin tab. Admins and owners also get the **Admin** tab: every user with their type, activity, sign-ups, alerts
+sent, the Telegram bot, and the data pull.
 
 Security: every write from a browser must come from this site (a CSRF check on the Origin header, on top of the SameSite
 session cookie); every response carries a strict Content-Security-Policy (scripts only from this site), no framing and
@@ -223,9 +223,9 @@ APP_URL=http://localhost:5173           # where the emailed link points; https:/
 Accounts live in `backend/data/app.db` (SQLite). An admin's first sign-in takes over the leagues created before accounts
 existed. Health (`/api/health`) and the calculators stay public.
 
-### Telegram notifications (optional, admins only)
+### Telegram notifications (optional; Premium, Admin and Owner accounts)
 
-Telegram alerts are for admin accounts only; other users don't see the option.
+Telegram alerts come with Premium, Admin and Owner accounts; plain users don't see the option.
 
 1. In Telegram, message @BotFather, send `/newbot` and copy the token.
 2. Paste it in **Admin > Telegram bot** (no restart needed), or put `TELEGRAM_BOT_TOKEN=123456:ABC-your-token` in
@@ -237,7 +237,7 @@ Telegram alerts are for admin accounts only; other users don't see the option.
 4. Test delivery to a chat with `python -m app.notify <chat id> "hello"` from `backend`.
 
 The same section picks what to push (lock calls, keep / swap calls, players ruled OUT, GTD / DTD or cleared, lineup
-moves) and the win chance a lock call must add before it is pushed. Alerts cover the leagues the admin owns.
+moves) and the win chance a lock call must add before it is pushed. Each league's alerts go to its owner's chat.
 
 ## Deploy (free: Oracle Cloud Always Free)
 

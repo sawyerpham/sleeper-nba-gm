@@ -45,7 +45,8 @@ function BotSettings() {
 }
 
 /** Admin tab: usage numbers, sign-ups over 14 days, the most recently seen users, and the data pull. */
-const KIND = { owner: "Owner", admin: "Admin", user: "User" };
+const KIND = { owner: "Owner", admin: "Admin", premium: "Premium", user: "User" };
+const GIVES = { admin: "the Admin tab, data pulls, Telegram alerts, and can change other people's type", premium: "Telegram alerts", user: "their own leagues only" };
 
 export default function AdminPage({ onPoolChanged }) {
   const [st, setSt] = useState(null);
@@ -57,14 +58,13 @@ export default function AdminPage({ onPoolChanged }) {
     return () => clearInterval(t);
   }, []);
   const setRole = async (u, role) => {
-    const what = role === "admin" ? `Make ${u.email} an admin? They'll see this tab, run data pulls and can promote others.` : `Make ${u.email} a regular user again?`;
-    if (!window.confirm(what)) return;
+    if (role === u.role || !window.confirm(`Make ${u.email} ${role === "admin" ? "an" : "a"} ${KIND[role]}? They get ${GIVES[role]}.`)) return load();
     setError("");
     try { await api.put(`/admin/users/${u.id}/role`, { role }); load(); } catch (e) { setError(e.message); }
   };
   const tiles = st ? [
-    ["Users", st.users, `${st.admins} admin · ${st.new_7d} new this week`],
-    ["Active today", st.active_24h, `${st.active_7d} this week`],
+    ["Users", st.users, `${st.premium} premium · ${st.admins} admin`],
+    ["Active today", st.active_24h, `${st.active_7d} this week · ${st.new_7d} new`],
     ["Leagues", st.leagues, `${st.leagues_on_disk} on disk`],
     ["Alerts sent", st.sent_24h, `${st.sent_7d} this week`],
     ["Sign-ins today", st.logins_24h, `${st.login_emails_24h} links emailed`],
@@ -99,7 +99,8 @@ export default function AdminPage({ onPoolChanged }) {
                 {st.recent.map((u) => (
                   <tr key={u.id}><td>{u.email}</td><td><span className={`ap-role ${u.role}`}>{KIND[u.role]}</span></td><td>{when(u.created_at)}</td><td>{when(u.last_seen)}</td><td>{u.leagues}</td><td>{u.telegram ? "linked" : "-"}</td>
                     <td>{u.role === "owner" ? <span className="small muted" title="Set in ADMIN_EMAILS on the server">fixed</span>
-                      : <button className="small" onClick={() => setRole(u, u.role === "admin" ? "user" : "admin")} data-testid={`role-${u.id}`}>{u.role === "admin" ? "Make user" : "Make admin"}</button>}</td></tr>
+                      : <select value={u.role} onChange={(e) => setRole(u, e.target.value)} aria-label={`Account type for ${u.email}`} data-testid={`role-${u.id}`}>
+                          {["user", "premium", "admin"].map((r) => <option key={r} value={r}>{KIND[r]}</option>)}</select>}</td></tr>
                 ))}
               </tbody>
             </table>

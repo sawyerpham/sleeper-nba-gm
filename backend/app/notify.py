@@ -429,7 +429,7 @@ def slate_hot(fetch, now: datetime, today) -> bool:
 
 
 def watch_once(state, sent: set[str], tags: dict | None = None, last: dict | None = None) -> None:
-    """One poll: for every league whose owner is an admin and linked Telegram (alerts are admin-only), compute today's plan and send to the owner's chat each newly
+    """One poll: for every league whose owner has Telegram (premium, admin or owner) and linked a chat, compute today's plan and send to the owner's chat each newly
     due watch line their settings want, the injury-tag changes on the roster (`tags`: league -> sid -> last tag seen), and
     the lineup moves due (one message). Leagues of users without a chat are skipped before any Sleeper call. With `last`
     (league -> monotonic time of its last poll), a league is polled only every QUIET_S while no game is live or close
@@ -443,7 +443,7 @@ def watch_once(state, sent: set[str], tags: dict | None = None, last: dict | Non
     hot = last is None or slate_hot(fetch, datetime.now(timezone.utc), today_ct())
     for lid in state.leagues.list_ids():
         owner = accounts.user(accounts.owner(lid) or 0)
-        chat = owner and owner["admin"] and owner["tg_chat_id"]
+        chat = owner and owner["telegram"] and owner["tg_chat_id"]
         if not chat or (not hot and time.monotonic() - last.get(lid, float("-inf")) < QUIET_S):
             continue
         if last is not None:

@@ -1,8 +1,8 @@
 """Accounts (P39): users, magic-link login, sessions, league ownership, Telegram links and usage events, in one SQLite
 file (data/app.db). Every token (login, session, Telegram link) is stored as its SHA-256 hash, so a copy of the database
 can't be used to sign in. Account types: "owner" (the emails in ADMIN_EMAILS, comma-separated; can't be changed in the
-app, so nobody can lock the owner out), "admin" (promoted by an owner or admin in the Admin tab) and "user". Owners and
-admins both count as admin."""
+app, so nobody can lock the owner out), "admin" (promoted by an owner or admin in the Admin tab), "premium" (Telegram alerts,
+no Admin tab) and "user". Owners and admins count as admin; everyone but a plain user gets Telegram."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ SEEN_EVERY = 60
 # Plain addresses only: letters, digits and . _ % + - before the @, a dotted domain after it. No spaces, quotes, angle
 # brackets, commas or line breaks, so an address can't smuggle extra recipients, headers or markup into the email.
 EMAIL = re.compile(r"^[a-z0-9._%+-]{1,64}@(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$")
-ROLES = ("user", "admin")
+ROLES = ("user", "premium", "admin")
 # (event kind, key column, max count, window seconds)
 LIMITS = {
     "login_email": [("email", 3, 15 * 60), ("ip", 10, 3600)],
@@ -58,8 +58,8 @@ def admin_emails() -> set[str]:
 
 
 def role_of(email: str, role: str | None) -> str:
-    """An account's type: owner (in ADMIN_EMAILS), else its saved role."""
-    return "owner" if email in admin_emails() else ("admin" if role == "admin" else "user")
+    """An account's type: owner (in ADMIN_EMAILS), else its saved role (user when unknown)."""
+    return "owner" if email in admin_emails() else (role if role in ROLES else "user")
 
 
 def normalize_email(email: str) -> str:
@@ -158,13 +158,14 @@ class Accounts:
         self._q("DELETE FROM tokens WHERE hash = ? AND kind = 'session'", _hash(session or ""))
 
     def _user(self, row: sqlite3.Row) -> dict:
-        """A users row as a dict with its account type (`kind`: owner / admin / user) and `admin` (owner or admin)."""
+        """A users row as a dict with its account type (`kind`: owner / admin / premium / user), `admin` (owner or admin)
+        and `telegram` (may get Telegram alerts: anyone but a plain user)."""
         kind = role_of(row["email"], row["role"])
-        return {**dict(row), "kind": kind, "admin": kind != "user"}
+        return {**dict(row), "kind": kind, "admin": kind in ("owner", "admin"), "telegram": kind != "user"}
 
     def set_role(self, user_id: int, role: str) -> dict:
-        """Make a user an admin or a plain user (ValueError for an owner, who is set in ADMIN_EMAILS, or an unknown role).
-        A user who stops being an admin loses their Telegram link, since alerts are admin-only."""
+        """Set a user's type: user, premium or admin (ValueError for an owner, who is set in ADMIN_EMAILS, or an unknown
+        role). Becoming a plain user removes the Telegram link, since alerts are for premium and up."""
         if role not in ROLES:
             raise ValueError(f"role must be one of {', '.join(ROLES)}")
         user = self.user(user_id)
@@ -280,6 +281,7 @@ class Accounts:
         """Counts for the admin panel: users, activity, leagues, Telegram, sign-ins and pushes, sign-ups per day for 14 days,
         and the 100 most recently seen users."""
         now, day = time.time(), 24 * 3600
+        kinds = [role_of(r["email"], r["role"]) for r in self._q("SELECT email, role FROM users")]
 
         def count(sql: str, *args) -> int:
             """A COUNT(*) query's number."""
@@ -296,7 +298,8 @@ class Accounts:
                             FROM users u LEFT JOIN leagues l ON l.user_id = u.id GROUP BY u.id ORDER BY u.last_seen DESC LIMIT 100""")
         return {
             "users": count("SELECT COUNT(*) FROM users"),
-            "admins": sum(role_of(r["email"], r["role"]) != "user" for r in self._q("SELECT email, role FROM users")),
+            "admins": sum(k in ("owner", "admin") for k in kinds),
+            "premium": sum(k == "premium" for k in kinds),
             "new_7d": count("SELECT COUNT(*) FROM users WHERE created_at > ?", now - 7 * day),
             "active_24h": count("SELECT COUNT(*) FROM users WHERE last_seen > ?", now - day),
             "active_7d": count("SELECT COUNT(*) FROM users WHERE last_seen > ?", now - 7 * day),
