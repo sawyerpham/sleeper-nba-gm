@@ -192,8 +192,7 @@ npm install
 npm run dev          # http://localhost:5173, proxies /api to the backend
 ```
 
-Then create a league, enter your Sleeper league id in Settings and pick which manager you are. On Windows,
-`start.ps1` runs both servers hidden and opens the browser; `stop.ps1` stops them.
+Then create a league, enter your Sleeper league id in Settings and pick which manager you are.
 
 Checks: `python -m pytest -q tests` and `ruff check` for the backend, `node src/lockin/swaps.check.mjs` and
 `npm run build` for the frontend.
