@@ -18,6 +18,11 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.18); --glass: none; --radius: 14px; --side-w: clamp(300px, 26vw, 500px);
   color-scheme: dark;
 }
+/* Phone: the whole type scale steps down (~85%) so rows fit; text fields stay 16px or iOS zooms in on focus. */
+@media (max-width: 699px) {
+  :root { --fs-3xs: 10px; --fs-2xs: 10.5px; --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-base: 14px; --fs-lg: 15px; --fs-xl: 17px; --fs-2xl: 18px; --fs-3xl: 21px; --fs-4xl: 24px; --fs-5xl: 28px; --fs-6xl: 32px; }
+  :is(input:not([type="checkbox"], [type="radio"], [type="range"]), select, textarea) { font-size: 16px !important; }
+}
 
 /* Scrollbars stay invisible but keep their space (no layout shift); the one being scrolled fades in while it moves
    (main.jsx sets data-scrolling) and fades out after. --sb is registered so the colour can transition. */
@@ -806,6 +811,10 @@ main:has(.season-grid) { max-width: none; padding: 12px 16px; flex: 1; min-heigh
 .matchup.thin .mu-slot { order: -1; }
 .matchup.mobile .mu-head:has(.mu-mid) { grid-template-columns: minmax(0, 1fr) auto; }
 .matchup.mobile .mu-grid { min-width: 0; }
+/* Phone: name on its own line above the game chips, so it isn't squeezed out. */
+.matchup.mobile .mu-top { flex-direction: column; gap: 2px; }
+.matchup.mobile .mu-id { width: auto; }
+.matchup.mobile .chips-lane { min-height: 46px; }
 .swap-arrows { position: absolute; left: 0; top: 0; height: 100%; overflow: visible; pointer-events: none; }
 .swap-arrows.right { left: auto; right: 0; transform: scaleX(-1); }
 .chips-lane { position: relative; flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: center; }
@@ -1119,3 +1128,16 @@ header.top .brand .logo .icon { width: 20px; height: 20px; }
 /* Ranking settings: compact value boxes (the global number input is 80px wide with roomy padding). */
 .knobs :is(input[type="number"], select) { padding: 2px 7px; border-radius: 7px; }
 .knobs input[type="number"] { width: 54px; }
+/* Phone fits that must come after the rules they override. */
+@media (max-width: 699px) {
+  .profile-top h3 { padding-right: 84px; }
+  .settings-modal { padding-inline: 10px; }
+  .settings-modal .section-card { padding: 14px 12px; }
+  .wall-pick select { flex: 1; min-width: 0; width: auto; }
+  .settings-close { margin-right: -2px; }
+  .settings-modal table { display: block; max-width: 100%; overflow-x: auto; }
+  .settings-modal label.inline { max-width: 100%; flex-wrap: wrap; }
+  .settings-modal label.inline select { min-width: 0; max-width: 100%; }
+  .activity-row { grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; }
+  .activity-row > :last-child { grid-column: 1 / -1; }
+}

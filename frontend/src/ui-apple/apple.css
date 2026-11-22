@@ -138,8 +138,20 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
   .ap-games { grid-template-columns: minmax(0, 1fr); }
   .ap .ap-game { grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; }
   .ap-mine, .ap-meta { padding-left: 10px; min-width: 0; }
+  .ap-widget { padding: 12px 14px; }
+  .ap-ring-widget { gap: 10px; }
+  .ap-ring { width: 48px; height: 48px; }
+  .ap-widget .ap-num:not(.sm) { font-size: var(--fs-4xl); }
+  /* Standings: two lines per team (team · record / points · last 5 · FAAB); the column header doesn't map, so it goes. */
+  .ap .ap-st-head { display: none; }
+  .ap .ap-st-row { grid-template-columns: 26px minmax(0, 1fr) auto auto; grid-template-areas: "rank team team rec" "rank pts form faab"; gap: 4px 10px; padding: 10px 12px; }
+  .ap-st-row > :nth-child(1) { grid-area: rank; } .ap-st-row > :nth-child(2) { grid-area: team; min-width: 0; } .ap-st-row > :nth-child(3) { grid-area: rec; }
+  .ap-st-row > :nth-child(4) { grid-area: pts; } .ap-st-row > :nth-child(5) { grid-area: form; } .ap-st-row > :nth-child(6) { grid-area: faab; }
+  .ap-st-pts { flex-direction: row; align-items: baseline; flex-wrap: wrap; gap: 0 8px; }
+  .ap-st-form { gap: 4px; } .ap-st-form i { width: 9px; height: 9px; }
   main.ap-main, main.ap-main:not(:has(.ap-page)) { padding: calc(64px + env(safe-area-inset-top)) 0 0; }
   main.ap-main:not(:has(.ap-page)) { padding-inline: 12px; }
+  main.ap-main { overflow-x: auto; } /* desktop-only pages (the Draft room) scroll sideways instead of widening the page */
   .ap-page { padding: 14px 12px; }
   .ap-top { flex-wrap: wrap; gap: 10px; }
   .season-tools-x { width: 100%; }
