@@ -802,7 +802,7 @@ def team_news(session, fetch: Fetch, abbr: str) -> list[dict]:
     return sorted(out, key=lambda n: n["published"] or "", reverse=True)
 
 
-SLEEPER_NEWS = "https://api.sleeper.com/players/nba/{}/news"
+SLEEPER_NEWS = "https://api.sleeper.com/players/nba/{}/news?limit=12"
 NEWS_TTL = 15 * 60
 GAME_LOG = 10
 
@@ -874,9 +874,35 @@ def player_news(fetch: Fetch, sid: str, limit: int = 4) -> list[dict]:
             continue
         text = f"{m['title']} {m.get('description') or ''}"
         out.append({"published": datetime.fromtimestamp(a["published"] / 1000, timezone.utc).isoformat() if a.get("published") else None,
-                    "headline": m["title"].strip(), "story": (m.get("description") or "").strip(),
+                    "headline": m["title"].strip(), "story": (m.get("description") or "").strip(), "source": a.get("source"),
                     "injury": bool(INJURY_TAG.search(text) or INJURY_WORD.search(text))})
-    return out[:limit]
+    return merge_sources(out)[:limit]
+
+
+NEWS_STOP = frozenset("that this with from have been were will they their after before over into than about against game games night team".split())
+SAME_EVENT_HOURS = 14
+PREFERRED_NEWS = "fantasy_pros"   # its headlines carry the injury tag "(knee)" the injury filters read, and a link
+
+
+def merge_sources(items: list[dict]) -> list[dict]:
+    """One entry per event: Sleeper's feed mixes FantasyPros and RotoWire, which report the same event a few minutes to hours apart.
+    Two items from different providers are one event when they are within SAME_EVENT_HOURS and share 2+ meaningful words (the
+    player's name, the words every headline has, is left out); the PREFERRED_NEWS item is the one kept. Newest first."""
+    if len(items) < 2:
+        return items
+    words = lambda n: {w for w in re.findall(r"[a-z0-9][a-z0-9'-]{3,}", f"{n['headline']} {n['story']}".lower()) if w not in NEWS_STOP}
+    name = set.intersection(*[words({"headline": n["headline"], "story": ""}) for n in items])
+    when = lambda n: datetime.fromisoformat(n["published"]).timestamp() if n["published"] else 0.0
+    kept = []
+    for n in sorted(items, key=when, reverse=True):
+        mine = words(n) - name
+        twin = next((i for i, k in enumerate(kept) if k["source"] != n["source"] and abs(when(k) - when(n)) <= SAME_EVENT_HOURS * 3600
+                     and len(mine & (words(k) - name)) >= 2), None)
+        if twin is None:
+            kept.append(n)
+        elif n["source"] == PREFERRED_NEWS and kept[twin]["source"] != PREFERRED_NEWS:
+            kept[twin] = n
+    return sorted(kept, key=when, reverse=True)
 
 
 def season_news(view: dict, fetch: Fetch, free: list[str] = (), watch: list[str] = ()) -> dict:

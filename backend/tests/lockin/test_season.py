@@ -1,7 +1,7 @@
 
 from datetime import date
 
-from app.lockin.service import actual_fp, current_week, days_still_out, ir_worthy, week_view
+from app.lockin.service import actual_fp, current_week, days_still_out, ir_worthy, merge_sources, week_view
 from tests.test_session import JOKIC, fixture_world, make_session  # noqa: F401  (pytest fixture)
 
 
@@ -453,3 +453,25 @@ def test_espn_return_date_decides_when_it_has_a_row(fixture_world):
     espn = {"injuries": [{"injuries": [row("far", "2026-12-14"), row("near", "2026-11-22")]}]}
     fetch = lambda url, ttl: espn if url == ESPN_INJURIES else []
     assert team_plan(s, view, fetch=fetch)["roster"]["ir_candidates"] == ["far"]
+
+
+def test_news_from_both_providers_is_one_entry_per_event():
+    """Sleeper's feed has FantasyPros and RotoWire reporting each event; Shai's real entries merge to 3, FantasyPros kept."""
+    item = lambda src, at, head, story: {"source": src, "published": f"2026-11-{at}:00+00:00", "headline": head, "story": story, "injury": False}
+    sga = "Shai Gilgeous-Alexander"
+    feed = [
+        item("fantasy_pros", "21T23:00", f"{sga} (back/neck) listed questionable Sunday", f"{sga} is listed as questionable for Sunday's game against the Heat."),
+        item("rotowire", "21T22:45", f"{sga} - Questionable to play Sunday", "Gilgeous-Alexander (back/neck) is listed as questionable for Sunday's game versus Miami."),
+        item("fantasy_pros", "21T14:55", f"{sga} leads offense in Friday's win over Pelicans",
+             f"{sga} led the Thunder offense Friday night, scoring 40 points (14-24 FG, 4-7 3PT, 8-11 FT) in a 126-120 win over the Pelicans."),
+        item("rotowire", "21T03:37", f"{sga} - Drops 40-piece in win",
+             "Gilgeous-Alexander recorded 40 points (14-24 FG, 4-7 3Pt, 8-11 FT) during Friday's 126-120 win over the Pelicans."),
+        item("fantasy_pros", "19T15:20", f"{sga} scores 34 in Wednesday's loss", f"{sga} scored 34 points in a loss to the Grizzlies on Wednesday."),
+    ]
+    got = merge_sources(feed)
+    assert [(n["source"], n["published"][8:16]) for n in got] == [("fantasy_pros", "21T23:00"), ("fantasy_pros", "21T14:55"), ("fantasy_pros", "19T15:20")]
+    # two different events close together stay two (Edwards: the diagnosis vs an unrelated status line an hour earlier)
+    ed = "Anthony Edwards"
+    two = [item("fantasy_pros", "27T23:00", f"{ed} (knee) to miss up to two months", "Edwards will undergo an arthroscopic procedure and miss up to two months."),
+           item("rotowire", "27T22:05", f"{ed} - Questionable for Wednesday", "Edwards is questionable for Wednesday's game against the Hawks.")]
+    assert len(merge_sources(two)) == 2
