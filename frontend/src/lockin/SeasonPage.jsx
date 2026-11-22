@@ -15,6 +15,7 @@ import { fmt, setZone, timeOf, tipInfo } from "./tz.js";
 import { reseat, swapSteps } from "./swaps.js";
 import Icon from "../core/Icon.jsx";
 import useBackdrop from "../core/useBackdrop.js";
+import useSwipe from "../core/useSwipe.js";
 
 const REFRESH_MS = 60000;
 
@@ -404,9 +405,16 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
   const mineIdx = Math.max(0, idxOf(plan.roster_id));
   const [idx, setIdx] = useState(() => (focus && idxOf(focus.rid) >= 0 ? idxOf(focus.rid) : mineIdx));
   // Thin screens draw one side only: the picked roster's (a search or League jump, or the manager pill), if it's in this matchup.
-  // pill = {rid}, a new object per manager-pill tap; declared before the focus effect so a jump wins on mount.
+  // pill = {rid} per manager-pill tap or {step: ±1} per swipe on it (a new object each time); declared before the
+  // focus effect so a jump wins on mount.
   const [pick, setPick] = useState(() => focus?.rid ?? pill?.rid ?? null);
-  useEffect(() => { if (pill) setPick(pill.rid); }, [pill]);
+  const pillSeen = useRef(pill); // a pill left over from before this mount is not a new tap or swipe
+  useEffect(() => {
+    if (!pill || pill === pillSeen.current) return;
+    pillSeen.current = pill;
+    if (pill.step) step(pill.step); else setPick(pill.rid);
+  }, [pill]);
+  const swipe = useSwipe((d) => step(d));
   useEffect(() => { if (focus && idxOf(focus.rid) >= 0) { setIdx(idxOf(focus.rid)); setPick(focus.rid); } }, [focus]);
   const pair = data.matchups[idx] || [];
   const leftRid = thin && pair.some((m) => m.roster_id === pick) ? pick : idx === mineIdx ? plan.roster_id : pair[0]?.roster_id;
@@ -490,7 +498,7 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
     <div className={`panel matchup ${thin ? "thin" : ""} ${mobile ? "mobile" : ""}`} data-testid="my-week" style={{ "--gut": `${gutter}px` }}>
       {!mobile && tl?.segments.length > 0 && <Timeline tl={tl} nowMs={nowMs} atMs={atMs} setAt={setAt} view={differs ? view : "best"} setView={setView} differs={differs} />}
       {gap && <div className="small muted mu-gap" data-testid="sleeper-gap">Sleeper still shows yesterday's lineup: the arrows start from it, so skip any move you've already made.</div>}
-      <div className="mu-head">
+      <div className="mu-head" {...swipe}>
         {!mobile && <button className="mu-arrow neon-arrow" onClick={() => step(-1)} data-tip="Previous matchup" aria-label="Previous matchup" data-testid="mu-prev"><NeonArrow dir="left" /></button>}
         <div className="mu-team">
           <TeamName t={shown} cls="mc-name" size={34} mine={isMine} />

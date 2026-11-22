@@ -7,6 +7,7 @@ import Headshot from "../core/Headshot.jsx";
 import Icon from "../core/Icon.jsx";
 import { TipLayer } from "../core/Terms.jsx";
 import useBackdrop from "../core/useBackdrop.js";
+import useSwipe from "../core/useSwipe.js";
 import { TeamLinkContext } from "../core/TeamLink.jsx";
 import { SEASON_VIEWS, SettingsModal, useAppState } from "../core/Shell.jsx";
 import useSeason from "../lockin/useSeason.js";
@@ -87,7 +88,7 @@ function AppleSeason({ leagueId, leagueName, view, onWeek }) {
         <div className="ap-top">
           <h1 className="ap-title">{TITLES[view]}<span>{leagueName}</span></h1>
           {(view === "week" || view === "league") && <WeekNav s={s} />}
-          {view === "week" && <ManagerPill data={data} rid={away ? focusRid : plan.roster_id} onPick={(rid) => { setFocusRid(rid); setPill({ rid }); }} />}
+          {view === "week" && <ManagerPill data={data} rid={away ? focusRid : plan.roster_id} onPick={(rid) => { setFocusRid(rid); setPill({ rid }); }} onSwipe={(d) => setPill({ step: d })} />}
           {s.error && <span className="small warn-text">{s.error}</span>}
           <SeasonTools s={s} leagueId={leagueId} />
         </div>
@@ -119,12 +120,14 @@ function AppleSeason({ leagueId, leagueName, view, onWeek }) {
   );
 }
 
-function ManagerPill({ data, rid, onPick }) {
+/** The two managers of the shown matchup: tap one to show their side; swipe sideways for the next/previous matchup. */
+function ManagerPill({ data, rid, onPick, onSwipe }) {
+  const swipe = useSwipe(onSwipe);
   const pair = data.matchups.find((p) => p.some((m) => m.roster_id === rid)) || [];
   const name = (id) => { const t = data.teams.find((x) => x.roster_id === id); return t ? t.user || t.name : "?"; };
   if (pair.length < 2) return null;
   return (
-    <span className="ap-who" role="group" aria-label="Show this manager's side" data-testid="manager-pill">
+    <span className="ap-who" role="group" aria-label="Show this manager's side" data-testid="manager-pill" {...swipe}>
       {pair.map((m) => <button key={m.roster_id} className={m.roster_id === rid ? "on" : ""} aria-pressed={m.roster_id === rid} onClick={() => onPick(m.roster_id)}>{name(m.roster_id)}</button>)}
     </span>
   );

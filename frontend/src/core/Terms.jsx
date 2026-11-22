@@ -88,6 +88,8 @@ export function TipLayer() {
       setTip({ text, x: r.left + r.width / 2, below: r.bottom + 8, above: r.top - 8 });
     };
     const hide = () => setTip(null);
+    // Phones get no hover tips: a tap would pop one up and leave it stuck over the page.
+    if (window.matchMedia("(max-width: 699px), (hover: none)").matches) return undefined;
     document.addEventListener("mouseover", over);
     document.addEventListener("scroll", hide, true);
     return () => { document.removeEventListener("mouseover", over); document.removeEventListener("scroll", hide, true); };

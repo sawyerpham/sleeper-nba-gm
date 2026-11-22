@@ -1136,9 +1136,28 @@ header.top .brand .logo .icon { width: 20px; height: 20px; }
   .wall-pick select { flex: 1; min-width: 0; width: auto; }
   .settings-close { margin-right: -2px; }
   .home { padding-top: calc(76px + env(safe-area-inset-top)); }
+  /* League → Best games: the stat line drops to its own full-width line under the row. */
+  .best-game { flex-wrap: wrap; row-gap: 4px; }
+  .best-main { display: contents; }
+  .best-game { gap: 4px 6px; padding: 8px 10px; }
+  .best-main > :first-child strong { font-size: var(--fs-md); }
+  .best-main > :first-child { flex: 1; min-width: 0; overflow-wrap: break-word; line-height: 1.25; }
+  .best-game .mu-hs .headshot { width: 36px !important; height: 36px !important; }
+  .best-rank { width: 12px; }
+  .best-gamecard { width: 80px; padding: 3px 6px; }
+  .best-fp { min-width: 0; font-size: var(--fs-lg); }
+  .best-line { flex-basis: 100%; order: 1; padding-left: 28px; }
+  /* Lineup: the slot (PG, SG…) moves from its own column into the card's empty top-right corner. */
+  .matchup.mobile .mu-grid { grid-template-columns: minmax(0, 1fr); }
+  .matchup.mobile .mu-cell, .matchup.mobile .mu-slot { grid-column: 1; }
+  .matchup.mobile .mu-slot { justify-self: end; align-self: start; z-index: 1; padding: 4px 12px 0 0; pointer-events: none; }
+  .matchup.mobile .mu-slot.first { border-top: 0; }
+  .matchup.mobile .mu-slot .pos-tag, .matchup.mobile .mu-slot span { font-size: var(--fs-4xl); line-height: 1.1; }
+  .matchup.mobile .mu-id { padding-right: 64px; }
   .home-import { padding-inline: 12px; }
   .home-import input { min-width: 0; flex: 1 1 100%; }
-  .settings-modal table { display: block; max-width: 100%; overflow-x: auto; }
+  /* Wide tables (depth charts, game logs, box scores, settings lists) swipe sideways inside their box. */
+  :is(.settings-modal, .ap-sheet) table { display: block; max-width: 100%; overflow-x: auto; }
   .settings-modal label.inline { max-width: 100%; flex-wrap: wrap; }
   .settings-modal label.inline select { min-width: 0; max-width: 100%; }
   .activity-row { grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; }
