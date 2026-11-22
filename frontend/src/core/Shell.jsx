@@ -22,7 +22,9 @@ export const SEASON_VIEWS = { season: "week", news: "news", standings: "league",
 export function useAppState() {
   const [tab, setTab] = useState(() => {
     const t = localStorage.getItem("da.tab");
-    return !t || ["settings", "data", "league"].includes(t) ? "home" : t;
+    const connected = !!localStorage.getItem("da.league");
+    if (!t || t === "home") return connected ? "standings" : "home";
+    return ["settings", "data", "league"].includes(t) ? "home" : t;
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const goTab = (t) => (t === "settings" ? setSettingsOpen(true) : setTab(t));
