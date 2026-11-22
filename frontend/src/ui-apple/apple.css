@@ -83,7 +83,8 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
 .ap-game { color: var(--text); font: inherit; }
 .ap-games { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 0 8px 4px; }.ap-games .ap-row::before { display: none; }
 .ap .ap-game { display: grid; grid-template-columns: minmax(0, 1fr) 150px auto; gap: 14px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel-2, transparent); }
-.ap-teams { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ap-teams { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ap-vs { position: absolute; right: 0; top: 50%; width: 2em; transform: translateY(-50%); text-align: center; font-size: var(--fs-lg); font-weight: 700; }
 .ap-team { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .ap-team img { flex: none; width: 26px; height: 26px; object-fit: contain; }
 .ap-team strong { font-size: var(--fs-md); font-weight: 700; }
