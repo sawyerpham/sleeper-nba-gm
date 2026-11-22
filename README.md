@@ -244,15 +244,18 @@ moves) and the win chance a lock call must add before it is pushed. Each league'
 One small VM runs everything: the app container (API plus the built frontend, one address, so the sign-in cookie
 just works) behind Caddy, which gets and renews the HTTPS certificate by itself. Files: `deploy/`.
 
-What you need: an Oracle Cloud account (Always Free; a card is checked but not charged), and a domain (about $10 a
-year at Cloudflare or Porkbun). The domain also lets Resend email sign-in links to anyone (step 5).
+What you need: an Oracle Cloud account (Always Free; a card is checked but not charged). A domain is optional: without
+one, use the free `<ip-with-dashes>.sslip.io` name (for IP 140.238.1.2: `140-238-1-2.sslip.io`), which already points at
+your server, and Resend's default sender, which emails only the address that owns the Resend account. That's enough when
+you are the only user. Buy a domain (about $10 a year) once other people need sign-in emails.
 
 1. **VM.** In Oracle Cloud: Compute > Instances > Create. Image **Ubuntu 24.04**, shape **VM.Standard.A1.Flex**
    (Ampere, Always Free up to 4 OCPU / 24 GB; 1 OCPU / 6 GB is plenty). Add your SSH key and create it. If it says
    "out of capacity", try another availability domain or try again later.
 2. **Ports.** Networking > Virtual cloud networks > your VCN > Security Lists > Default: add ingress rules for TCP 80,
    TCP 443 and UDP 443 from `0.0.0.0/0`.
-3. **DNS.** At your domain's DNS, add an `A` record (for example `app.yourdomain.com`) pointing at the VM's public IP.
+3. **DNS.** With a domain: add an `A` record (for example `app.yourdomain.com`) pointing at the VM's public IP. Without
+   one: skip this and use `<ip-with-dashes>.sslip.io` as the domain below.
 4. **Install.** Push this repo to GitHub, SSH in (`ssh ubuntu@<ip>`), then:
    ```
    curl -fsSLO https://raw.githubusercontent.com/<you>/<repo>/main/deploy/setup.sh
@@ -266,7 +269,7 @@ year at Cloudflare or Porkbun). The domain also lets Resend email sign-in links 
    APP_URL=https://app.yourdomain.com
    ADMIN_EMAILS=you@example.com
    RESEND_API_KEY=re_...
-   MAIL_FROM=NBA Fantasy <login@yourdomain.com>
+   MAIL_FROM=NBA Fantasy <login@yourdomain.com>    # leave out without a domain (Resend's default sender)
    TELEGRAM_BOT_TOKEN=...
    ```
    In Resend: Domains > Add domain, add the DNS records it shows, and wait for "Verified"; until then it only emails you.
