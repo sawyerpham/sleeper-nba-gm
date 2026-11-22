@@ -333,3 +333,24 @@ def test_premium_gets_telegram_but_not_the_admin_tab(app):
     assert state.accounts.user(fan_id)["tg_chat_id"] == 9                     # premium -> admin keeps the link
     owner.put(f"/api/admin/users/{fan_id}/role", json={"role": "user"})
     assert state.accounts.user(fan_id)["tg_chat_id"] is None and fan.get("/api/notify").status_code == 403
+
+
+def test_an_account_has_at_most_max_leagues(app, monkeypatch):
+    """A script can't fill the disk with leagues: past the cap a new one is refused, re-adding an existing one isn't."""
+    from app.core.api import leagues
+
+    monkeypatch.setattr(leagues, "MAX_LEAGUES", 2)
+    c = TestClient(app)
+    sign_in(c, "fan@test.local")
+    assert c.post("/api/leagues", json={"league_id": "a", "name": "A"}).status_code == 201
+    assert c.post("/api/leagues", json={"league_id": "b", "name": "B"}).status_code == 201
+    r = c.post("/api/leagues", json={"league_id": "c", "name": "C"})
+    assert r.status_code == 400 and "up to 2 leagues" in r.json()["detail"]
+    assert "already exists" in c.post("/api/leagues", json={"league_id": "a", "name": "A"}).json()["detail"]
+
+
+def test_api_docs_are_off_on_the_https_site(tmp_path, fixtures_dir, monkeypatch):
+    """/docs and /openapi.json would map every route for an attacker: served in local dev only."""
+    monkeypatch.setenv("APP_URL", "https://fantasy.example.com")
+    live = create_app(AppState(JsonStore(tmp_path), FixtureStatsProvider(fixtures_dir), FixturePlatformProvider(fixtures_dir)))
+    assert TestClient(live).get("/openapi.json").status_code == 404 and TestClient(live).get("/docs").status_code == 404

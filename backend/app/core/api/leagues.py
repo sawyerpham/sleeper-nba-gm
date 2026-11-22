@@ -17,6 +17,8 @@ from ..services.league_repository import default_managers, validate_league_id
 from .deps import _session, get_state
 from .schemas import SLEEPER_ID, CreateLeague, KeeperEvaluateIn, KeeperHistoryIn, ManagerPatch, SleeperApplyIn, SleeperPreviewIn
 
+MAX_LEAGUES = 10  # per non-admin account: each league is a file on the server's disk, so a script can't fill it up
+
 router = APIRouter(prefix="/leagues", tags=["leagues"])
 
 
@@ -48,8 +50,11 @@ def create_league(body: CreateLeague, request: Request, state: AppState = Depend
         validate_league_id(body.league_id)
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
-    uid = _user(request)["id"]
-    lid = own_id(state, body.league_id, uid)
+    user = _user(request)
+    uid = user["id"]
+    lid, owned = own_id(state, body.league_id, uid), state.accounts.owned(uid)
+    if not user["admin"] and lid not in owned and len(owned) >= MAX_LEAGUES:   # re-adding one you have: "already exists"
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"You can have up to {MAX_LEAGUES} leagues: delete one first")
     if body.settings is not None:
         league = body.settings.model_copy(update={"league_id": lid, "name": body.name})
     else:

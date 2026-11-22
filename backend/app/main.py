@@ -70,7 +70,10 @@ def create_app(state: AppState | None = None) -> FastAPI:
             notify.start_watcher(app.state.app_state)
         yield
 
-    app = FastAPI(title="NBA Fantasy Tool API", version=API_VERSION, lifespan=lifespan)
+    # The interactive API docs (/docs, /openapi.json) map every route for an attacker: local dev only, off on the https site.
+    dev = not auth.app_url().startswith("https://")
+    app = FastAPI(title="NBA Fantasy Tool API", version=API_VERSION, lifespan=lifespan,
+                  docs_url="/docs" if dev else None, redoc_url="/redoc" if dev else None, openapi_url="/openapi.json" if dev else None)
     app.state.app_state = state
 
     @app.middleware("http")
