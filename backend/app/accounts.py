@@ -30,7 +30,9 @@ LIMITS = {
     "login_email": [("email", 3, 15 * 60), ("ip", 10, 3600)],
     "tg_link": [("user_id", 5, 3600)],
     "tg_sent": [("user_id", 100, 24 * 3600)],
+    "sleeper_sync": [("user_id", 30, 3600)],   # each sync refetches from Sleeper; the season one empties the shared cache
 }
+EVENT_KEEP_DAYS = 90   # usage events (with their IPs) older than this are deleted by prune(), run with the daily backup
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, email TEXT UNIQUE NOT NULL, created_at REAL NOT NULL,
@@ -113,6 +115,25 @@ class Accounts:
             n = self._one(f"SELECT COUNT(*) FROM events WHERE kind = ? AND {col} = ? AND at > ?", kind, keys[col], time.time() - window)
             if n >= cap:
                 raise RateLimited(f"Too many requests, try again in {window // 60} minutes")
+
+    def prune(self, keep_days: int = EVENT_KEEP_DAYS) -> int:
+        """Delete usage events older than keep_days (their IPs go with them) and expired tokens; returns events deleted."""
+        n = len(self._q("DELETE FROM events WHERE at < ? RETURNING at", time.time() - keep_days * 86400))
+        self._q("DELETE FROM tokens WHERE expires < ?", time.time())
+        return n
+
+    def delete_user(self, user_id: int) -> list[str]:
+        """Erase an account: its sessions and tokens, usage events (IPs included), league ownership and the user row.
+        Returns the ids of the leagues it owned (the caller deletes their files first)."""
+        user = self.user(user_id)
+        if user is None:
+            raise LookupError(user_id)
+        leagues = self.owned(user_id)
+        self._q("DELETE FROM tokens WHERE user_id = ? OR email = ?", user_id, user["email"])
+        self._q("DELETE FROM events WHERE user_id = ? OR email = ?", user_id, user["email"])
+        self._q("DELETE FROM leagues WHERE user_id = ?", user_id)
+        self._q("DELETE FROM users WHERE id = ?", user_id)
+        return leagues
 
     # --- login and sessions ---
 

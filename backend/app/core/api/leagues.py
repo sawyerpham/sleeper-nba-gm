@@ -11,6 +11,7 @@ from nba_fantasy_shared.models.league import LeagueSettings, Manager, RosterSlot
 from nba_fantasy_shared.models.players import SLOT_ACCEPTS
 from nba_fantasy_shared.scoring import map_sleeper_scoring
 
+from ...auth import limited
 from ..engine import roster
 from ..services.app_state import AppState
 from ..services.league_repository import default_managers, validate_league_id
@@ -74,12 +75,22 @@ def get_league(league_id: str, state: AppState = Depends(get_state)) -> dict:
     return _session(state, league_id).to_export().model_dump(mode="json")
 
 
+def remove_league(state: AppState, league_id: str) -> None:
+    """Delete everything kept for a league: its file, export copies, lock answers, watched players and owner."""
+    from ...lockin.service import forget_league
+
+    state.delete_league(league_id)
+    for f in state.store.path("exports").glob(f"{league_id}_*.json"):
+        f.unlink()
+    forget_league(state.store, league_id)
+    state.accounts.disown(league_id)
+
+
 @router.delete("/{league_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_league(league_id: str, state: AppState = Depends(get_state)) -> None:
     """Delete a league; 204."""
     _session(state, league_id)
-    state.delete_league(league_id)
-    state.accounts.disown(league_id)
+    remove_league(state, league_id)
 
 
 @router.get("/{league_id}/settings")
@@ -319,7 +330,7 @@ def _applied(session, league, sleeper_league_id: str, fields: list[str]) -> Leag
     return new
 
 
-@router.post("/{league_id}/sleeper/sync")
+@router.post("/{league_id}/sleeper/sync", dependencies=[Depends(limited("sleeper_sync"))])
 def sleeper_sync(league_id: str, state: AppState = Depends(get_state)) -> dict:
     """The one-click pre-draft sync: download the linked Sleeper league (and history leagues), refresh projections,
     then (before the draft) take over its managers and rules. Returns what changed in plain words."""

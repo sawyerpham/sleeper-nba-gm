@@ -84,6 +84,19 @@ export function useAppState() {
   return { tab, setTab, goTab, settingsOpen, setSettingsOpen, leagueId, setLeagueId, leagueName, wall, setWall, health, refreshHealth };
 }
 
+/** Ask for the account's email again, then delete the account and everything kept for it, and go back to sign-in. */
+async function deleteAccount() {
+  const typed = window.prompt("This deletes your account, your leagues and their saved data for good. Type your email to confirm:");
+  if (!typed) return;
+  try {
+    await api.post("/auth/delete", { email: typed });
+    try { localStorage.removeItem("da.league"); } catch { /* storage blocked */ }
+    window.location.reload();
+  } catch (e) {
+    window.alert(e.message);
+  }
+}
+
 export function SettingsModal({ app, user }) {
   const close = () => app.setSettingsOpen(false);
   const backdrop = useBackdrop(close);
@@ -95,6 +108,8 @@ export function SettingsModal({ app, user }) {
       <div className="panel section-card" data-testid="section-account"><h2>Account</h2>
         <p className="settings-account">Signed in as <strong>{user.email}</strong>
           <button className="small" onClick={signOut} data-testid="sign-out"><Icon name="log-out" /> Sign out</button></p>
+        {user.kind !== "owner" && <p className="settings-account small muted">Deleting your account removes your leagues, lock answers and sign-in history for good.
+          <button className="small danger" onClick={deleteAccount} data-testid="delete-account">Delete account</button></p>}
       </div>
       <div className="panel section-card" data-testid="section-appearance"><h2>Appearance</h2>
       <div className="panel wall-pick"><h3>Wallpaper</h3>

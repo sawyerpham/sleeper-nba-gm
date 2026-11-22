@@ -22,6 +22,11 @@ COPY --from=web /web/dist /app/frontend/dist
 ENV DRAFT_ADVISOR_DATA_DIR=/data PYTHONIOENCODING=utf-8 PYTHONUNBUFFERED=1
 VOLUME /data
 EXPOSE 8000
+# Run as a plain user, not root. APP_UID matches the server account that owns backend/data (ubuntu = 1001 on the
+# Oracle VM), so files the app writes stay that account's; on a new server: chown -R <uid> backend/data.
+ARG APP_UID=1001
+RUN useradd --uid ${APP_UID} --no-create-home --shell /usr/sbin/nologin app
+USER app
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4)"
 CMD ["python", "-m", "app.serve", "--host", "0.0.0.0", "--port", "8000"]

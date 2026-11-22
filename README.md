@@ -210,7 +210,10 @@ Security: every write from a browser must come from this site (a CSRF check on t
 session cookie); every response carries a strict Content-Security-Policy (scripts only from this site), no framing and
 no Referer; emails are limited to plain addresses (no line breaks, quotes, commas or markup); Sleeper ids must be numbers
 and names have length caps; all database queries are parameterized and React escapes everything it shows. In production
-Caddy also caps request bodies at 1 MB and sends HSTS.
+Caddy also caps request bodies at 1 MB and sends HSTS. The app runs as a plain user in its container, the API docs
+(`/docs`) are off on the https site, a regular account holds at most 10 leagues and 30 Sleeper syncs an hour, usage
+events (with IPs) are deleted after 90 days, and anyone but an owner can delete their account and its data from
+Settings > Account.
 
 Settings go in `backend/.env` (gitignored):
 ```
@@ -262,6 +265,9 @@ you are the only user. Buy a domain (about $10 a year) once other people need si
    exit                      # log back in so the docker group applies
    ```
    It installs Docker, opens 80/443 in the VM's firewall, clones to `~/app` and schedules the daily backup.
+   The app container runs as user id 1001 (Ubuntu's `ubuntu` on Oracle; check with `id -u`, and build with
+   `--build-arg APP_UID=<yours>` if it differs), so `backend/data` must belong to it: `chmod 600 ~/app/backend/.env`
+   once it exists, and after copying data in, `sudo chown -R $(id -u):$(id -g) ~/app/backend/data`.
    (A private repo: clone with a GitHub deploy key or token instead.)
 5. **Settings.** Create `~/app/deploy/.env` with `DOMAIN=app.yourdomain.com` and `~/app/backend/.env` with:
    ```

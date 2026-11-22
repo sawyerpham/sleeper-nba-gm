@@ -75,6 +75,19 @@ def require_telegram(user: dict = Depends(current_user)) -> dict:
     return user
 
 
+def limited(kind: str):
+    """A route dependency that counts one `kind` event for the signed-in user and answers 429 past its LIMITS."""
+    def check(request: Request, user: dict = Depends(current_user)) -> None:
+        """Refuse past the limit, else record the use."""
+        accounts = get_state(request).accounts
+        try:
+            accounts.check_limit(kind, user_id=user["id"])
+        except RateLimited as exc:
+            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, str(exc)) from exc
+        accounts.log(kind, user_id=user["id"])
+    return check
+
+
 def require_admin(user: dict = Depends(current_user)) -> dict:
     """The signed-in user when they are an admin; 403 otherwise."""
     if not user["admin"]:
@@ -145,6 +158,31 @@ def me_of(user: dict) -> dict:
 def me(user: dict = Depends(current_user)) -> dict:
     """The signed-in user (401 when signed out)."""
     return me_of(user)
+
+
+class DeleteMeIn(BaseModel):
+    """POST /auth/delete body: the account's email, typed again to confirm."""
+    email: str = Field(max_length=254)
+
+
+@router.post("/delete")
+def delete_me(body: DeleteMeIn, request: Request, response: Response, user: dict = Depends(current_user)) -> dict:
+    """Delete the signed-in account and everything kept for it: its leagues (files, locks, watch lists, exports), sessions,
+    usage events and IPs. The email must be typed again; an owner (ADMIN_EMAILS) can't delete itself here. The daily
+    backups still hold it until they age out (14 days)."""
+    from .core.api.leagues import remove_league
+
+    if body.email.strip().lower() != user["email"]:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Type your account's email to confirm")
+    if user["kind"] == "owner":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "The owner account is set on the server (ADMIN_EMAILS) and can't be deleted here")
+    state = get_state(request)
+    for lid in state.accounts.owned(user["id"]):
+        remove_league(state, lid)
+    state.accounts.delete_user(user["id"])
+    response.delete_cookie(COOKIE, path="/")
+    log.info("account %s deleted itself", user["id"])
+    return {"deleted": True}
 
 
 admin_router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])

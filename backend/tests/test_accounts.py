@@ -354,3 +354,48 @@ def test_api_docs_are_off_on_the_https_site(tmp_path, fixtures_dir, monkeypatch)
     monkeypatch.setenv("APP_URL", "https://fantasy.example.com")
     live = create_app(AppState(JsonStore(tmp_path), FixtureStatsProvider(fixtures_dir), FixturePlatformProvider(fixtures_dir)))
     assert TestClient(live).get("/openapi.json").status_code == 404 and TestClient(live).get("/docs").status_code == 404
+
+
+def test_syncing_with_sleeper_is_limited_per_account(app, monkeypatch):
+    """Each sync refetches from Sleeper (the season one empties the shared cache): past the hourly cap it's a 429."""
+    from app import accounts
+
+    monkeypatch.setitem(accounts.LIMITS, "sleeper_sync", [("user_id", 2, 3600)])
+    c = TestClient(app)
+    sign_in(c, "fan@test.local")
+    assert c.post("/api/leagues", json={"league_id": "a", "name": "A"}).status_code == 201
+    assert [c.post("/api/leagues/a/season/sync").status_code for _ in range(3)] == [200, 200, 429]
+
+
+def test_old_usage_events_and_their_ips_are_pruned():
+    """Events past EVENT_KEEP_DAYS go (IPs with them); recent ones stay for the stats and rate limits."""
+    import time
+
+    acc = Accounts(":memory:")
+    acc.log("login", ip="1.2.3.4")
+    acc._q("UPDATE events SET at = ?", time.time() - 91 * 86400)
+    acc.log("login", ip="5.6.7.8")
+    assert acc.prune() == 1
+    assert [r["ip"] for r in acc._q("SELECT ip FROM events")] == ["5.6.7.8"]
+
+
+def test_a_user_deletes_their_account_and_its_data(app):
+    """Typing the email again deletes the account, its leagues (file, lock answers, watch list), sessions and events; the
+    owner can't delete itself here; a wrong email changes nothing."""
+    from app.lockin.service import LOCKS_FILE, WATCH_FILE, write_lock, write_watch
+
+    state = app.state.app_state
+    fan, owner = TestClient(app), TestClient(app)
+    fan_id = sign_in(fan, "fan@test.local")["id"]
+    sign_in(owner)
+    assert fan.post("/api/leagues", json={"league_id": "mine", "name": "Mine"}).status_code == 201
+    write_lock(state.store, "mine", 1, "123", "2026-11-20")
+    write_watch(state.store, "mine", 7, True)
+    assert fan.post("/api/auth/delete", json={"email": "other@test.local"}).status_code == 400
+    assert owner.post("/api/auth/delete", json={"email": ADMIN}).status_code == 400
+    assert fan.post("/api/auth/delete", json={"email": "Fan@test.local "}).json() == {"deleted": True}
+    assert fan.get("/api/auth/me").status_code == 401
+    assert state.accounts.user(fan_id) is None and not state.leagues.exists("mine")
+    assert "mine" not in state.store.read_json(LOCKS_FILE) and "mine" not in state.store.read_json(WATCH_FILE)
+    assert not state.accounts._q("SELECT 1 FROM events WHERE user_id = ? OR email = 'fan@test.local'", fan_id)
+    assert owner.get("/api/auth/me").status_code == 200

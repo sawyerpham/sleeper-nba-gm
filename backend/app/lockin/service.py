@@ -452,6 +452,16 @@ def _write_lock(store, league_id: str, week: int, sid: str, game_date: str | Non
 WATCH_FILE = "season_watched.json"
 
 
+def forget_league(store, league_id: str) -> None:
+    """Drop a deleted league's lock answers and watched players from the shared files."""
+    with _file_lock:
+        for rel in (LOCKS_FILE, WATCH_FILE):
+            if store.exists(rel):
+                data = store.read_json(rel)
+                if data.pop(league_id, None) is not None:
+                    store.write_json(rel, data)
+
+
 def read_watch(store, league_id: str) -> list[int]:
     """The player ids watched in a league (they get their own News tab)."""
     return (store.read_json(WATCH_FILE) if store.exists(WATCH_FILE) else {}).get(league_id, [])

@@ -8,6 +8,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
+from ..auth import limited
 from ..core.api.deps import _session, get_state
 from ..core.api.players import _team_role, team_rosters
 from ..core.services.app_state import AppState
@@ -132,7 +133,7 @@ def injuries(league_id: str, state: AppState = Depends(get_state)) -> dict:
     return {"teams": injury_report(hurt), "names": _team_names(state)}
 
 
-@router.post("/sync")
+@router.post("/sync", dependencies=[Depends(limited("sleeper_sync"))])
 def sync(league_id: str, state: AppState = Depends(get_state)) -> dict:
     """Forget every cached Sleeper / ESPN response: the next load pulls the lineup, scores and news fresh. Also takes
     the Sleeper league's name if it was renamed there."""
