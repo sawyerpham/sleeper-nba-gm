@@ -19,7 +19,11 @@
   color-scheme: dark;
 }
 
-* { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.25) transparent; }
+/* Scrollbars stay invisible but keep their space (no layout shift); the one being scrolled fades in while it moves
+   (main.jsx sets data-scrolling) and fades out after. --sb is registered so the colour can transition. */
+@property --sb { syntax: "<color>"; inherits: false; initial-value: transparent; }
+* { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--sb) transparent; transition: --sb 0.6s; }
+[data-scrolling] { --sb: color-mix(in srgb, var(--text) 35%, transparent); transition: --sb 0.15s; }
 body {
   margin: 0;
   color: var(--text);
