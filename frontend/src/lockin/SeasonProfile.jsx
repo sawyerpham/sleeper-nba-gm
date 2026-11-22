@@ -33,7 +33,6 @@ export function SeasonSummary({ sea, onOpenGame, onOpenMatchup }) {
         </div>
       )}
       <div className="sec">
-      <div className="bid-label sp-head">Season averages <span className="muted">· {sea.games_played} GP</span></div>
       {a ? <div className="sp-grid">{stat("MPG", f1(a.min))}{stat("PTS", f1(a.pts))}{stat("REB", f1(a.reb))}{stat("AST", f1(a.ast))}
         {stat("STL", f1(a.stl))}{stat("BLK", f1(a.blk))}{stat("TO", f1(a.to))}</div> : <div className="small muted">No finished games yet.</div>}
       <div className="sp-grid sp-grid-5">
@@ -42,16 +41,18 @@ export function SeasonSummary({ sea, onOpenGame, onOpenMatchup }) {
         {stat("FP/G", f2(a?.fp))}
       </div>
       </div>
-      <div className="small sp-meta sec">
-        <div><span className="muted">Owner</span> {sea.owner
-          ? <strong className={`${sea.owner.is_user ? "ok" : ""} ${onOpenMatchup ? "clickable" : ""}`} data-testid="owner"
-            {...(onOpenMatchup && { role: "button", tabIndex: 0, "data-tip": "Show this week's matchup",
-              onClick: () => onOpenMatchup(sea.owner.roster_id), onKeyDown: (e) => e.key === "Enter" && onOpenMatchup(sea.owner.roster_id) })}>
-            {sea.owner.is_user ? "You" : sea.owner.name}</strong>
-          : <strong>Free agent</strong>}</div>
-        {sea.owner && <div><span className="muted">Slot</span> <strong>{sea.owner.slot}</strong></div>}
-        <div><span className="muted">Status</span> {sea.retired ? <strong className="warn-text">retired</strong>
-          : sea.injury_tag ? <><InjuryTag tag={sea.injury_tag} />{sea.injury_note && <span className="muted"> {sea.injury_note}</span>}</> : <strong>healthy</strong>}</div>
+      <div className="sec sp-meta">
+        <div className={`sp-grid sp-grid-${sea.owner ? 3 : 2}`}>
+          <div className="sp-stat"><span>Owner</span>{sea.owner
+            ? <strong className={`${sea.owner.is_user ? "sp-good" : ""} ${onOpenMatchup ? "clickable" : ""}`} data-testid="owner"
+              {...(onOpenMatchup && { role: "button", tabIndex: 0, "data-tip": "Show this week's matchup",
+                onClick: () => onOpenMatchup(sea.owner.roster_id), onKeyDown: (e) => e.key === "Enter" && onOpenMatchup(sea.owner.roster_id) })}>
+              {sea.owner.is_user ? "You" : sea.owner.name}</strong>
+            : <strong>Free agent</strong>}</div>
+          {sea.owner && <div className="sp-stat"><span>Slot</span><strong>{sea.owner.slot}</strong></div>}
+          <div className="sp-stat"><span>Status</span>{sea.retired ? <strong className="warn-text">retired</strong>
+            : sea.injury_tag ? <><InjuryTag tag={sea.injury_tag} />{sea.injury_note && <small className="muted">{sea.injury_note.replace(`${sea.injury_tag}: `, "")}</small>}</> : <strong className="sp-good">healthy</strong>}</div>
+        </div>
       </div>
       {sea.news.length > 0 && (
         <DragScroll vertical className="sec news-scroll">

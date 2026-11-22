@@ -10,14 +10,13 @@ import Icon from "./Icon.jsx";
 import { useWatch } from "./watch.js";
 
 const TABS = [["summary", "Summary"], ["log", "Game Log"], ["team", "Team"], ["history", "History"]];
-export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, onOverridesChanged, userName, onBlock, rankings, onSelectPlayer, season, plan, onClose, onOpenGame, onOpenMatchup }) {
+export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, userName, onBlock, rankings, onSelectPlayer, season, plan, onClose, onOpenGame, onOpenMatchup }) {
   const [watched, toggleWatch] = useWatch(leagueId);
   const [data, setData] = useState(null);
   const [rec, setRec] = useState(null);
   const [spend, setSpend] = useState(null);
   const [fit, setFit] = useState(null);
   const [error, setError] = useState("");
-  const [notes, setNotes] = useState("");
   const [sea, setSea] = useState(null);
   const [tab, setTab] = useState("summary");
 
@@ -34,7 +33,7 @@ export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, on
       season ? opt(api.get(`/leagues/${leagueId}/season/player/${playerId}`)) : null,
     ]).then(([d, f, r, sp, se]) => {
       if (ticket !== latest.current) return;
-      setData(d); setNotes(d.overrides?.notes || ""); setFit(f); setRec(r); setSpend(sp); setSea(se); setError("");
+      setData(d); setFit(f); setRec(r); setSpend(sp); setSea(se); setError("");
     }).catch((e) => { if (ticket === latest.current) setError(e.message); });
   }, [leagueId, playerId, live, season]);
 
@@ -51,16 +50,6 @@ export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, on
   const val = data.valuation;
   const fantasy = rec_.fantasy;
 
-  const patch = async (body) => {
-    setError("");
-    try {
-      await api.patch(`/players/${shownId}/overrides`, body);
-      onOverridesChanged?.();
-      load();
-    } catch (e) {
-      setError(e.message);
-    }
-  };
 
   const head = (
     <>
@@ -137,10 +126,7 @@ export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, on
           {TABS.map(([id, label]) => <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)} data-testid={`profile-${id}`}>{label}</button>)}
         </nav>
         {!ready ? <div className="small muted loading">Loading…</div>
-          : tab === "summary" ? <>
-            <SeasonSummary sea={sea} onOpenGame={onOpenGame} onOpenMatchup={onOpenMatchup} />
-            <textarea rows="1" style={{ width: "100%", marginTop: 10 }} placeholder="your notes" value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== (ov.notes || "") && patch({ notes })} />
-          </>
+          : tab === "summary" ? <SeasonSummary sea={sea} onOpenGame={onOpenGame} onOpenMatchup={onOpenMatchup} />
           : tab === "log" ? <SeasonLog sea={sea} />
           : tab === "team" ? (teamCard || <div className="small muted">No NBA team.</div>)
           : <SeasonHistory sea={sea} />}
@@ -222,7 +208,6 @@ export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, on
         <strong className={ov.injury_status === "healthy" ? "" : "warn-text"}>{ov.injury_status.replace(/_/g, " ")}</strong>
         {ov.injury_note && <span className="muted"> · {ov.injury_note}</span>}
       </div>
-      <div><textarea rows="1" style={{ width: "100%" }} placeholder="your notes" value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== (ov.notes || "") && patch({ notes })} /></div>
 
       {teamCard}
 

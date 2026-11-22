@@ -71,6 +71,7 @@ html:root[data-theme="apple"] {
 :root[data-theme="apple"] .matchup .mu-team:not(.right) { border-color: color-mix(in srgb, var(--primary) 50%, var(--border)); }
 :root[data-theme="apple"] :is(.mu-card, .sec, .guide-card, .sp-game, .timeline, .tl-next, .game-chip, .sp-stat) { border-radius: 14px; border-color: var(--border-inner); }
 :root[data-theme="apple"] :is(.mu-card, .sec, .guide-card, .sp-game, .timeline) { background: var(--panel-solid); }
+:root[data-theme="apple"] .ap-sheet :is(.sec, .sp-game) { background: var(--panel-2); border-color: var(--border); }
 :root[data-theme="apple"] .panel.matchup { background: var(--panel); }
 :root[data-theme="apple"] .game-chip.today { background: var(--primary-soft); border-color: transparent; }
 :root[data-theme="apple"] .modal-backdrop { background: rgba(0, 0, 0, 0.32); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
