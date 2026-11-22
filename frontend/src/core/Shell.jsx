@@ -48,9 +48,19 @@ export function useAppState() {
   useEffect(() => { localStorage.setItem("da.tab", tab); }, [tab]);
 
   const [leagueName, setLeagueName] = useState("");
+  // The chosen league is per browser (localStorage), the leagues are per account: on a new device (or after
+  // switching accounts) pick one of the account's own leagues, a Sleeper one first, instead of the import form.
   useEffect(() => {
-    if (!leagueId) return setLeagueName("");
-    api.get("/leagues").then((ls) => setLeagueName(ls.find((l) => l.league_id === leagueId)?.name || "")).catch(() => {});
+    api.get("/leagues").then((ls) => {
+      const cur = ls.find((l) => l.league_id === leagueId);
+      if (!cur && ls.length) {
+        setLeagueId((ls.find((l) => l.league_id.startsWith("sleeper-")) || ls[0]).league_id);
+        if (tab === "home") setTab("standings");
+        return;
+      }
+      if (!cur && leagueId) setLeagueId("");
+      setLeagueName(cur?.name || "");
+    }).catch(() => {});
   }, [leagueId, tab]);
 
   useEffect(() => {

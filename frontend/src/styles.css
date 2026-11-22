@@ -1135,6 +1135,9 @@ header.top .brand .logo .icon { width: 20px; height: 20px; }
   .settings-modal .section-card { padding: 14px 12px; }
   .wall-pick select { flex: 1; min-width: 0; width: auto; }
   .settings-close { margin-right: -2px; }
+  .home { padding-top: calc(76px + env(safe-area-inset-top)); }
+  .home-import { padding-inline: 12px; }
+  .home-import input { min-width: 0; flex: 1 1 100%; }
   .settings-modal table { display: block; max-width: 100%; overflow-x: auto; }
   .settings-modal label.inline { max-width: 100%; flex-wrap: wrap; }
   .settings-modal label.inline select { min-width: 0; max-width: 100%; }
