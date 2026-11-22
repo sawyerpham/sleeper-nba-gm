@@ -1,6 +1,6 @@
 # One image runs the whole app: the API (FastAPI) also serves the built frontend at /.
 #   docker compose up --build        then open http://localhost:8000
-# Pulled data lives in /data (a volume), Telegram keys come from backend/.env (see README).
+# Pulled data and accounts live in /data (a volume); settings come from backend/.env (see README). Production: deploy/.
 
 # --- stage 1: build the frontend ---
 FROM node:22-alpine AS web

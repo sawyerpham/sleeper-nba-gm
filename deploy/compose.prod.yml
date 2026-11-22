@@ -1,0 +1,37 @@
+# Production: the app behind Caddy, which gets and renews the HTTPS certificate for $DOMAIN by itself.
+#   cd deploy && docker compose -f compose.prod.yml up -d --build
+# Needs deploy/.env with DOMAIN=your.domain (DNS A record pointing at this server) and backend/.env (see README, Deploy).
+services:
+  app:
+    build: ..
+    volumes:
+      - ../backend/data:/data        # leagues, accounts (app.db), caches and backups
+    env_file:
+      - ../backend/.env
+    environment:
+      # Only Caddy can reach the app (port 8000 isn't published), so trust its X-Forwarded-For: the per-IP sign-in
+      # limit then sees each visitor's IP instead of Caddy's.
+      FORWARDED_ALLOW_IPS: "*"
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.8.4
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data             # the certificates
+      - caddy_config:/config
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -130,3 +130,30 @@ def test_send_unlinks_a_chat_that_blocked_the_bot(monkeypatch):
     assert notify.send("hi", 7, acc) is True and acc.stats()["sent_24h"] == 1
     monkeypatch.setattr(notify.requests, "post", lambda *a, **k: R(403))
     assert notify.send("hi", 7, acc) is False and acc.user(uid)["tg_chat_id"] is None
+
+
+def test_backup_has_the_accounts_and_leagues_but_not_the_caches(tmp_path):
+    """The daily archive holds a readable copy of app.db plus league files; caches stay out; old archives are deleted."""
+    import os
+    import sqlite3
+    import tarfile
+
+    from app.backup import backup
+
+    acc = Accounts(tmp_path / "app.db")
+    acc.verify_login(acc.request_login("a@test.local", None))
+    (tmp_path / "leagues").mkdir()
+    (tmp_path / "leagues" / "lg.json").write_text("{}")
+    (tmp_path / "cache").mkdir()
+    (tmp_path / "cache" / "big.json").write_text("{}")
+    (tmp_path / "backups").mkdir()
+    old = tmp_path / "backups" / "data-2000-01-01.tgz"
+    old.write_text("")
+    os.utime(old, (0, 0))
+    archive = backup(tmp_path)
+    with tarfile.open(archive) as tar:
+        names = set(tar.getnames())
+        tar.extract("app.db", tmp_path / "restore", filter="data")
+    assert {"app.db", "leagues", "leagues/lg.json"} <= names and not any(n.startswith("cache") for n in names)
+    assert sqlite3.connect(tmp_path / "restore" / "app.db").execute("SELECT email FROM users").fetchall() == [("a@test.local",)]
+    assert not old.exists() and not (tmp_path / "backups" / "app.db.tmp").exists()

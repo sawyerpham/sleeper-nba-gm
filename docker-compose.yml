@@ -8,6 +8,6 @@ services:
     volumes:
       - ./backend/data:/data      # the JSON store and caches, shared with a non-Docker run
     env_file:
-      - path: backend/.env        # TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID (optional)
+      - path: backend/.env        # ADMIN_EMAILS, RESEND_API_KEY, TELEGRAM_BOT_TOKEN (optional; APP_URL=http://localhost:8000 here)
         required: false
     restart: unless-stopped

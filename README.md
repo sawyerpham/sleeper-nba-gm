@@ -227,6 +227,50 @@ existed. Health (`/api/health`) and the calculators stay public.
 The same section picks what to push (lock calls, keep / swap calls, players ruled OUT, GTD / DTD or cleared, lineup
 moves) and the win chance a lock call must add before it is pushed. Each league's alerts go to its owner's chat.
 
+## Deploy (free: Oracle Cloud Always Free)
+
+One small VM runs everything: the app container (API plus the built frontend, one address, so the sign-in cookie
+just works) behind Caddy, which gets and renews the HTTPS certificate by itself. Files: `deploy/`.
+
+What you need: an Oracle Cloud account (Always Free; a card is checked but not charged), and a domain (about $10 a
+year at Cloudflare or Porkbun). The domain also lets Resend email sign-in links to anyone (step 5).
+
+1. **VM.** In Oracle Cloud: Compute > Instances > Create. Image **Ubuntu 24.04**, shape **VM.Standard.A1.Flex**
+   (Ampere, Always Free up to 4 OCPU / 24 GB; 1 OCPU / 6 GB is plenty). Add your SSH key and create it. If it says
+   "out of capacity", try another availability domain or try again later.
+2. **Ports.** Networking > Virtual cloud networks > your VCN > Security Lists > Default: add ingress rules for TCP 80,
+   TCP 443 and UDP 443 from `0.0.0.0/0`.
+3. **DNS.** At your domain's DNS, add an `A` record (for example `app.yourdomain.com`) pointing at the VM's public IP.
+4. **Install.** Push this repo to GitHub, SSH in (`ssh ubuntu@<ip>`), then:
+   ```
+   curl -fsSLO https://raw.githubusercontent.com/<you>/<repo>/main/deploy/setup.sh
+   bash setup.sh https://github.com/<you>/<repo>.git
+   exit                      # log back in so the docker group applies
+   ```
+   It installs Docker, opens 80/443 in the VM's firewall, clones to `~/app` and schedules the daily backup.
+   (A private repo: clone with a GitHub deploy key or token instead.)
+5. **Settings.** Create `~/app/deploy/.env` with `DOMAIN=app.yourdomain.com` and `~/app/backend/.env` with:
+   ```
+   APP_URL=https://app.yourdomain.com
+   ADMIN_EMAILS=you@example.com
+   RESEND_API_KEY=re_...
+   MAIL_FROM=NBA Fantasy <login@yourdomain.com>
+   TELEGRAM_BOT_TOKEN=...
+   ```
+   In Resend: Domains > Add domain, add the DNS records it shows, and wait for "Verified"; until then it only emails you.
+6. **Start.** `cd ~/app/deploy && docker compose -f compose.prod.yml up -d --build`, then open `https://app.yourdomain.com`.
+   The first build takes a few minutes; the certificate comes within a minute of the first visit.
+7. **Data.** Sign in with your admin email and run the pull from the **Admin** tab. Or copy your local data over first,
+   which keeps your leagues and accounts: `scp -r backend/data ubuntu@<ip>:~/app/backend/` (with the app stopped).
+
+**Only one copy may run the Telegram bot.** Telegram hands each message to one poller, and two watchers would both send
+alerts. Once the server is up, run locally without `TELEGRAM_BOT_TOKEN`, or with a second bot from @BotFather.
+
+Everyday: `git pull && docker compose -f compose.prod.yml up -d --build` to update; `docker compose -f compose.prod.yml
+logs -f app` for logs. Backups: every day at 09:00 UTC, `backend/data/backups/data-YYYY-MM-DD.tgz` (accounts, leagues and
+settings, 14 days kept; `docker compose -f compose.prod.yml exec app python -m app.backup` runs one now). They sit on the
+same disk, so copy one off the VM now and then (`scp ubuntu@<ip>:~/app/backend/data/backups/<file> .`).
+
 ## Calculations API
 
 The calculations the app shows are also exposed as a small JSON API, so you can run any of them on your own numbers
