@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -21,6 +22,8 @@ from zoneinfo import ZoneInfo
 import requests
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+
+from nba_fantasy_shared.reconcile.names import normalize_name
 
 from .core.api.deps import get_state
 
@@ -34,6 +37,8 @@ STATUS_TTL = 600
 DOUBT_TAGS = {"GTD", "DTD", "Questionable", "Doubtful"}
 OUT_TAGS = {"Out", "Suspended", "Sus", "IR"}
 _UNSEEN = object()
+NEWS_MIN_SHIFT_DAYS = 3
+NL = "\n"
 
 
 class NotifyPrefs(BaseModel):
@@ -144,16 +149,47 @@ def _t(iso: str) -> datetime:
     return datetime.fromisoformat(iso.replace("Z", "+00:00"))
 
 
-def due(lines: list[dict], date: str, now: datetime, sent: set[str]) -> list[tuple[str, dict]]:
-    """The (dedupe key, line) pairs whose alarm time has come, whose tip hasn't passed, and that weren't sent yet today."""
+def key_of(w: dict, date: str, lid: str = "") -> str:
+    """A line's dedupe key: league, day, kind, player, and what makes a repeat worth sending: nothing for OUT / GTD / lock (one
+    per player per day, whoever the backup is), SWAP vs. a KEEP / PENDING check for swap calls, the new tag for status pushes
+    and the target slot for lineup moves."""
+    k = w["kind"]
+    extra = ("swap" if w.get("decision") == "SWAP" else "check") if k == "swap" else "" if k in ("out", "gtd", "lock") else w.get("backup_sid", "")
+    return f"{lid}|{date}|{k}|{w['sid']}|{extra}" if lid else f"{date}|{k}|{w['sid']}|{extra}"
+
+
+def due(lines: list[dict], date: str, now: datetime, sent: set[str], lid: str = "") -> list[tuple[str, dict]]:
+    """The (dedupe key, line) pairs whose alarm time has come, whose tip hasn't passed, and that weren't sent yet today (a key
+    in the old league-less format, `date|kind|sid|backup`, still counts as sent)."""
     out = []
     for w in lines:
-        key = f"{date}|{w['kind']}|{w['sid']}|{w.get('backup_sid', '')}"
-        if key in sent or not w.get("alarm"):
+        key = key_of(w, date, lid)
+        if key in sent or f"{date}|{w['kind']}|{w['sid']}|{w.get('backup_sid', '')}" in sent or not w.get("alarm"):
             continue
         if (w["alarm"] == "now" or _t(w["alarm"]) <= now) and (not w.get("by") or w["by"] == "now" or _t(w["by"]) > now):
             out.append((key, w))
     return out
+
+
+def body(w: dict) -> str:
+    """The message text: OUT / GTD / status lines already say everything in their text; swap and lock calls keep the headline above it."""
+    if w["kind"] in ("out", "gtd", "status", "injury") and w.get("text"):
+        return w["text"]
+    return f"{title(w)}\n{w.get('text', '')}"
+
+
+def quiet_status(status: list[dict], watch: list[dict]) -> list[dict]:
+    """The status pushes minus the ones a watch line already covers: "now Out" when an OUT line exists for him, "now GTD / DTD"
+    when a GTD line does (the watch line says the same and what to do)."""
+    outs = {w["sid"] for w in watch if w["kind"] == "out"}
+    gtds = {w["sid"] for w in watch if w["kind"] == "gtd"}
+    return [x for x in status if not (x["change"] == "out" and x["sid"] in outs or x["change"] == "dtd" and x["sid"] in gtds)]
+
+
+def covered_sids(watch: list[dict], date: str, lid: str, sent: set[str]) -> set[str]:
+    """The players an OUT / GTD / SWAP message already sent today told you to move (the starter and his backup): a lineup-move
+    message would only repeat them."""
+    return {x for w in watch if w["kind"] in ("out", "gtd", "swap") and key_of(w, date, lid) in sent for x in (w["sid"], w.get("backup_sid")) if x}
 
 
 def move_lines(moves: list[dict]) -> list[dict]:
@@ -168,11 +204,12 @@ def moves_text(due_moves: list[dict], free: list[dict], tz: ZoneInfo) -> str:
     return "\n".join([f"Set your lineup before {first}:"] + [f"{m['name']}: {m['from']} → {m['to']}" for m in due_moves + free])
 
 
-def status_lines(prev: dict, players: dict, mine: list[str]) -> list[dict]:
+def status_lines(prev: dict, players: dict, mine: list[str], phrase: dict | None = None) -> list[dict]:
     """Injury-tag changes on your roster since the last poll (`prev`: sid -> the tag then, updated here): a player now
     OUT, now GTD / DTD, or cleared (tag gone, or Probable, after one of those). The first poll only records the tags.
-    Lines are due at once; their dedupe key carries the new tag."""
-    lines = []
+    Lines are due at once; their dedupe key carries the new tag. `phrase`: sid -> "Right knee: out ~23 days (back Dec 14)", which
+    replaces Sleeper's one-word note when there is one."""
+    lines, phrase = [], phrase or {}
     for sid in mine:
         p = players.get(sid) or {}
         tag, old = p.get("injury_tag"), prev.get(sid, _UNSEEN)
@@ -189,8 +226,64 @@ def status_lines(prev: dict, players: dict, mine: list[str]) -> list[dict]:
             continue
         name, note = p.get("name", sid), p.get("injury_note") or ""
         reason = "" if note == tag else note.removeprefix(f"{tag}: ")
+        reason = phrase.get(sid) or reason
         text = f"{name} cleared to play (was {old})" if change == "cleared" else f"{name} is now {tag}" + (f": {reason}" if reason else "")
         lines.append({"kind": "status", "change": change, "sid": sid, "name": name, "backup_sid": tag or "ok", "alarm": "now", "text": text})
+    return lines
+
+
+def injury_phrase(row: dict, today) -> str:
+    """An ESPN injury row as "Right knee: out ~23 days (back Dec 14)"."""
+    days, back = (row["back"] - today).days, row["back"]
+    when = "listed to return today" if days <= 0 else "expected back tomorrow" if days == 1 else f"out ~{days} days (back {back:%b} {back.day})"
+    return f"{row['what']}: {when}" if row["what"] else when.capitalize()
+
+
+def injury_phrases(players: dict, mine: list[str], espn: dict, today) -> dict[str, str]:
+    """sid -> injury phrase for every player of yours that ESPN lists as injured."""
+    rows = {sid: espn.get(normalize_name((players.get(sid) or {}).get("name", ""))) for sid in mine}
+    return {sid: injury_phrase(row, today) for sid, row in rows.items() if row}
+
+
+SEASON_ENDING = re.compile(r"season-ending|rest of the (?:season|year)|for the season|out indefinitely", re.I)
+
+
+def season_ending(row: dict | None, today) -> bool:
+    """Is this ESPN injury row season-ending: the return date is after the regular season (mid-April of the season's end year)
+    or ESPN's note says so?"""
+    if not row:
+        return False
+    cutoff = datetime(today.year + (today.month >= 7), 4, 15).date()
+    return row["back"] >= cutoff or bool(SEASON_ENDING.search(row["comment"]))
+
+
+def sorry(name: str) -> str:
+    """The line added to the message that reports a season-ending injury."""
+    return f"Sorry about {name}, this looks like a season-ending injury. Hope the recovery goes well."
+
+
+def with_injury(watch: list[dict], phrase: dict) -> list[dict]:
+    """OUT / GTD watch lines with the injury and days out added under their text."""
+    return [{**w, "text": NL.join((w["text"], phrase[w["sid"]]))} if w["kind"] in ("out", "gtd") and w["sid"] in phrase else w for w in watch]
+
+
+def injury_news(prev: dict, players: dict, mine: list[str], espn: dict, today) -> list[dict]:
+    """ESPN's news on your injured players when the return date moves by NEWS_MIN_SHIFT_DAYS or more (a diagnosis after the first
+    "Out": "torn MCL, 6-8 weeks") or a new injury appears: the injury, the days out and ESPN's note. `prev`: sid -> the return
+    date last seen (updated here; a smaller drift keeps the old one so it adds up). The first poll only records."""
+    lines = []
+    for sid in mine:
+        name = (players.get(sid) or {}).get("name", sid)
+        row = espn.get(normalize_name(name))
+        back, old = row["back"] if row else None, prev.get(sid, _UNSEEN)
+        if old is _UNSEEN or back is None:
+            prev[sid] = back
+            continue
+        if old is not None and abs((back - old).days) < NEWS_MIN_SHIFT_DAYS:
+            continue
+        prev[sid] = back
+        lines.append({"kind": "injury", "sid": sid, "name": name, "backup_sid": back.isoformat(), "alarm": "now",
+                      "text": NL.join(filter(None, (f"{name} injury update: {injury_phrase(row, today)}", row["comment"])))})
     return lines
 
 
@@ -207,35 +300,52 @@ def wanted(w: dict, prefs: dict, players_by_sid: dict) -> bool:
         return q.get("win_lock") is not None and (q["win_lock"] - (q.get("win_wait") or 0)) * 100 >= prefs["lock_min_wpa"]
     if k == "status":
         return bool(prefs[w["change"]])
-    return bool(prefs.get({"gtd": "dtd"}.get(k, k), True))
+    return bool(prefs.get({"gtd": "dtd", "injury": "out"}.get(k, k), True))
 
 
 def watch_once(state, sent: set[str], tags: dict | None = None) -> None:
     """One poll: for every league, compute today's plan and send each newly due watch line the settings want, the injury-tag
     changes on your roster (`tags`: league -> sid -> last tag seen), and the lineup moves due (one message)."""
     from .core.api.deps import _session
-    from .lockin.service import http_fetch, read_locks, team_plan, week_view
+    from .lockin.service import espn_injuries, http_fetch, read_locks, team_plan, week_view
 
     tags = {} if tags is None else tags
     prefs = read_prefs(state.store)
     for lid in state.leagues.list_ids():
         try:
             session = _session(state, lid)
-            view = week_view(session, http_fetch(state.platform), None)
+            fetch = http_fetch(state.platform)
+            view = week_view(session, fetch, None)
             plan = team_plan(session, view, None, read_locks(state.store, lid, view["week"]))
+            espn = espn_injuries(fetch)
         except Exception as exc:
             log.info("watch skipped %s: %s", lid, exc)
             continue
         today, now = plan.get("today") or {}, datetime.now(timezone.utc)
         date = today.get("date") or view["today"]
         by_sid = {q["sid"]: q for q in plan.get("players", [])}
-        lines = today.get("watch", []) + status_lines(tags.setdefault(lid, {}), view["players"], list(by_sid))
-        for key, w in due([w for w in lines if wanted(w, prefs, by_sid)], date, now, sent):
-            if send(w["text"] if w["kind"] == "status" else f"{title(w)}\n{w.get('text', '')}"):
+        mine, day0 = list(by_sid), datetime.fromisoformat(view["today"]).date()
+        phrase = injury_phrases(view["players"], mine, espn, day0)
+        watch = with_injury(today.get("watch", []), phrase)
+        status_all = status_lines(tags.setdefault(lid, {}), view["players"], mine, phrase)
+        status = quiet_status(status_all, watch)
+        has_injury = {x["sid"] for x in status_all} | {w["sid"] for w in watch if w["kind"] in ("out", "gtd")}
+        news_all = injury_news(tags.setdefault(f"{lid}|injury", {}), view["players"], mine, espn, day0)
+        news = [n for n in news_all if n["sid"] not in has_injury]
+        fresh = {x["sid"] for x in status_all if x["change"] != "cleared"} | {n["sid"] for n in news_all}
+        for key, w in due([w for w in watch + status + news if wanted(w, prefs, by_sid)], date, now, sent, lid):
+            text = body(w)
+            if w["sid"] in fresh and w["kind"] in ("out", "status", "injury") and w.get("change") != "cleared" and season_ending(espn.get(normalize_name(w["name"])), day0):
+                text = NL.join((text, sorry(w["name"])))
+            if send(text):
                 sent.add(key)
                 log.info("sent %s", key)
-        moves = due(move_lines(today.get("moves", [])), date, now, sent) if prefs["moves"] else []
-        if moves and send(moves_text([m for _, m in moves], [m for m in today.get("moves", []) if not m.get("by")], ZoneInfo(view["tz"]))):
+        done = covered_sids(watch, date, lid, sent)
+        moves = due(move_lines(today.get("moves", [])), date, now, sent, lid) if prefs["moves"] else []
+        sent.update(k for k, m in moves if m["sid"] in done)
+        moves = [(k, m) for k, m in moves if m["sid"] not in done]
+        free = [m for m in today.get("moves", []) if not m.get("by") and m["sid"] not in done]
+        if moves and send(moves_text([m for _, m in moves], free, ZoneInfo(view["tz"]))):
             sent.update(k for k, _ in moves)
             log.info("sent %s", [k for k, _ in moves])
 

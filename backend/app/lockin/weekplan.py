@@ -563,7 +563,7 @@ def today_watch(players: list[PlanPlayer], today: str, seat: dict[int, str | Non
             fits = [b for b in players if b is not p and b.slot in ("BN",) and seat.get(id(b)) and _today(b, today)]                 or [b for b in bench if p.slot in roster.candidate_slots(b.eligibility)]
             backup = max(fits, key=lambda b: _today(b, today).proj or 0, default=None)
             lines.append({"kind": "out", "sid": p.sid, "name": p.name, "slot": p.slot, "by": g.tip, "alarm": "now",
-                          "backup": backup.name if backup else None,
+                          "backup": backup.name if backup else None, "backup_sid": backup.sid if backup else None,
                           "text": f"{p.name} is OUT tonight: bench him" + (f" and start {backup.name} at {p.slot} now." if backup else " (nobody on the bench who plays tonight fits).")})
     seated = [p for p in players if seat.get(id(p))]
 
@@ -588,7 +588,7 @@ def today_watch(players: list[PlanPlayer], today: str, seat: dict[int, str | Non
         if s.injury == "day_to_day" and fits and not gs.started:
             backup = max(fits, key=lambda b: _today(b, today).proj or 0)
             lines.append({"kind": "gtd", "sid": s.sid, "name": s.name, "slot": slot, "by": gs.tip,
-                          "alarm": _minus_minutes(gs.tip, 30), "backup": backup.name, "backup_tip": _today(backup, today).tip,
+                          "alarm": _minus_minutes(gs.tip, 30), "backup": backup.name, "backup_sid": backup.sid, "backup_tip": _today(backup, today).tip,
                           "text": f"{s.name} is questionable: check before his tip. If he's out, start {backup.name} at {slot}."})
         for b in (b for b in bench if can_replace(s, b)):
             if _minutes(_today(b, today).tip) - _minutes(gs.tip) <= CLOSE_TIPS_MIN:

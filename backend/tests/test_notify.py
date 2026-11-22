@@ -85,3 +85,178 @@ def test_notify_api_reports_the_link_and_saves_the_prefs(tmp_path, fixtures_dir,
     assert r.status_code == 200 and r.json()["lock"] is False and r.json()["lock_min_wpa"] == 5 and r.json()["swap"] is True
     assert client.get("/api/notify").json()["prefs"] == r.json() and notify.read_prefs(store) == r.json()
     assert client.put("/api/notify/prefs", json={"lock_min_wpa": 500}).status_code == 422
+
+
+def test_same_player_same_day_is_one_key_whoever_the_backup_is():
+    """OUT / GTD / lock repeat for a new backup is noise; a swap resends only when it turns from a check into SWAP; leagues are separate."""
+    from app.notify import key_of
+
+    gtd = {"kind": "gtd", "sid": "1", "backup_sid": "2"}
+    assert key_of(gtd, "d") == key_of({**gtd, "backup_sid": "9"}, "d")
+    swap = {"kind": "swap", "sid": "1", "backup_sid": "2", "decision": "PENDING"}
+    assert key_of(swap, "d") == key_of({**swap, "backup_sid": "9", "decision": "KEEP"}, "d")
+    assert key_of(swap, "d") != key_of({**swap, "decision": "SWAP"}, "d")
+    assert key_of(gtd, "d", "lg1") != key_of(gtd, "d", "lg2")
+    assert not due([{**gtd, "alarm": "now"}], "d", NOW, {"d|gtd|1|2"}, "lg1")   # sent under the old key format earlier today
+
+
+def test_out_message_covers_the_status_push_and_the_lineup_move():
+    """One injury = one message: the OUT line replaces 'is now Out' and the move lines for the starter and his backup."""
+    from app.notify import body, covered_sids, quiet_status
+
+    out = {"kind": "out", "sid": "1", "backup_sid": "2", "name": "A", "text": "A is OUT tonight: bench him and start B at SF now."}
+    gtd = {"kind": "gtd", "sid": "3", "backup_sid": "4", "name": "C", "text": "C is questionable: check."}
+    status = [{"kind": "status", "change": "out", "sid": "1"}, {"kind": "status", "change": "out", "sid": "5"},
+              {"kind": "status", "change": "dtd", "sid": "3"}, {"kind": "status", "change": "cleared", "sid": "1"}]
+    assert [(x["change"], x["sid"]) for x in quiet_status(status, [out, gtd])] == [("out", "5"), ("cleared", "1")]
+    assert covered_sids([out, gtd], "d", "lg", set()) == set()
+    assert covered_sids([out, gtd], "d", "lg", {"lg|d|out|1|"}) == {"1", "2"}
+    assert body(out) == out["text"] and body({"kind": "lock", "name": "X", "text": "why"}) == "Lock X now\nwhy"
+
+
+def test_one_injury_is_one_message_through_the_watcher(monkeypatch):
+    """Replay of 11-21: a starter goes Out. The OUT line, the 'is now Out' push and the lineup moves used to be three messages."""
+    from types import SimpleNamespace
+
+    from app import notify
+    from app.core.api import deps
+    from app.lockin import service
+
+    out = {"kind": "out", "sid": "1", "name": "A", "backup": "B", "backup_sid": "2", "alarm": "now", "by": "2099-01-01T00:00Z",
+           "text": "A is OUT tonight: bench him and start B at SF now."}
+    moves = [{"sid": "1", "name": "A", "from": "SF", "to": "BN", "by": "2099-01-01T00:00Z"},
+             {"sid": "2", "name": "B", "from": "BN", "to": "SF", "by": "2099-01-01T00:00Z"}]
+    plan = {"players": [{"sid": "1"}], "today": {"date": "2026-11-21", "watch": [out], "moves": moves}}
+    tag = {"v": None}
+    view = {"today": "2026-11-21", "tz": "America/New_York", "week": 1, "players": {"1": {"name": "A", "injury_tag": None}}}
+    monkeypatch.setattr(deps, "_session", lambda *a: None)
+    monkeypatch.setattr(service, "week_view", lambda *a, **k: {**view, "players": {"1": {"name": "A", "injury_tag": tag["v"]}}})
+    monkeypatch.setattr(service, "team_plan", lambda *a, **k: plan)
+    monkeypatch.setattr(service, "read_locks", lambda *a: {})
+    monkeypatch.setattr(service, "http_fetch", lambda p: None)
+    monkeypatch.setattr(notify, "read_prefs", lambda store: notify.NotifyPrefs().model_dump())
+    msgs = []
+    monkeypatch.setattr(notify, "send", lambda text: msgs.append(text) or True)
+    state = SimpleNamespace(store=None, platform=None, leagues=SimpleNamespace(list_ids=lambda: ["lg"]))
+    sent, tags = set(), {}
+    notify.watch_once(state, sent, tags)      # first poll: records the tag, sends the OUT line, covers the moves
+    tag["v"] = "Out"
+    notify.watch_once(state, sent, tags)      # the tag flips to Out: no second message
+    assert msgs == ["A is OUT tonight: bench him and start B at SF now."]
+    notify.watch_once(state, sent, tags)
+    assert len(msgs) == 1
+
+
+def _row(back, what="Right knee", comment=""):
+    """An ESPN injury row as espn_injuries returns it."""
+    from datetime import date
+    return {"back": date.fromisoformat(back), "what": what, "comment": comment}
+
+
+def test_injury_phrase_says_the_injury_and_the_days_out():
+    from datetime import date
+
+    from app.notify import injury_phrase
+
+    today = date(2026, 11, 21)
+    assert injury_phrase(_row("2026-12-14"), today) == "Right knee: out ~23 days (back Dec 14)"
+    assert injury_phrase(_row("2026-11-22"), today) == "Right knee: expected back tomorrow"
+    assert injury_phrase(_row("2026-11-21", what=""), today) == "Listed to return today"
+
+
+def test_injury_news_fires_on_a_new_injury_or_a_shift_not_on_drift_or_the_first_poll():
+    from datetime import date
+
+    from app.notify import injury_news, normalize_name
+
+    players = {"1": {"name": "Jaren Jackson Jr."}}
+    seen, today = {}, date(2026, 11, 21)
+    key = normalize_name("Jaren Jackson Jr.")
+    mk = lambda back, c="": {key: _row(back, comment=c)} if back else {}
+    assert injury_news(seen, players, ["1"], mk("2026-11-23"), today) == []                       # first poll: record
+    assert injury_news(seen, players, ["1"], mk("2026-11-24"), today) == []                       # 1-day drift: quiet
+    got = injury_news(seen, players, ["1"], mk("2026-12-14", "Torn MCL, 6-to-8 weeks."), today)  # diagnosis: shift
+    assert [g["text"] for g in got] == ["Jaren Jackson Jr. injury update: Right knee: out ~23 days (back Dec 14)\nTorn MCL, 6-to-8 weeks."]
+    assert injury_news(seen, players, ["1"], mk("2026-12-14"), today) == []                       # unchanged: quiet
+    assert injury_news(seen, players, ["1"], mk(None), today) == [] and seen["1"] is None          # healed: record
+    assert len(injury_news(seen, players, ["1"], mk("2026-12-01"), today)) == 1                   # a new injury later: news
+
+
+def test_an_injured_starter_gets_one_message_with_the_injury_and_days(monkeypatch):
+    """Through the watcher: Jackson goes Out with an ESPN row -> the OUT line carries 'Right knee: out ~23 days'; no status or news duplicate."""
+    from types import SimpleNamespace
+
+    from app import notify
+    from app.core.api import deps
+    from app.lockin import service
+
+    out = {"kind": "out", "sid": "1", "name": "Jaren Jackson Jr.", "backup": "B", "backup_sid": "2", "alarm": "now", "by": "2099-01-01T00:00Z",
+           "text": "Jaren Jackson Jr. is OUT tonight: bench him and start B at C now."}
+    plan = {"players": [{"sid": "1"}], "today": {"date": "2026-11-21", "watch": [out], "moves": []}}
+    tag = {"v": None}
+    rows = {"on": False}
+    monkeypatch.setattr(deps, "_session", lambda *a: None)
+    monkeypatch.setattr(service, "week_view", lambda *a, **k: {"today": "2026-11-21", "tz": "America/New_York", "week": 1,
+                                                               "players": {"1": {"name": "Jaren Jackson Jr.", "injury_tag": tag["v"]}}})
+    monkeypatch.setattr(service, "team_plan", lambda *a, **k: plan)
+    monkeypatch.setattr(service, "read_locks", lambda *a: {})
+    monkeypatch.setattr(service, "http_fetch", lambda p: None)
+    monkeypatch.setattr(service, "espn_injuries", lambda f: {notify.normalize_name("Jaren Jackson Jr."): _row("2026-12-14")} if rows["on"] else {})
+    monkeypatch.setattr(notify, "read_prefs", lambda store: notify.NotifyPrefs().model_dump())
+    msgs = []
+    monkeypatch.setattr(notify, "send", lambda text: msgs.append(text) or True)
+    state = SimpleNamespace(store=None, platform=None, leagues=SimpleNamespace(list_ids=lambda: ["lg"]))
+    sent, tags = set(), {}
+    plan["today"]["watch"] = []
+    notify.watch_once(state, sent, tags)                       # healthy baseline
+    plan["today"]["watch"], tag["v"], rows["on"] = [out], "Out", True
+    notify.watch_once(state, sent, tags)
+    assert msgs == ["Jaren Jackson Jr. is OUT tonight: bench him and start B at C now.\nRight knee: out ~23 days (back Dec 14)"]
+    notify.watch_once(state, sent, tags)
+    assert len(msgs) == 1
+
+
+def test_season_ending_is_a_return_after_the_regular_season_or_espn_saying_so():
+    from datetime import date
+
+    from app.notify import season_ending
+
+    today = date(2026, 11, 21)
+    assert season_ending(_row("2027-07-01"), today) and season_ending(_row("2027-04-15"), today)
+    assert not season_ending(_row("2027-04-02"), today) and not season_ending(_row("2026-12-14"), today) and not season_ending(None, today)
+    assert season_ending(_row("2026-12-14", comment="Ruled out for the rest of the season."), today)
+    assert season_ending(_row("2027-07-01"), date(2027, 2, 1)) and not season_ending(_row("2027-03-01"), date(2027, 2, 1))
+
+
+def test_the_message_that_reports_a_season_ending_injury_says_sorry_once(monkeypatch):
+    """Through the watcher: a starter tears an ACL (ESPN back in July) -> one message with the sorry line; a daily OUT line later has none."""
+    from types import SimpleNamespace
+
+    from app import notify
+    from app.core.api import deps
+    from app.lockin import service
+
+    out = {"kind": "out", "sid": "1", "name": "Jaren Jackson Jr.", "backup": "B", "backup_sid": "2", "alarm": "now", "by": "2099-01-01T00:00Z",
+           "text": "Jaren Jackson Jr. is OUT tonight: bench him and start B at C now."}
+    plan = {"players": [{"sid": "1"}], "today": {"date": "2026-11-21", "watch": [], "moves": []}}
+    tag, day = {"v": None}, {"d": "2026-11-21"}
+    row = {notify.normalize_name("Jaren Jackson Jr."): _row("2027-07-01")}
+    monkeypatch.setattr(deps, "_session", lambda *a: None)
+    monkeypatch.setattr(service, "week_view", lambda *a, **k: {"today": day["d"], "tz": "America/New_York", "week": 1,
+                                                               "players": {"1": {"name": "Jaren Jackson Jr.", "injury_tag": tag["v"]}}})
+    monkeypatch.setattr(service, "team_plan", lambda *a, **k: plan)
+    monkeypatch.setattr(service, "read_locks", lambda *a: {})
+    monkeypatch.setattr(service, "http_fetch", lambda p: None)
+    monkeypatch.setattr(service, "espn_injuries", lambda f: row if tag["v"] else {})
+    monkeypatch.setattr(notify, "read_prefs", lambda store: notify.NotifyPrefs().model_dump())
+    msgs = []
+    monkeypatch.setattr(notify, "send", lambda text: msgs.append(text) or True)
+    state = SimpleNamespace(store=None, platform=None, leagues=SimpleNamespace(list_ids=lambda: ["lg"]))
+    sent, tags = set(), {}
+    notify.watch_once(state, sent, tags)                       # baseline
+    tag["v"], plan["today"]["watch"] = "Out", [out]
+    notify.watch_once(state, sent, tags)
+    assert len(msgs) == 1 and msgs[0].endswith("Sorry about Jaren Jackson Jr., this looks like a season-ending injury. Hope the recovery goes well.")
+    day["d"], plan["today"]["date"] = "2026-11-22", "2026-11-22"
+    notify.watch_once(state, sent, tags)                       # next day's routine OUT reminder: no sorry
+    assert len(msgs) == 2 and "Sorry" not in msgs[1]
