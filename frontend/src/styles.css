@@ -204,9 +204,10 @@ tr:hover .row-actions, tr.selected .row-actions, .row-actions:focus-within { opa
 
 .modal-backdrop { position: fixed; inset: 0; background: rgba(5, 8, 15, 0.72); display: flex; align-items: center; justify-content: center; z-index: 30; }
 .modal { background: var(--panel); color: var(--text); padding: 24px 26px; min-width: 480px; max-width: 920px; max-height: 90vh; overflow: auto; border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35); }
-.settings-modal { position: relative; width: min(1100px, 92vw); height: 88vh; max-width: none; padding-bottom: 0; }
+.settings-modal { position: relative; width: min(1100px, 92vw); height: 88vh; max-width: none; padding-top: 52px; padding-bottom: 0; }
 .settings-modal > .section-card:last-child { margin-bottom: 24px; }
-.settings-close { position: sticky; top: 0; float: right; z-index: 2; }
+/* In the window's own top-right corner (the 52px top padding), not on the first card; sticky so it stays while scrolling. */
+.settings-close { position: sticky; top: -40px; float: right; margin: -40px -25px 0 0; z-index: 2; }
 .modal > h3:first-child { margin-top: 0; font-size: var(--fs-xl); }
 .dropdown { position: absolute; background: var(--panel); border: 1px solid var(--border); border-radius: 11px; box-shadow: var(--shadow); z-index: 25; max-height: 280px; overflow: auto; min-width: 320px; padding: 4px; margin-top: 4px; }
 .dropdown div { padding: 6px 10px; cursor: pointer; border-radius: 7px; }
