@@ -59,7 +59,7 @@ html:root[data-theme="apple"] {
 :root[data-theme="apple"] button.small { border-radius: 999px; }
 :root[data-theme="apple"] button.small:not(.icon-btn, :has(> svg:only-child)) { padding: 4px 12px; }
 :root[data-theme="apple"] button:focus-visible, :root[data-theme="apple"] :is(input, select, textarea):focus { outline: 0; box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 35%, transparent); border-color: var(--primary); }
-:root[data-theme="apple"] :is(input, select, textarea) { border-radius: 10px; border-color: transparent; }
+:root[data-theme="apple"] :is(input, select, textarea) { border-radius: 10px; border-color: var(--border-inner); }
 :root[data-theme="apple"] header.top { background: var(--header); border-bottom: 1px solid var(--border); }
 :root[data-theme="apple"] header.top nav { background: var(--panel-2); border-radius: 10px; }
 :root[data-theme="apple"] header.top nav button { border-radius: 8px; background: transparent; }
@@ -117,3 +117,10 @@ html:root[data-theme="apple"] {
 :root[data-theme="apple"] table.depth-grid td.dg-pos { background: transparent; padding-inline: 4px; }
 :root[data-theme="apple"] table.depth-grid td:nth-child(2) { font-weight: 600; }
 :root[data-theme="apple"] .dg-cell.self { background: var(--primary-soft); color: var(--info-t); }
+/* Every grey surface gets the panels' hairline edge (--border-inner), not only the panels. :where keeps this weak, so an
+   element's own coloured or state border still wins. Buttons, avatars and tiny badges stay borderless. */
+:root[data-theme="apple"] :where(.week-nav, .season-wk, .ap-who, .chips, .profile-tabs, header.top nav, .block-bar, .timeline,
+  .mu-card, .sp-stat, .lm-card, .bid-cell, .live-big, .live-card, .nom-ideas, .sync-box, .sync-result, .section-card .panel,
+  .wv-chip, .team-ranks-side, .room-slot.filled, .notif-pop .panel, pre) { border: 1px solid var(--border-inner); }
+/* Card-shaped buttons (tonight's game rows, lockable-game cards) are grey surfaces too: the button reset above blanks them. */
+:root[data-theme="apple"] .ap :is(.ap-game, .ap-lock) { border-color: var(--border-inner); }
