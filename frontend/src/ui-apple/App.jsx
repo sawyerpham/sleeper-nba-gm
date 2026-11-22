@@ -246,7 +246,7 @@ function Slate({ data, s, rid }) {
         <button key={g.event} className={`ap-row ap-game ${g.state}`} onClick={() => s.openGame(g.sel)}>
           <span className="ap-teams">
             {[[g.away, g.awayScore, g.homeScore, g.awayRecord], [g.home, g.homeScore, g.awayScore, g.homeRecord]].map(([t, sc, opp, rec]) => (
-              <span key={t} className={`ap-team${g.state === "post" && sc < opp ? " lost" : ""}`}><img src={teamLogo(t)} alt="" width={26} height={26} /><strong>{t}</strong>{rec && <small className="ap-rec">{rec}</small>}<b>{sc ?? ""}</b></span>
+              <span key={t} className={`ap-team${g.state === "post" && sc < opp ? " lost" : ""}`}><img src={teamLogo(t)} alt="" width={26} height={26} /><strong>{t}</strong>{rec && <small className="ap-rec">{rec}</small>}<b>{sc ?? "-"}</b></span>
             ))}
           </span>
           <span className="ap-mine" style={{ "--ov": `${Math.min(-4, -(((g.mineSids || []).length * 39 - 135) / Math.max(1, (g.mineSids || []).length - 1)))}px` }}>{(g.mineSids || []).map((sid) => (
