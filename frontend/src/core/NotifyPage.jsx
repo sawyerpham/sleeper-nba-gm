@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { api } from "../api.js";
 
+// [setting, label, text before the minutes box, lead setting, text after it]; no lead setting = the text alone.
 const KINDS = [
-  ["lock", "Lock calls", "30 min before the tip that closes a lock window"],
-  ["swap", "Keep / swap calls", "5 min before a later bench player's tip"],
+  ["lock", "Lock calls", "", "lock_lead", "min before the tip that closes a lock window"],
+  ["swap", "Keep / swap calls", "", "swap_lead", "min before a later bench player's tip (the call is final 5 min before)"],
   ["out", "Player ruled OUT", "a starter ruled out before his tip, and any player on your roster newly listed Out"],
-  ["dtd", "Player GTD / DTD", "a questionable starter 30 min before his tip, and any player newly listed GTD / DTD"],
+  ["dtd", "Player GTD / DTD", "a questionable starter", "dtd_lead", "min before his tip, and any player newly listed GTD / DTD"],
   ["cleared", "Player cleared to play", "a GTD / DTD / Out player whose tag is gone (or Probable)"],
-  ["moves", "Lineup moves", "the swaps to make in Sleeper, 30 min before the tip they must beat"],
+  ["moves", "Lineup moves", "the swaps to make in Sleeper,", "moves_lead", "min before the tip they must beat"],
 ];
 
 export function useNotify() {
@@ -74,9 +75,12 @@ export default function NotifyPage() {
       <h3>What to send</h3>
       {st?.prefs ? (
         <div className="notify-kinds">
-          {KINDS.map(([k, label, when]) => (
+          {KINDS.map(([k, label, before, lead, after]) => (
             <label key={k} className="inline notify-kind"><input type="checkbox" checked={st.prefs[k]} onChange={(e) => set({ [k]: e.target.checked })} data-testid={`notify-${k}`} />
-              <span><strong>{label}</strong> <span className="small muted">— {when}</span></span></label>
+              <span><strong>{label}</strong> <span className="small muted">— {before}{lead && <>{before && " "}
+                <input type="number" className="notify-lead" min={0} max={240} step={5} value={st.prefs[lead]} disabled={!st.prefs[k]}
+                  onChange={(e) => set({ [lead]: Math.max(0, Math.min(240, Math.round(Number(e.target.value) || 0))) })}
+                  aria-label={`${label}: minutes before the tip`} data-testid={`notify-${lead}`} /> {after}</>}</span></span></label>
           ))}
           <label className="inline notify-wpa small">Lock calls only when locking adds at least
             <input type="number" min={0} max={100} step={1} value={st.prefs.lock_min_wpa} disabled={!st.prefs.lock}

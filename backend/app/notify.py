@@ -50,9 +50,15 @@ NL = "\n"
 
 class NotifyPrefs(BaseModel):
     """Which pushes to send. lock_min_wpa: a lock call goes out only when locking adds at least this many points of win
-    chance over leaving the game open (0 = every lock call)."""
+    chance over leaving the game open (0 = every lock call). The *_lead fields: how many minutes before the tip each kind
+    goes out (retime). A keep / swap call is only final ALARM_LEAD_MIN (5) before the tip, when the starters' live games
+    are read: a longer swap_lead sends the check earlier, and the SWAP follows if it turns into one."""
     lock: bool = True
     lock_min_wpa: int = Field(0, ge=0, le=100)
+    lock_lead: int = Field(30, ge=0, le=240)
+    swap_lead: int = Field(5, ge=0, le=240)
+    dtd_lead: int = Field(30, ge=0, le=240)
+    moves_lead: int = Field(30, ge=0, le=240)
     swap: bool = True
     out: bool = True
     dtd: bool = True
@@ -300,9 +306,21 @@ def covered_sids(watch: list[dict], date: str, lid: str, sent: set[str]) -> set[
     return {x for w in watch if w["kind"] in ("out", "gtd", "swap") and key_of(w, date, lid) in sent for x in (w["sid"], w.get("backup_sid")) if x}
 
 
-def move_lines(moves: list[dict]) -> list[dict]:
-    """Today's lineup moves that must beat a tip, as watch-like lines (for `due`) alarmed MOVE_LEAD_MIN before it."""
-    return [{**m, "kind": "move", "backup_sid": m["to"], "alarm": (_t(m["by"]) - timedelta(minutes=MOVE_LEAD_MIN)).isoformat()}
+LEAD_PREF = {"lock": "lock_lead", "swap": "swap_lead", "gtd": "dtd_lead", "move": "moves_lead"}
+
+
+def retime(w: dict, prefs: dict) -> dict:
+    """A watch line with its alarm moved to the user's lead time before its tip (LEAD_PREF); lines due at once ("now") or
+    with no tip, and kinds without a lead setting, are unchanged."""
+    k = LEAD_PREF.get(w["kind"])
+    if not k or w.get("alarm") in (None, "now") or w.get("by") in (None, "now"):
+        return w
+    return {**w, "alarm": (_t(w["by"]) - timedelta(minutes=prefs.get(k, 0))).isoformat()}
+
+
+def move_lines(moves: list[dict], lead: int = MOVE_LEAD_MIN) -> list[dict]:
+    """Today's lineup moves that must beat a tip, as watch-like lines (for `due`) alarmed `lead` minutes before it."""
+    return [{**m, "kind": "move", "backup_sid": m["to"], "alarm": (_t(m["by"]) - timedelta(minutes=lead)).isoformat()}
             for m in moves if m.get("by")]
 
 
@@ -469,7 +487,7 @@ def watch_once(state, sent: set[str], tags: dict | None = None, last: dict | Non
         news_all = injury_news(tags.setdefault(f"{lid}|injury", {}), view["players"], mine, espn, day0)
         news = [n for n in news_all if n["sid"] not in has_injury]
         fresh = {x["sid"] for x in status_all if x["change"] != "cleared"} | {n["sid"] for n in news_all}
-        for key, w in due([w for w in watch + status + news if wanted(w, prefs, by_sid)], date, now, sent, lid):
+        for key, w in due([retime(w, prefs) for w in watch + status + news if wanted(w, prefs, by_sid)], date, now, sent, lid):
             text = body(w)
             if w["sid"] in fresh and w["kind"] in ("out", "status", "injury") and w.get("change") != "cleared" and season_ending(espn.get(normalize_name(w["name"])), day0):
                 text = NL.join((text, sorry(w["name"])))
@@ -477,7 +495,7 @@ def watch_once(state, sent: set[str], tags: dict | None = None, last: dict | Non
                 sent.add(key)
                 log.info("sent %s", key)
         done = covered_sids(watch, date, lid, sent)
-        moves = due(move_lines(today.get("moves", [])), date, now, sent, lid) if prefs["moves"] else []
+        moves = due(move_lines(today.get("moves", []), prefs["moves_lead"]), date, now, sent, lid) if prefs["moves"] else []
         sent.update(k for k, m in moves if m["sid"] in done)
         moves = [(k, m) for k, m in moves if m["sid"] not in done]
         free = [m for m in today.get("moves", []) if not m.get("by") and m["sid"] not in done]

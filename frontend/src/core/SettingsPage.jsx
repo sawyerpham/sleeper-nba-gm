@@ -132,7 +132,7 @@ export default function SettingsPage({ leagueId }) {
         </div>
       </div>
 
-      <div className="panel">
+      <div className="panel knobs">
         <h3>Ranking</h3>
         <div className="small muted">Value = weight avg × FP/G + weight ceiling × ceiling, × games confidence × injury × age × availability. FP/G blends Sleeper's season projection with last season (projection weight). All in fantasy points under the scoring above.</div>
         <div className="row">

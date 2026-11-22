@@ -326,3 +326,19 @@ def test_watcher_polls_every_minute_only_near_games(monkeypatch):
     notify.watch_once(state, set(), {}, last)
     notify.watch_once(state, set(), {}, last)
     assert calls == ["lg", "lg", "lg"]
+
+
+def test_alerts_go_out_at_the_users_lead_time():
+    """Lock / swap / GTD alarms move to the user's minutes before the tip, lineup moves too; 'now' lines don't move."""
+    from app.notify import NotifyPrefs, move_lines, retime
+
+    prefs = {**NotifyPrefs().model_dump(), "lock_lead": 60, "swap_lead": 10, "dtd_lead": 45, "moves_lead": 20}
+    tip = "2026-11-21T00:30:00+00:00"
+    assert retime({"kind": "lock", "by": tip, "alarm": "2026-11-21T00:00:00+00:00"}, prefs)["alarm"] == "2026-11-20T23:30:00+00:00"
+    assert retime({"kind": "swap", "by": tip, "alarm": "x"}, prefs)["alarm"] == "2026-11-21T00:20:00+00:00"
+    assert retime({"kind": "gtd", "by": tip, "alarm": "x"}, prefs)["alarm"] == "2026-11-20T23:45:00+00:00"
+    assert retime({"kind": "out", "by": tip, "alarm": "now"}, prefs)["alarm"] == "now"
+    assert retime({"kind": "status", "alarm": "now"}, prefs)["alarm"] == "now"
+    assert move_lines([{"sid": "1", "to": "SG", "by": tip}], prefs["moves_lead"])[0]["alarm"] == "2026-11-21T00:10:00+00:00"
+    d = NotifyPrefs().model_dump()
+    assert (d["lock_lead"], d["swap_lead"], d["dtd_lead"], d["moves_lead"]) == (30, 5, 30, 30)

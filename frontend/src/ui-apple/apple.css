@@ -199,3 +199,5 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
 .ap-role.owner { background: color-mix(in srgb, #ff9500 24%, transparent); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .ap-role.premium { background: color-mix(in srgb, #34c759 24%, transparent); }
+/* Telegram lead-time boxes inside the notification lines. */
+.notify-lead { width: 52px; padding: 1px 6px; margin: 0 2px; font-size: var(--fs-xs); }
