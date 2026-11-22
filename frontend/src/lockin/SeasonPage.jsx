@@ -473,20 +473,20 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
   return (
     <div className={`panel matchup ${thin ? "thin" : ""}`} data-testid="my-week" style={{ "--gut": `${gutter}px` }}>
       {tl?.segments.length > 0 && <Timeline tl={tl} nowMs={nowMs} atMs={atMs} setAt={setAt} view={differs ? view : "best"} setView={setView} differs={differs} />}
-      {gap && <div className="small muted mu-gap" data-testid="sleeper-gap">Sleeper still shows the day that just ended: the arrows start from that lineup (the one Sleeper carries into the next day), so skip any move you've already made there.</div>}
+      {gap && <div className="small muted mu-gap" data-testid="sleeper-gap">Sleeper still shows yesterday's lineup: the arrows start from it, so skip any move you've already made.</div>}
       <div className="mu-head">
         <button className="mu-arrow neon-arrow" onClick={() => step(-1)} data-tip="Previous matchup" aria-label="Previous matchup" data-testid="mu-prev"><NeonArrow dir="left" /></button>
         <div className="mu-team">
           <TeamName t={shown} cls="mc-name" size={34} mine={isMine} />
           <span className="small muted">{shown.games_left} left</span>
-          <span className="mu-score"><span className="mu-exp-total">{shown.expected}</span><span className="mc-points">{fp(shown.points)}</span></span>
+          <span className="mu-score">{Math.abs(shown.expected - shown.points) >= 0.005 && <span className="mu-exp-total">{shown.expected}</span>}<span className="mc-points">{fp(shown.points)}</span></span>
         </div>
         <div className="mu-mid">
           <span className="small muted">{idx + 1}/{n}</span>
           {!isMine && <button className="tiny" onClick={() => setIdx(mineIdx)}>mine</button>}
         </div>
         {!thin && <div className="mu-team right">
-          {o && <span className="mu-score"><span className="mc-points">{fp(o.points)}</span><span className="mu-exp-total">{o.expected}</span></span>}
+          {o && <span className="mu-score"><span className="mc-points">{fp(o.points)}</span>{Math.abs(o.expected - o.points) >= 0.005 && <span className="mu-exp-total">{o.expected}</span>}</span>}
           {o && <span className="small muted">{o.games_left} left · {o.locked} locked</span>}
           {o ? <TeamName t={o} cls="mc-name" size={34} /> : <span className="mc-name">no opponent</span>}
         </div>}
@@ -610,12 +610,11 @@ function Timeline({ tl, nowMs, atMs, setAt, view, setView, differs }) {
           <span className="tl-time" style={{ left: at(atMs) }} data-testid="timeline-time">{fmt(atMs, { hour: "numeric", minute: "2-digit" })}</span>
         </div>
       </div>
-      <button className="tl-next" onClick={() => next && setAt(next)} disabled={!next} data-testid="next-check"
+      {next && <button className="tl-next" onClick={() => setAt(next)} data-testid="next-check"
         data-tip="The next time the lineup changes: open Sleeper then and make every swap at once. Click to show that lineup.">
-        <span className="tl-next-head"><span className="tl-next-label">Next check-in</span>{next && <span className="tl-next-in">in {until}</span>}</span>
-        {!next && <span className="small muted">None left this week</span>}
-        {next && <strong>{fmt(next, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</strong>}
-      </button>
+        <span className="tl-next-head"><span className="tl-next-label">Next check-in</span><span className="tl-next-in">in {until}</span></span>
+        <strong>{fmt(next, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</strong>
+      </button>}
     </div>
   );
 }
@@ -769,7 +768,7 @@ function BestGames({ leagueId, week, openPid, openGame }) {
   useEffect(() => { api.get(`/leagues/${leagueId}/season/best` + qs({ week })).then((x) => setGames(x.games)).catch(() => setGames([])); }, [leagueId, week]);
   return (
     <div className="panel" data-testid="best-games">
-      <h3>Best games · week {week}</h3>
+      <h3>Best games</h3>
       {!games ? <div className="muted small">Loading…</div> : !games.length ? <div className="muted small">No games played yet.</div> : (
         <div className="best-games">{games.map((b, i) => {
           const g = b.game, sides = [[b.team, g.score], [g.opp, g.opp_score]], [away, home] = g.home ? [sides[1], sides[0]] : sides;
@@ -807,7 +806,7 @@ export function LeagueView({ data, leagueId, open, openPid, openGame, openMatchu
   return (
     <>
       <div className="panel">
-        <h3>Matchups · week {data.week}</h3>
+        <h3>Matchups</h3>
         <div className="league-matchups">
           {data.matchups.map((pair, i) => (
             <div key={i} className="lm-card">

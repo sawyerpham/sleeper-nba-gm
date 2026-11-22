@@ -78,8 +78,6 @@ function AppleSeason({ leagueId, leagueName, view, onWeek }) {
   const { data, plan } = s;
   const away = focusRid != null && focusRid !== plan.roster_id;
   const shown = away ? other : plan;
-  const t = data.teams.find((x) => x.roster_id === (away ? focusRid : plan.roster_id));
-  const whoName = t ? t.user || t.name : "";
   return (
     <TeamLinkContext.Provider value={s.openTeam}>
       <div className={`ap-page ap-view-${view}`}>
@@ -93,7 +91,7 @@ function AppleSeason({ leagueId, leagueName, view, onWeek }) {
         {view === "week" && (
           <div className="ap-week">
             <section className="ap-center">
-              <Widgets data={data} plan={plan} shown={shown} who={whoName} open={s.open} />
+              <Widgets data={data} plan={plan} shown={shown} open={s.open} />
               <div className="ap-pair">
                 <Slate data={data} s={s} rid={away ? focusRid : plan.roster_id} />
                 <Calls data={data} plan={shown} s={s} />
@@ -129,7 +127,7 @@ function ManagerPill({ data, rid, onPick }) {
   );
 }
 
-function Widgets({ data, plan, shown, who, open }) {
+function Widgets({ data, plan, shown, open }) {
   const nowMs = nowOf(data), next = nextCheckIn(shown || plan, nowMs);
   const p = shown || plan, wait = shown === null;
   const lockable = wait ? [] : lockableOf(p);
@@ -141,15 +139,15 @@ function Widgets({ data, plan, shown, who, open }) {
           <circle cx="40" cy="40" r={R} className="trk" />
           <circle cx="40" cy="40" r={R} className="val" strokeDasharray={`${wait ? 0 : C * p.win_chance} ${C}`} transform="rotate(-90 40 40)" />
         </svg>
-        <div><span className="ap-label">Win chance · {who}</span><strong className="ap-num">{wait ? "…" : pct(p.win_chance)}</strong></div>
+        <div><span className="ap-label">Win chance</span><strong className="ap-num">{wait ? "…" : pct(p.win_chance)}</strong></div>
       </div>
       <div className="ap-widget">
         <span className="ap-label">Next check-in</span>
         <strong className="ap-num sm">{next ? fmt(next, { weekday: "short", hour: "numeric", minute: "2-digit" }) : "None"}</strong>
-        <span className="ap-foot">{next ? `in ${untilText(Math.ceil((next - nowMs) / 60000))}` : "no lineup changes left this week"}</span>
+        {next && <span className="ap-foot">in {untilText(Math.ceil((next - nowMs) / 60000))}</span>}
       </div>
       <div className="ap-widget ap-lock-widget" data-testid="lockable">
-        <span className="ap-label">Lockable games · {who}{!wait && lockable.length > 0 && ` · ${lockable.length}`}</span>
+        <span className="ap-label">Lockable games{!wait && lockable.length > 0 && ` · ${lockable.length}`}</span>
         {wait ? <span className="ap-foot">loading</span> : !lockable.length ? <span className="ap-foot">No lock is worth making right now.</span> : (
           <div className="ap-locks">
             {lockable.slice(0, 6).map((r) => {
