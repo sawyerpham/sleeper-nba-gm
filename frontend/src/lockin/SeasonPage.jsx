@@ -344,8 +344,17 @@ function laneAt(xs, ms, start, end, width) {
 
 const sameFields = (a, b) => a === b || (!!a && !!b && Object.keys(a).length === Object.keys(b).length && Object.keys(a).every((k) => a[k] === b[k]));
 const sameCard = (a, b) => Object.keys(a).every((k) => (k === "r" ? sameFields(a.r, b.r) : a[k] === b[k]));
-const PlayerCard = React.memo(function PlayerCard({ data, r, open, openGame, setLock, mine, side, day, lane }) {
+/** A player's headshot with his team's logo in the bottom-left corner; clicking the logo opens the team. */
+function TeamHeadshot({ sid, name, team, size, tip }) {
   const openTeam = useContext(TeamLinkContext);
+  return (
+    <span className="mu-hs" data-tip={tip}><Headshot sleeperId={sid} name={name} size={size} />{team && (
+      <span className="mu-hs-badge" data-tip="" role="link" onClick={openTeam ? (e) => { e.stopPropagation(); openTeam(team); } : undefined}>
+        <img className="mu-hs-logo" src={teamLogo(team)} alt={team} /></span>)}</span>
+  );
+}
+
+const PlayerCard = React.memo(function PlayerCard({ data, r, open, openGame, setLock, mine, side, day, lane }) {
   if (!r) return <div className={`mu-card empty ${side}`}><span className="muted small">empty</span></div>;
   const p = data.players[r.sid] || { games: [] };
   const starter = r.slot !== "BN" && r.slot !== "IR";
@@ -354,7 +363,7 @@ const PlayerCard = React.memo(function PlayerCard({ data, r, open, openGame, set
     <div className={`mu-card ${side} ${starter ? "" : "bench"} ${locked ? "done" : ""} ${isOut(p.injury_tag) ? "out" : isDoubt(p.injury_tag) ? "doubt" : ""}`} data-testid={`mu-${r.sid}`}>
       <div className="mu-top">
         <div className="mu-id clickable" onClick={() => open(r.sid)} data-testid={`open-${r.sid}`}>
-        <span className="mu-hs" data-tip={injuryTip(p.injury_tag, p.injury_note)}><Headshot sleeperId={r.sid} name={r.name} size={34} />{p.team && <span className="mu-hs-badge" data-tip="" role="link" onClick={openTeam ? (e) => { e.stopPropagation(); openTeam(p.team); } : undefined}><img className="mu-hs-logo" src={teamLogo(p.team)} alt={p.team} /></span>}</span>
+        <TeamHeadshot sid={r.sid} name={r.name} team={p.team} size={34} tip={injuryTip(p.injury_tag, p.injury_note)} />
         <div className="mu-who">
           <div className="mu-name"><span className="mu-nm" data-clip={r.name}>{r.name}</span><InjuryTag tag={p.injury_tag} note={p.injury_note} /></div>
           <div className="small muted mu-sub" data-clip={p.nick && showNicks() ? `“${p.nick}”` : undefined}>{!p.team && <>{p.retired ? "Retired" : "FA"} </>}<PosList list={r.pos} />
@@ -769,10 +778,10 @@ function BestGames({ leagueId, week, openPid, openGame }) {
           return (
             <div key={`${b.sid}-${g.date}`} className="best-game">
               <span className="best-rank">{i + 1}</span>
-              <Headshot sleeperId={b.sid} name={b.name} size={44} />
+              <TeamHeadshot sid={b.sid} name={b.name} team={b.team} size={44} />
               <div className="best-main">
                 <div><strong className={b.player_id && openPid ? "clickable" : ""} onClick={b.player_id && openPid ? () => openPid(b.player_id) : undefined}>{b.name}</strong>
-                  {" "}<span className="small muted"><TeamLink abbr={b.team} /> <PosList list={b.pos} /></span></div>
+                  {" "}<span className="small muted"><PosList list={b.pos} /></span></div>
                 <div className="small muted best-line">{b.lead.map(([k, v]) => <span key={k}><strong>{v}</strong> {k}</span>)}
                   <span>{b.fg[0]}/{b.fg[1]} FG</span><span>{b.ft[0]}/{b.ft[1]} FT</span><span>{b.min} MIN</span></div>
               </div>

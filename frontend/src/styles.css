@@ -1110,8 +1110,8 @@ header.top .brand .logo .icon { width: 20px; height: 20px; }
 .mu-name { display: flex; align-items: center; gap: 6px; }
 .mu-nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mu-name > .inj { flex: none; margin-left: 0; }
-.mu-hs { position: relative; display: inline-flex; flex: none; margin: 6px 0 0 6px; }
-.mu-hs-badge { position: absolute; top: -16%; left: -16%; width: 50%; height: 50%; }
+.mu-hs { position: relative; display: inline-flex; flex: none; margin: 0 0 6px 6px; }
+.mu-hs-badge { position: absolute; bottom: -16%; left: -16%; width: 50%; height: 50%; }
 .mu-hs-badge[role="link"] { cursor: pointer; border-radius: 50%; transition: transform 0.12s; } .mu-hs-badge[role="link"]:hover { transform: scale(1.15); }
 .mu-hs-logo { display: block; width: 100%; height: 100%; padding: 2px; box-sizing: border-box; object-fit: contain; border-radius: 50%; background: var(--panel-solid, var(--panel)); box-shadow: 0 0 0 1px var(--border); }
 /* Ranking settings: compact value boxes (the global number input is 80px wide with roomy padding). */
