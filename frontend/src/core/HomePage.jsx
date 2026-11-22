@@ -16,14 +16,16 @@ export default function HomePage({ leagueId, setLeagueId, setTab }) {
     const sid = sleeperId(league);
     if (!sid) return setError("Paste your Sleeper league ID or its link (the long number in sleeper.com/leagues/…).");
     setBusy(true); setError("");
-    const id = `sleeper-${sid}`;
+    const want = `sleeper-${sid}`;
     try {
-      let fresh = true;
+      let fresh = true, id;
       try {
-        await api.post("/leagues", { league_id: id, name: `Sleeper ${sid}` });
+        id = (await api.post("/leagues", { league_id: want, name: `Sleeper ${sid}` })).league.league_id;
       } catch (e) {
         if (!/already exists/.test(e.message)) throw e;
         fresh = false;
+        // Already added: the server may have suffixed the id (-u<user id>) when someone else had it first.
+        id = (await api.get("/leagues")).find((l) => l.league_id === want || l.league_id.startsWith(`${want}-u`))?.league_id || want;
       }
       await api.post(`/leagues/${id}/sleeper/apply`, { sleeper_league_id: sid, apply: fresh ? APPLY : APPLY.filter((f) => f !== "num_managers") });
       try { await api.post(`/leagues/${id}/sleeper/sync`); } catch { /* managers load on the next sync */ }

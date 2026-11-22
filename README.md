@@ -198,21 +198,34 @@ Then create a league, enter your Sleeper league id in Settings and pick which ma
 Checks: `python -m pytest -q tests` and `ruff check` for the backend, `node src/lockin/swaps.check.mjs` and
 `npm run build` for the frontend.
 
+### Accounts and sign-in
+
+Every page needs an account. You sign in with your email: the app emails a one-time link (valid 15 minutes) through
+[Resend](https://resend.com), and the session lasts 30 days. Each account sees only its own leagues, settings and
+Telegram link; admins also get an **Admin** tab (users, activity, sign-ups, alerts sent, and the data pull).
+
+Settings go in `backend/.env` (gitignored):
+```
+ADMIN_EMAILS=you@example.com            # comma-separated; admins get the Admin tab and the data pull
+RESEND_API_KEY=re_...                   # without it the sign-in link is printed in the backend log (local dev)
+MAIL_FROM=NBA Fantasy <login@yourdomain.com>   # a sender on a domain verified in Resend
+APP_URL=http://localhost:5173           # where the emailed link points; https://... in production (makes the cookie Secure)
+```
+Accounts live in `backend/data/app.db` (SQLite). An admin's first sign-in takes over the leagues created before accounts
+existed. Health (`/api/health`) and the calculators stay public.
+
 ### Telegram notifications (optional)
 
-1. In Telegram, message @BotFather, send `/newbot` and copy the token. Message your new bot once, then open
-   `https://api.telegram.org/bot<TOKEN>/getUpdates` and copy `chat.id`.
-2. Create `backend/.env` (gitignored):
-   ```
-   TELEGRAM_BOT_TOKEN=123456:ABC-your-token
-   TELEGRAM_CHAT_ID=123456789
-   ```
-3. Test with `python -m app.notify "hello"` from `backend`, then restart the server. The watcher polls every minute
-   while the backend runs and logs to `backend/data/cache/notify.log`.
+1. In Telegram, message @BotFather, send `/newbot` and copy the token.
+2. Add it to `backend/.env`: `TELEGRAM_BOT_TOKEN=123456:ABC-your-token`, then restart the backend. It starts a watcher
+   (polls every minute, logs to `backend/data/cache/notify.log`) and a bot thread that answers `/start` and `/stop`.
+3. Each user opens Settings > Notifications and taps **Link Telegram**, which opens the bot with a one-time code; tapping
+   **Start** links that chat to their account. Nobody can link a chat that isn't theirs, `/stop` or **Unlink** turns it
+   off, and a chat that blocks the bot is unlinked automatically. At most 100 alerts per user per day.
+4. Test delivery to a chat with `python -m app.notify <chat id> "hello"` from `backend`.
 
-The home page and Settings > Notifications show which chat the bot is linked to, with a link to it. The same section
-picks what to push (lock calls, keep / swap calls, players ruled OUT, GTD / DTD or cleared, lineup moves) and the win
-chance a lock call must add before it is pushed.
+The same section picks what to push (lock calls, keep / swap calls, players ruled OUT, GTD / DTD or cleared, lineup
+moves) and the win chance a lock call must add before it is pushed. Each league's alerts go to its owner's chat.
 
 ## Calculations API
 

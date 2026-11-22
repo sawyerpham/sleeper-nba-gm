@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { api } from "../api.js";
-import DataPage from "./DataPage.jsx";
 import LeaguePage from "./LeaguePage.jsx";
 import SettingsPage from "./SettingsPage.jsx";
 import NotifyPage from "./NotifyPage.jsx";
 import Icon from "./Icon.jsx";
+import { signOut } from "./Auth.jsx";
 
 
 const WALLPAPERS = [
@@ -73,13 +73,17 @@ export function useAppState() {
   return { tab, setTab, goTab, settingsOpen, setSettingsOpen, leagueId, setLeagueId, leagueName, wall, setWall, health, refreshHealth };
 }
 
-export function SettingsModal({ app }) {
+export function SettingsModal({ app, user }) {
   if (!app.settingsOpen) return null;
   const close = () => app.setSettingsOpen(false);
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && close()} data-testid="settings-modal">
       <div className="modal settings-modal">
         <button className="small settings-close" onClick={close} aria-label="Close settings" data-testid="settings-close"><Icon name="x" /></button>
+      <div className="panel section-card" data-testid="section-account"><h2>Account</h2>
+        <p className="settings-account">Signed in as <strong>{user.email}</strong>
+          <button className="small" onClick={signOut} data-testid="sign-out"><Icon name="log-out" /> Sign out</button></p>
+      </div>
       <div className="panel section-card" data-testid="section-appearance"><h2>Appearance</h2>
       <div className="panel wall-pick"><h3>Wallpaper</h3>
         <select value={app.wall} onChange={(e) => app.setWall(e.target.value)} data-testid="wallpaper">
@@ -93,7 +97,6 @@ export function SettingsModal({ app }) {
       <div className="panel section-card" data-testid="section-league"><h2>League</h2>
         <LeaguePage leagueId={app.leagueId} setLeagueId={app.setLeagueId} />
         {app.leagueId && <SettingsPage leagueId={app.leagueId} />}
-        <DataPage onPoolChanged={app.refreshHealth} />
       </div>
       </div>
     </div>

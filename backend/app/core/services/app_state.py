@@ -16,6 +16,7 @@ from nba_fantasy_shared.scoring import blend_availability
 from nba_fantasy_shared.storage import JsonStore
 
 from ... import config
+from ...accounts import Accounts
 from ..engine.session import DraftSession
 from .league_repository import LeagueRepository, new_document
 from .pull_service import PlayerDetailCache, PullService, PullStatus, load_overrides, load_projections, load_records, load_schedule, save_overrides
@@ -47,6 +48,7 @@ class AppState:
         self.roster_season = roster_season
         self.stats_season = stats_season
         self.leagues = LeagueRepository(store)
+        self.accounts = Accounts(store.root / "app.db")
         self.details = PlayerDetailCache(store, stats)
         self.players: dict[int, PlayerRecord] = {}
         self.overrides: dict[int, PlayerOverrides] = {}
@@ -218,9 +220,9 @@ class AppState:
             self._pull_thread.join(timeout)
 
 
-    def list_leagues(self) -> list[dict]:
-        """Summaries of every league."""
-        return self.leagues.summaries()
+    def list_leagues(self, ids: list[str] | None = None) -> list[dict]:
+        """Summaries of the given leagues (default: every league)."""
+        return self.leagues.summaries(ids)
 
     def create_league(self, league: LeagueSettings, managers: list[Manager] | None = None) -> DraftSession:
         """Create and save a new league document, and return its session (FileExistsError when the id is taken)."""

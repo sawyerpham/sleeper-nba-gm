@@ -1,10 +1,15 @@
 """Telegram notifications: the in-season watch list (GTD / OUT / swap / lock calls), the lineup moves (Sleeper lineup ->
 best lineup) before the tip they must beat, and injury-tag changes on your roster (a player now OUT, now GTD / DTD, or
-cleared). Which kinds go out, and the win chance a lock call must add, are the Notifications settings
-(data/notify_prefs.json, Settings > Notifications). No roster-illegal pushes: the user can still move players then.
+cleared). Which kinds go out, and the win chance a lock call must add, are each user's Notifications settings
+(accounts.prefs, Settings > Notifications). No roster-illegal pushes: the user can still move players then.
 
-Setup: put TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in backend/.env (see README.md, Telegram notifications); `python -m app.serve` then starts a
-watcher thread, logging to data/cache/notify.log. Test delivery alone with: python -m app.notify "hello"
+Each user links their own Telegram chat (P39): Settings asks for a one-time link (POST /notify/link), the user opens
+t.me/<bot>?start=<token> and taps Start, and the bot thread reads the /start <token> from that user's own chat, so a chat can
+only be linked by whoever holds that Telegram account. /stop in the chat, Unlink in Settings, or Telegram refusing a send
+(the user blocked the bot) unlinks it. Each league's alerts go to its owner's chat.
+
+Setup: put TELEGRAM_BOT_TOKEN in backend/.env (see README.md, Telegram notifications); `python -m app.serve` then starts the
+watcher and bot threads, logging to data/cache/notify.log. Test delivery alone with: python -m app.notify <chat id> "hello"
 """
 
 from __future__ import annotations
@@ -20,20 +25,20 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import requests
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from nba_fantasy_shared.reconcile.names import normalize_name
 
+from .accounts import RateLimited
 from .core.api.deps import get_state
 
 log = logging.getLogger(__name__)
 ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 POLL_S = 60
 MOVE_LEAD_MIN = 30
-PREFS_FILE = "notify_prefs.json"
 TELEGRAM = "https://api.telegram.org/bot{}/{}"
-STATUS_TTL = 600
+BOT_POLL_S = 50
 DOUBT_TAGS = {"GTD", "DTD", "Questionable", "Doubtful"}
 OUT_TAGS = {"Out", "Suspended", "Sus", "IR"}
 _UNSEEN = object()
@@ -53,17 +58,17 @@ class NotifyPrefs(BaseModel):
     moves: bool = True
 
 
-def read_prefs(store) -> dict:
-    """The saved Notifications settings, defaults for anything unset or unreadable."""
+def read_prefs(accounts, user_id: int) -> dict:
+    """A user's saved Notifications settings, defaults for anything unset or unreadable."""
     try:
-        return NotifyPrefs.model_validate(store.read_json(PREFS_FILE) if store.exists(PREFS_FILE) else {}).model_dump()
-    except (OSError, ValueError):
+        return NotifyPrefs.model_validate(accounts.prefs(user_id)).model_dump()
+    except ValueError:
         return NotifyPrefs().model_dump()
 
 
-def write_prefs(store, prefs: NotifyPrefs) -> dict:
-    """Save the Notifications settings; the watcher reads them on its next poll."""
-    store.write_json(PREFS_FILE, prefs.model_dump())
+def write_prefs(accounts, user_id: int, prefs: NotifyPrefs) -> dict:
+    """Save a user's Notifications settings; the watcher reads them on its next poll."""
+    accounts.set_prefs(user_id, prefs.model_dump())
     return prefs.model_dump()
 
 
@@ -77,8 +82,8 @@ def load_env(path: Path = ENV_FILE) -> None:
 
 
 def configured() -> bool:
-    """Whether the bot token and chat id are both set."""
-    return bool(os.environ.get("TELEGRAM_BOT_TOKEN") and os.environ.get("TELEGRAM_CHAT_ID"))
+    """Whether the bot token is set."""
+    return bool(os.environ.get("TELEGRAM_BOT_TOKEN"))
 
 
 def _redact(exc: Exception) -> str:
@@ -86,50 +91,100 @@ def _redact(exc: Exception) -> str:
     return str(exc).replace(os.environ.get("TELEGRAM_BOT_TOKEN") or "\0", "<token>")
 
 
-def _call(method: str, **params) -> dict:
+def _call(method: str, http_timeout: float = 10, **params):
     """One Telegram Bot API call; its `result`, or ValueError with Telegram's description when it refuses."""
-    r = requests.get(TELEGRAM.format(os.environ["TELEGRAM_BOT_TOKEN"], method), params=params, timeout=10).json()
+    r = requests.get(TELEGRAM.format(os.environ["TELEGRAM_BOT_TOKEN"], method), params=params, timeout=http_timeout).json()
     if not r.get("ok"):
         raise ValueError(r.get("description") or "Telegram refused the call")
-    return r.get("result") or {}
+    return r.get("result") if r.get("result") is not None else {}
 
 
-def send(text: str) -> bool:
-    """Send a Telegram message to the configured chat; False (logged) when unconfigured or Telegram refuses."""
-    if not configured():
+def send(text: str, chat_id: int | None, accounts=None) -> bool:
+    """Send a Telegram message to one chat; False (logged) when unconfigured, over the user's daily cap, or Telegram
+    refuses. With `accounts`: the send counts toward the admin stats and the cap, and a 403 (the user blocked the bot or
+    deleted the chat) unlinks the chat."""
+    if not configured() or chat_id is None:
         return False
+    uid = accounts.user_id_for_chat(chat_id) if accounts is not None else None
+    if accounts is not None:
+        try:
+            accounts.check_limit("tg_sent", user_id=uid)
+        except RateLimited:
+            log.warning("telegram daily cap hit for user %s", uid)
+            return False
     try:
         r = requests.post(TELEGRAM.format(os.environ["TELEGRAM_BOT_TOKEN"], "sendMessage"),
-                          json={"chat_id": os.environ["TELEGRAM_CHAT_ID"], "text": text}, timeout=10)
+                          json={"chat_id": chat_id, "text": text}, timeout=10)
+        if r.status_code == 403 and accounts is not None:
+            accounts.unlink_chat(chat_id)
+            log.info("telegram chat of user %s unlinked: bot blocked", uid)
+            return False
         r.raise_for_status()
+        if accounts is not None:
+            accounts.log("tg_sent", user_id=uid)
         return True
     except requests.RequestException as exc:
         log.warning("telegram send failed: %s", _redact(exc))
         return False
 
 
-_status: tuple[float, dict] = (0.0, {})
+_bot: dict = {}
 
 
-def status() -> dict:
-    """Whether Telegram is set up and what it is linked to: the chat id from .env plus, from Telegram (kept STATUS_TTL),
-    the bot's username and the chat's name. Never the token."""
-    global _status
+def bot_username() -> str | None:
+    """The bot's @username from getMe (asked once), None while Telegram can't be reached."""
+    if "username" not in _bot:
+        try:
+            _bot["username"] = _call("getMe").get("username")
+        except (requests.RequestException, ValueError) as exc:
+            log.warning("telegram getMe failed: %s", _redact(exc))
+            return None
+    return _bot["username"]
+
+
+def status(user: dict) -> dict:
+    """Whether Telegram alerts exist on this server, the bot's username, and the name of the chat this user linked."""
     if not configured():
         return {"configured": False}
-    if time.monotonic() - _status[0] < STATUS_TTL:
-        return _status[1]
-    chat_id = os.environ["TELEGRAM_CHAT_ID"]
-    out: dict = {"configured": True, "chat_id": chat_id}
-    try:
-        me, chat = _call("getMe"), _call("getChat", chat_id=chat_id)
-        out["bot"] = me.get("username")
-        out["chat"] = {"type": chat.get("type"), "username": chat.get("username"),
-                       "name": " ".join(x for x in (chat.get("first_name"), chat.get("last_name")) if x) or chat.get("title")}
-    except (requests.RequestException, ValueError) as exc:
-        out["error"] = _redact(exc)
-    _status = (time.monotonic(), out)
-    return out
+    return {"configured": True, "bot": bot_username(), "linked": user.get("tg_chat_id") is not None, "chat": user.get("tg_name")}
+
+
+def chat_name(chat: dict) -> str | None:
+    """A Telegram chat's display name: first + last name, else @username."""
+    return " ".join(x for x in (chat.get("first_name"), chat.get("last_name")) if x) or (f"@{chat['username']}" if chat.get("username") else None)
+
+
+def handle_update(accounts, update: dict) -> str | None:
+    """Answer one message to the bot: /start <token> links this chat to the token's account, /stop unlinks it, anything
+    else gets the how-to. Only private chats are linked. Returns the reply (the caller sends it), None to stay quiet."""
+    msg = update.get("message") or {}
+    chat, text = msg.get("chat") or {}, (msg.get("text") or "").strip()
+    if chat.get("type") != "private" or chat.get("id") is None:
+        return None
+    if text.startswith("/start "):
+        user = accounts.consume_link(text.split(None, 1)[1].strip(), chat["id"], chat_name(chat))
+        if user is None:
+            return "That link is used or expired. In the app, open Settings > Notifications and tap Link Telegram again."
+        return f"Linked to {user['email']}. Your league alerts will come here. Send /stop to turn them off."
+    if text == "/stop":
+        return "Alerts are off for this chat." if accounts.unlink_chat(chat["id"]) else "This chat isn't linked to an account."
+    return "To get alerts here, open the app's Settings > Notifications and tap Link Telegram."
+
+
+def bot_loop(accounts) -> None:
+    """Long-poll Telegram for messages to the bot forever and answer them (handle_update). Polling needs no public URL, so
+    it works the same locally and on a server; only one process may poll a bot at a time."""
+    offset = 0
+    while True:
+        try:
+            for update in _call("getUpdates", http_timeout=BOT_POLL_S + 10, offset=offset, timeout=BOT_POLL_S, allowed_updates='["message"]') or []:
+                offset = update["update_id"] + 1
+                reply = handle_update(accounts, update)
+                if reply:
+                    send(reply, update["message"]["chat"]["id"])
+        except Exception as exc:
+            log.warning("telegram bot poll failed: %s", _redact(exc))
+            time.sleep(5)
 
 
 def title(w: dict) -> str:
@@ -304,14 +359,20 @@ def wanted(w: dict, prefs: dict, players_by_sid: dict) -> bool:
 
 
 def watch_once(state, sent: set[str], tags: dict | None = None) -> None:
-    """One poll: for every league, compute today's plan and send each newly due watch line the settings want, the injury-tag
-    changes on your roster (`tags`: league -> sid -> last tag seen), and the lineup moves due (one message)."""
+    """One poll: for every league whose owner linked Telegram, compute today's plan and send to the owner's chat each newly
+    due watch line their settings want, the injury-tag changes on the roster (`tags`: league -> sid -> last tag seen), and
+    the lineup moves due (one message). Leagues of users without a chat are skipped before any Sleeper call."""
     from .core.api.deps import _session
     from .lockin.service import espn_injuries, http_fetch, read_locks, team_plan, week_view
 
     tags = {} if tags is None else tags
-    prefs = read_prefs(state.store)
+    accounts = state.accounts
     for lid in state.leagues.list_ids():
+        owner = accounts.user(accounts.owner(lid) or 0)
+        chat = owner and owner["tg_chat_id"]
+        if not chat:
+            continue
+        prefs = read_prefs(accounts, owner["id"])
         try:
             session = _session(state, lid)
             fetch = http_fetch(state.platform)
@@ -337,7 +398,7 @@ def watch_once(state, sent: set[str], tags: dict | None = None) -> None:
             text = body(w)
             if w["sid"] in fresh and w["kind"] in ("out", "status", "injury") and w.get("change") != "cleared" and season_ending(espn.get(normalize_name(w["name"])), day0):
                 text = NL.join((text, sorry(w["name"])))
-            if send(text):
+            if send(text, chat, accounts):
                 sent.add(key)
                 log.info("sent %s", key)
         done = covered_sids(watch, date, lid, sent)
@@ -345,13 +406,14 @@ def watch_once(state, sent: set[str], tags: dict | None = None) -> None:
         sent.update(k for k, m in moves if m["sid"] in done)
         moves = [(k, m) for k, m in moves if m["sid"] not in done]
         free = [m for m in today.get("moves", []) if not m.get("by") and m["sid"] not in done]
-        if moves and send(moves_text([m for _, m in moves], free, ZoneInfo(view["tz"]))):
+        if moves and send(moves_text([m for _, m in moves], free, ZoneInfo(view["tz"])), chat, accounts):
             sent.update(k for k, _ in moves)
             log.info("sent %s", [k for k, _ in moves])
 
 
 def start_watcher(state) -> None:
-    """Start the daemon thread that polls every POLL_S seconds (no-op unless Telegram is configured). Sent keys persist in cache/notified.json."""
+    """Start the watcher thread that polls every POLL_S seconds and the bot thread that answers /start and /stop (no-op
+    unless the bot token is set). Sent keys persist in cache/notified.json."""
     load_env()
     if not configured():
         log.info("telegram not configured (backend/.env): notifications off")
@@ -382,6 +444,7 @@ def start_watcher(state) -> None:
             time.sleep(POLL_S)
 
     threading.Thread(target=loop, daemon=True, name="telegram-watch").start()
+    threading.Thread(target=bot_loop, args=(state.accounts,), daemon=True, name="telegram-bot").start()
     log.info("telegram watcher started")
 
 
@@ -389,20 +452,44 @@ router = APIRouter(prefix="/notify", tags=["notify"])
 
 
 @router.get("")
-def get_notify(state=Depends(get_state)) -> dict:
-    """The Telegram link (configured, chat id, bot and chat names; never the token) and the Notifications settings."""
+def get_notify(request: Request, state=Depends(get_state)) -> dict:
+    """The signed-in user's Telegram link (bot username, linked chat's name; never the token or chat id) and settings."""
     load_env()
-    return {**status(), "prefs": read_prefs(state.store)}
+    user = request.state.user
+    return {**status(user), "prefs": read_prefs(state.accounts, user["id"])}
 
 
 @router.put("/prefs")
-def put_prefs(body: NotifyPrefs, state=Depends(get_state)) -> dict:
-    """Save the Notifications settings; the watcher reads them on its next poll."""
-    return write_prefs(state.store, body)
+def put_prefs(body: NotifyPrefs, request: Request, state=Depends(get_state)) -> dict:
+    """Save the signed-in user's Notifications settings; the watcher reads them on its next poll."""
+    return write_prefs(state.accounts, request.state.user["id"], body)
+
+
+@router.post("/link")
+def link(request: Request, state=Depends(get_state)) -> dict:
+    """A one-time t.me link that links the chat that opens it and taps Start to this account (10 minutes, 5 an hour)."""
+    load_env()
+    bot = bot_username() if configured() else None
+    if not bot:
+        raise HTTPException(503, "Telegram alerts aren't available on this server")
+    try:
+        token = state.accounts.link_token(request.state.user["id"])
+    except RateLimited as exc:
+        raise HTTPException(429, str(exc)) from exc
+    return {"url": f"https://t.me/{bot}?start={token}"}
+
+
+@router.delete("/link")
+def unlink(request: Request, state=Depends(get_state)) -> dict:
+    """Unlink the signed-in user's Telegram chat."""
+    state.accounts.unlink_user(request.state.user["id"])
+    return {"ok": True}
 
 
 if __name__ == "__main__":
     import sys
 
     load_env()
-    print("sent" if send(" ".join(sys.argv[1:]) or "NBA tool test message") else "NOT sent (check backend/.env)")
+    if len(sys.argv) < 2:
+        sys.exit('usage: python -m app.notify <chat id> ["message"]')
+    print("sent" if send(" ".join(sys.argv[2:]) or "NBA tool test message", int(sys.argv[1])) else "NOT sent (check backend/.env)")

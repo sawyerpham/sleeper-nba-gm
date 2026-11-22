@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { api, qs } from "../api.js";
 import HomePage from "../core/HomePage.jsx";
+import AdminPage from "../core/AdminPage.jsx";
 import DraftPage from "../draft/DraftPage.jsx";
 import Headshot from "../core/Headshot.jsx";
 import Icon from "../core/Icon.jsx";
@@ -17,9 +18,10 @@ const SIDE = [["season", "calendar", "Today", "#007aff"], ["standings", "trophy"
 const TITLES = { week: "Today", league: "League", news: "News", waivers: "Waivers" };
 const CALL_ICON = { swap: "swap", gtd: "alert", out: "alert", lock: "lock", alert: "alert" };
 
-export default function App() {
+export default function App({ user }) {
   const app = useAppState();
   const { tab, setTab, leagueId, health } = app;
+  const side = user.admin ? [...SIDE, ["admin", "shield", "Admin", "#5856d6"]] : SIDE;
   return (
     <div className="ap">
       <aside className="ap-side">
@@ -28,7 +30,7 @@ export default function App() {
           <span className="ap-brand-text"><strong>NBA Fantasy</strong><small>{app.leagueName || "Choose a league"}</small></span>
         </button>
         <nav className="ap-nav">
-          {SIDE.map(([id, icon, label, c]) => (
+          {side.map(([id, icon, label, c]) => (
             <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)} data-testid={`tab-${id}`} style={{ "--c": c }}>
               <span className="ap-tile"><Icon name={icon} /></span>{label}
             </button>
@@ -45,9 +47,10 @@ export default function App() {
       <main className="ap-main">
         {tab === "home" && <HomePage leagueId={leagueId} setLeagueId={app.setLeagueId} setTab={app.goTab} />}
         {tab === "draft" && <DraftPage leagueId={leagueId} leagueName={app.leagueName} />}
+        {tab === "admin" && user.admin && <AdminPage onPoolChanged={app.refreshHealth} />}
         {SEASON_VIEWS[tab] && <AppleSeason leagueId={leagueId} leagueName={app.leagueName} view={SEASON_VIEWS[tab]} onWeek={() => setTab("season")} />}
       </main>
-      <SettingsModal app={app} />
+      <SettingsModal app={app} user={user} />
       <TipLayer />
     </div>
   );

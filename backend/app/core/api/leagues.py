@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import asdict
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from nba_fantasy_shared.models.league import LeagueSettings, Manager, RosterSlotSpec
 from nba_fantasy_shared.models.players import SLOT_ACCEPTS
@@ -19,28 +19,46 @@ from .schemas import CreateLeague, KeeperEvaluateIn, KeeperHistoryIn, ManagerPat
 router = APIRouter(prefix="/leagues", tags=["leagues"])
 
 
+def _user(request: Request) -> dict:
+    """The signed-in user, set by the router's auth dependency (auth.current_user)."""
+    return request.state.user
+
+
+def own_id(state: AppState, wanted: str, user_id: int) -> str:
+    """The id a user's new league gets: `wanted` unless another user has it, then `wanted-u<user id>`, so two people can
+    add the same Sleeper league without seeing or blocking each other."""
+    owner = state.accounts.owner(wanted)
+    if owner in (None, user_id) and (owner is not None or not state.leagues.exists(wanted)):
+        return wanted
+    return f"{wanted}-u{user_id}"
+
+
 @router.get("")
-def list_leagues(state: AppState = Depends(get_state)) -> list[dict]:
-    """List every league (id, name, status)."""
-    return state.list_leagues()
+def list_leagues(request: Request, state: AppState = Depends(get_state)) -> list[dict]:
+    """List the signed-in user's leagues (id, name, status)."""
+    return state.list_leagues(state.accounts.owned(_user(request)["id"]))
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-def create_league(body: CreateLeague, state: AppState = Depends(get_state)) -> dict:
-    """Create a league (optionally with settings and managers); 201."""
+def create_league(body: CreateLeague, request: Request, state: AppState = Depends(get_state)) -> dict:
+    """Create a league owned by the signed-in user (optionally with settings and managers); 201. The id may come back with a
+    `-u<user id>` suffix when someone else already uses it (own_id)."""
     try:
         validate_league_id(body.league_id)
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    uid = _user(request)["id"]
+    lid = own_id(state, body.league_id, uid)
     if body.settings is not None:
-        league = body.settings.model_copy(update={"league_id": body.league_id, "name": body.name})
+        league = body.settings.model_copy(update={"league_id": lid, "name": body.name})
     else:
-        league = LeagueSettings(league_id=body.league_id, name=body.name,
+        league = LeagueSettings(league_id=lid, name=body.name,
                                 roster_season=state.roster_season, stats_season=state.stats_season)
     try:
         session = state.create_league(league, body.managers)
     except FileExistsError:
-        raise HTTPException(status.HTTP_409_CONFLICT, f"league {body.league_id} already exists")
+        raise HTTPException(status.HTTP_409_CONFLICT, f"league {lid} already exists")
+    state.accounts.own(lid, uid)
     return session.to_export().model_dump(mode="json")
 
 
@@ -55,6 +73,7 @@ def delete_league(league_id: str, state: AppState = Depends(get_state)) -> None:
     """Delete a league; 204."""
     _session(state, league_id)
     state.delete_league(league_id)
+    state.accounts.disown(league_id)
 
 
 @router.get("/{league_id}/settings")

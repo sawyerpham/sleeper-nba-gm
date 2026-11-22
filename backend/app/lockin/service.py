@@ -11,6 +11,7 @@ Times are Central (the league's clock); a fantasy week runs Monday-Sunday (Sleep
 from __future__ import annotations
 
 import re
+import threading
 import time
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -423,8 +424,18 @@ def read_locks(store, league_id: str, week: int) -> dict[str, str]:
     return data.get(league_id, {}).get(str(week), {})
 
 
+_file_lock = threading.Lock()
+
+
 def write_lock(store, league_id: str, week: int, sid: str, game_date: str | None) -> None:
-    """game_date = the locked game; "" = not locked; None = forget your answer (back to detection)."""
+    """game_date = the locked game; "" = not locked; None = forget your answer (back to detection). One shared file for
+    every league, so writes are serialized (_file_lock)."""
+    with _file_lock:
+        _write_lock(store, league_id, week, sid, game_date)
+
+
+def _write_lock(store, league_id: str, week: int, sid: str, game_date: str | None) -> None:
+    """write_lock's read-modify-write."""
     data = store.read_json(LOCKS_FILE) if store.exists(LOCKS_FILE) else {}
     week_locks = data.setdefault(league_id, {}).setdefault(str(week), {})
     if game_date is None:
@@ -443,12 +454,13 @@ def read_watch(store, league_id: str) -> list[int]:
 
 
 def write_watch(store, league_id: str, player_id: int, watched: bool) -> list[int]:
-    """Watch or unwatch one player; returns the league's watched ids."""
-    data = store.read_json(WATCH_FILE) if store.exists(WATCH_FILE) else {}
-    ids = [p for p in data.get(league_id, []) if p != player_id] + ([player_id] if watched else [])
-    data[league_id] = ids
-    store.write_json(WATCH_FILE, data)
-    return ids
+    """Watch or unwatch one player; returns the league's watched ids (serialized with the lock writes: one shared file)."""
+    with _file_lock:
+        data = store.read_json(WATCH_FILE) if store.exists(WATCH_FILE) else {}
+        ids = [p for p in data.get(league_id, []) if p != player_id] + ([player_id] if watched else [])
+        data[league_id] = ids
+        store.write_json(WATCH_FILE, data)
+        return ids
 
 
 def _slot_counts(positions: list[str]) -> dict[str, int]:

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from nba_fantasy_shared.models.scoring import ScoringSettings
 from nba_fantasy_shared.reconcile.names import normalize_name
 
+from ...auth import require_admin
 from ..services.app_state import AppState
 from .deps import get_state
 from .schemas import OverridePatch
@@ -88,9 +89,9 @@ def player_detail(
     }
 
 
-@router.patch("/{player_id}/overrides")
+@router.patch("/{player_id}/overrides", dependencies=[Depends(require_admin)])
 def patch_overrides(player_id: int, body: OverridePatch, state: AppState = Depends(get_state)) -> dict:
-    """Save the user's notes on a player."""
+    """Save the notes on a player (admins only: the notes are shared by every user)."""
     changes = body.model_dump(exclude_none=True)
     if not changes:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "nothing to change")

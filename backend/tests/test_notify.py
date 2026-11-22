@@ -74,16 +74,21 @@ def test_notify_api_reports_the_link_and_saves_the_prefs(tmp_path, fixtures_dir,
     from nba_fantasy_shared.providers.fixture_provider import FixturePlatformProvider, FixtureStatsProvider
     from nba_fantasy_shared.storage import JsonStore
 
+    from .conftest import sign_in
+
     monkeypatch.setattr(notify, "load_env", lambda *a, **k: None)
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
     monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
     store = JsonStore(tmp_path)
     client = TestClient(create_app(AppState(store, FixtureStatsProvider(fixtures_dir), FixturePlatformProvider(fixtures_dir))))
+    assert client.get("/api/notify").status_code == 401
+    me = sign_in(client, "fan@test.local")
     r = client.get("/api/notify")
     assert r.status_code == 200 and r.json() == {"configured": False, "prefs": notify.NotifyPrefs().model_dump()}
     r = client.put("/api/notify/prefs", json={"lock": False, "lock_min_wpa": 5})
     assert r.status_code == 200 and r.json()["lock"] is False and r.json()["lock_min_wpa"] == 5 and r.json()["swap"] is True
-    assert client.get("/api/notify").json()["prefs"] == r.json() and notify.read_prefs(store) == r.json()
+    accounts = client.app.state.app_state.accounts
+    assert client.get("/api/notify").json()["prefs"] == r.json() and notify.read_prefs(accounts, me["id"]) == r.json()
     assert client.put("/api/notify/prefs", json={"lock_min_wpa": 500}).status_code == 422
 
 
@@ -134,10 +139,10 @@ def test_one_injury_is_one_message_through_the_watcher(monkeypatch):
     monkeypatch.setattr(service, "team_plan", lambda *a, **k: plan)
     monkeypatch.setattr(service, "read_locks", lambda *a: {})
     monkeypatch.setattr(service, "http_fetch", lambda p: None)
-    monkeypatch.setattr(notify, "read_prefs", lambda store: notify.NotifyPrefs().model_dump())
+    monkeypatch.setattr(notify, "read_prefs", lambda accounts, uid: notify.NotifyPrefs().model_dump())
     msgs = []
-    monkeypatch.setattr(notify, "send", lambda text: msgs.append(text) or True)
-    state = SimpleNamespace(store=None, platform=None, leagues=SimpleNamespace(list_ids=lambda: ["lg"]))
+    monkeypatch.setattr(notify, "send", lambda text, chat, accounts=None: chat == 7 and (msgs.append(text) or True))
+    state = SimpleNamespace(store=None, platform=None, leagues=SimpleNamespace(list_ids=lambda: ["lg", "unlinked"]), accounts=linked_owner())
     sent, tags = set(), {}
     notify.watch_once(state, sent, tags)      # first poll: records the tag, sends the OUT line, covers the moves
     tag["v"] = "Out"
@@ -202,10 +207,10 @@ def test_an_injured_starter_gets_one_message_with_the_injury_and_days(monkeypatc
     monkeypatch.setattr(service, "read_locks", lambda *a: {})
     monkeypatch.setattr(service, "http_fetch", lambda p: None)
     monkeypatch.setattr(service, "espn_injuries", lambda f: {notify.normalize_name("Jaren Jackson Jr."): _row("2026-12-14")} if rows["on"] else {})
-    monkeypatch.setattr(notify, "read_prefs", lambda store: notify.NotifyPrefs().model_dump())
+    monkeypatch.setattr(notify, "read_prefs", lambda accounts, uid: notify.NotifyPrefs().model_dump())
     msgs = []
-    monkeypatch.setattr(notify, "send", lambda text: msgs.append(text) or True)
-    state = SimpleNamespace(store=None, platform=None, leagues=SimpleNamespace(list_ids=lambda: ["lg"]))
+    monkeypatch.setattr(notify, "send", lambda text, chat, accounts=None: chat == 7 and (msgs.append(text) or True))
+    state = SimpleNamespace(store=None, platform=None, leagues=SimpleNamespace(list_ids=lambda: ["lg", "unlinked"]), accounts=linked_owner())
     sent, tags = set(), {}
     plan["today"]["watch"] = []
     notify.watch_once(state, sent, tags)                       # healthy baseline
@@ -248,10 +253,10 @@ def test_the_message_that_reports_a_season_ending_injury_says_sorry_once(monkeyp
     monkeypatch.setattr(service, "read_locks", lambda *a: {})
     monkeypatch.setattr(service, "http_fetch", lambda p: None)
     monkeypatch.setattr(service, "espn_injuries", lambda f: row if tag["v"] else {})
-    monkeypatch.setattr(notify, "read_prefs", lambda store: notify.NotifyPrefs().model_dump())
+    monkeypatch.setattr(notify, "read_prefs", lambda accounts, uid: notify.NotifyPrefs().model_dump())
     msgs = []
-    monkeypatch.setattr(notify, "send", lambda text: msgs.append(text) or True)
-    state = SimpleNamespace(store=None, platform=None, leagues=SimpleNamespace(list_ids=lambda: ["lg"]))
+    monkeypatch.setattr(notify, "send", lambda text, chat, accounts=None: chat == 7 and (msgs.append(text) or True))
+    state = SimpleNamespace(store=None, platform=None, leagues=SimpleNamespace(list_ids=lambda: ["lg", "unlinked"]), accounts=linked_owner())
     sent, tags = set(), {}
     notify.watch_once(state, sent, tags)                       # baseline
     tag["v"], plan["today"]["watch"] = "Out", [out]
@@ -260,3 +265,15 @@ def test_the_message_that_reports_a_season_ending_injury_says_sorry_once(monkeyp
     day["d"], plan["today"]["date"] = "2026-11-22", "2026-11-22"
     notify.watch_once(state, sent, tags)                       # next day's routine OUT reminder: no sorry
     assert len(msgs) == 2 and "Sorry" not in msgs[1]
+
+
+def linked_owner():
+    """Accounts where league "lg" belongs to a user whose Telegram chat 7 is linked, and "unlinked" to one with no chat."""
+    from app.accounts import Accounts
+
+    acc = Accounts(":memory:")
+    uid, other = (acc.verify_login(acc.request_login(e, None))[1]["id"] for e in ("a@test.local", "b@test.local"))
+    acc.consume_link(acc.link_token(uid), 7, "Sam")
+    acc.own("lg", uid)
+    acc.own("unlinked", other)
+    return acc

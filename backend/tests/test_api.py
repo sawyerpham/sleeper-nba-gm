@@ -11,6 +11,8 @@ from nba_fantasy_shared.models.export import DraftExport
 from nba_fantasy_shared.providers.fixture_provider import FixturePlatformProvider, FixtureStatsProvider
 from nba_fantasy_shared.storage import JsonStore
 
+from .conftest import sign_in
+
 JOKIC, DONCIC, BUTLER, S_CURRY, SETH, WALKER = 203999, 1629029, 202710, 201939, 203552, 1629022
 PROVISIONAL_LEAGUE = "000000000000000000"
 NFL_LEAGUE = "289646328504385536"
@@ -22,6 +24,7 @@ def env(tmp_path_factory, fixtures_dir):
     store = JsonStore(tmp_path_factory.mktemp("api-data"))
     state = AppState(store, FixtureStatsProvider(fixtures_dir), FixturePlatformProvider(fixtures_dir))
     client = TestClient(create_app(state))
+    sign_in(client)
     return client, state, store, fixtures_dir
 
 

@@ -221,10 +221,10 @@ export default function LeaguePage({ leagueId, setLeagueId }) {
   const create = async () => {
     setError("");
     try {
-      await api.post("/leagues", { league_id: newId.trim(), name: newName.trim() || newId.trim() });
+      const made = await api.post("/leagues", { league_id: newId.trim(), name: newName.trim() || newId.trim() });
       setNewId(""); setNewName("");
       await loadList();
-      setLeagueId(newId.trim());
+      setLeagueId(made.league.league_id);
     } catch (e) {
       setError(e.message);
     }

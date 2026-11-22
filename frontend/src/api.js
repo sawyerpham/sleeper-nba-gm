@@ -9,6 +9,8 @@ async function request(method, path, body) {
   }
   const res = await fetch(BASE + path, init);
   if (res.status === 204) return null;
+  // Session gone mid-use: reload so the sign-in gate shows (the gate's own /auth/me check is exempt).
+  if (res.status === 401 && !path.startsWith("/auth/")) window.location.reload();
   let data = null;
   const text = await res.text();
   if (text) {

@@ -1,0 +1,146 @@
+"""Sign-in by emailed magic link (Resend), the session cookie, and the access checks every API route goes through (P39).
+
+The emailed link opens the app at /?login=<token> and the page POSTs the token to /api/auth/verify: a GET would let a mail
+scanner that follows links use up the token. Without RESEND_API_KEY the link is logged instead of sent (local dev).
+
+Env: RESEND_API_KEY, MAIL_FROM (a sender on a domain verified in Resend), APP_URL (where the link points, default
+http://localhost:5173), ADMIN_EMAILS (comma-separated)."""
+
+from __future__ import annotations
+
+import logging
+import os
+
+import requests
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from pydantic import BaseModel
+
+from .accounts import SESSION_TTL, RateLimited
+from .core.api.deps import get_state
+
+log = logging.getLogger(__name__)
+COOKIE = "session"
+RESEND = "https://api.resend.com/emails"
+
+router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def app_url() -> str:
+    """The app's public address, no trailing slash."""
+    return os.environ.get("APP_URL", "http://localhost:5173").rstrip("/")
+
+
+def client_ip(request: Request) -> str | None:
+    """The caller's IP (uvicorn resolves X-Forwarded-For from a trusted proxy into request.client)."""
+    return request.client.host if request.client else None
+
+
+def send_login_email(email: str, link: str) -> None:
+    """Email the sign-in link through Resend; log it when RESEND_API_KEY isn't set. Raises on a Resend error."""
+    key = os.environ.get("RESEND_API_KEY")
+    if not key:
+        log.warning("RESEND_API_KEY not set; sign-in link for %s: %s", email, link)
+        return
+    text = f"Sign in to NBA Fantasy:\n\n{link}\n\nThe link works once and expires in 15 minutes. If you didn't ask for it, ignore this email."
+    html = (f'<p>Sign in to NBA Fantasy:</p><p><a href="{link}">Sign in</a></p>'
+            "<p>The link works once and expires in 15 minutes. If you didn't ask for it, ignore this email.</p>")
+    r = requests.post(RESEND, headers={"Authorization": f"Bearer {key}"}, timeout=10,
+                      json={"from": os.environ.get("MAIL_FROM", "NBA Fantasy <onboarding@resend.dev>"), "to": [email],
+                            "subject": "Your NBA Fantasy sign-in link", "text": text, "html": html})
+    r.raise_for_status()
+
+
+def current_user(request: Request) -> dict:
+    """The signed-in user (401 otherwise). A route with a `league_id` (path or query) also needs the user to own that
+    league: someone else's league is a 404, the same as one that doesn't exist."""
+    accounts = get_state(request).accounts
+    user = accounts.user_for_session(request.cookies.get(COOKIE))
+    if user is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sign in first")
+    lid = request.path_params.get("league_id") or request.query_params.get("league_id")
+    if lid and accounts.owner(lid) != user["id"]:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"unknown league {lid}")
+    request.state.user = user
+    return user
+
+
+def require_admin(user: dict = Depends(current_user)) -> dict:
+    """The signed-in user when they are an admin; 403 otherwise."""
+    if not user["admin"]:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Admins only")
+    return user
+
+
+class LoginIn(BaseModel):
+    """POST /auth/login body."""
+    email: str
+
+
+class VerifyIn(BaseModel):
+    """POST /auth/verify body."""
+    token: str
+
+
+@router.post("/login")
+def login(body: LoginIn, request: Request) -> dict:
+    """Email a sign-in link. The answer is the same whether or not the email has an account."""
+    accounts = get_state(request).accounts
+    try:
+        token = accounts.request_login(body.email, client_ip(request))
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    except RateLimited as exc:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, str(exc)) from exc
+    try:
+        send_login_email(body.email.strip().lower(), f"{app_url()}/?login={token}")
+    except requests.RequestException as exc:
+        log.warning("login email failed: %s", exc)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Couldn't send the email, try again") from exc
+    return {"sent": True}
+
+
+@router.post("/verify")
+def verify(body: VerifyIn, request: Request, response: Response) -> dict:
+    """Trade a sign-in token for a session cookie. An admin's first sign-in also takes over the leagues that have no owner
+    (the data from before accounts)."""
+    state = get_state(request)
+    got = state.accounts.verify_login(body.token, client_ip(request))
+    if got is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "That sign-in link is used or expired. Ask for a new one.")
+    session, user = got
+    if user["admin"]:
+        claimed = state.accounts.claim_unowned(state.leagues.list_ids(), user["id"])
+        if claimed:
+            log.info("admin %s took over %s", user["email"], claimed)
+    response.set_cookie(COOKIE, session, max_age=SESSION_TTL, httponly=True, samesite="lax",
+                        secure=app_url().startswith("https://"), path="/")
+    return me_of(user)
+
+
+@router.post("/logout")
+def logout(request: Request, response: Response) -> dict:
+    """End the session and clear the cookie."""
+    get_state(request).accounts.logout(request.cookies.get(COOKIE))
+    response.delete_cookie(COOKIE, path="/")
+    return {"ok": True}
+
+
+def me_of(user: dict) -> dict:
+    """What the frontend needs about the signed-in user."""
+    return {"id": user["id"], "email": user["email"], "admin": user["admin"]}
+
+
+@router.get("/me")
+def me(user: dict = Depends(current_user)) -> dict:
+    """The signed-in user (401 when signed out)."""
+    return me_of(user)
+
+
+admin_router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
+
+
+@admin_router.get("/stats")
+def admin_stats(request: Request) -> dict:
+    """The admin panel's numbers: accounts.stats() plus the size of the player pool and how many leagues are on disk."""
+    state = get_state(request)
+    return {**state.accounts.stats(), "players": len(state.players), "leagues_on_disk": len(state.leagues.list_ids())}

@@ -12,24 +12,55 @@ const KINDS = [
 
 export function useNotify() {
   const [st, setSt] = useState(null);
-  useEffect(() => { api.get("/notify").then(setSt).catch((e) => setSt({ configured: false, error: e.message })); }, []);
-  return [st, setSt];
+  const load = () => api.get("/notify").then(setSt).catch((e) => setSt({ configured: false, error: e.message }));
+  useEffect(() => { load(); }, []);
+  return [st, setSt, load];
 }
 
-export function TelegramLink({ st }) {
+/** Link Telegram: a one-time t.me link (10 minutes) that the user opens and taps Start in; the bot links the chat that
+ *  taps it, then this polls until the link shows up. */
+export function TelegramLink({ st, reload }) {
+  const [waiting, setWaiting] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!waiting || st?.linked) return setWaiting(false);
+    const t = setInterval(reload, 3000), stop = setTimeout(() => setWaiting(false), 10 * 60000);
+    return () => { clearInterval(t); clearTimeout(stop); };
+  }, [waiting, st?.linked]);
+  const link = async () => {
+    setError("");
+    const tab = window.open("", "_blank");
+    try {
+      const { url } = await api.post("/notify/link");
+      if (tab) tab.location.href = url; else window.location.href = url;
+      setWaiting(true);
+    } catch (e) {
+      tab?.close();
+      setError(e.message);
+    }
+  };
+  const unlink = async () => { await api.del("/notify/link"); reload(); };
   if (!st) return <span className="muted">Checking Telegram…</span>;
-  if (!st.configured) return <span data-testid="telegram-off">Telegram alerts are <strong>not set up</strong></span>;
-  const who = st.chat?.name || st.chat?.username;
+  if (!st.configured) return <span data-testid="telegram-off">Telegram alerts aren't available on this server.</span>;
+  if (st.linked) {
+    return (
+      <span data-testid="telegram-on">Alerts go to <strong>{st.chat || "your Telegram"}</strong>
+        {st.bot && <> · <a href={`https://t.me/${st.bot}`} target="_blank" rel="noopener noreferrer" data-testid="telegram-chat">Open the chat</a></>}
+        {" "}<button className="small" onClick={unlink} data-testid="telegram-unlink">Unlink</button></span>
+    );
+  }
   return (
-    <span data-testid="telegram-on">Telegram alerts go to <strong>{who || `chat ${st.chat_id}`}</strong>{st.chat?.username && <> (@{st.chat.username})</>}
-      {who && <> · chat {st.chat_id}</>}
-      {st.bot && <> · <a href={`https://t.me/${st.bot}`} target="_blank" rel="noopener noreferrer" data-testid="telegram-chat">Open the chat</a> (@{st.bot})</>}
-      {st.error && <span className="warn-text"> · couldn't reach Telegram: {st.error}</span>}</span>
+    <span data-testid="telegram-unlinked">
+      <button className="primary" onClick={link} disabled={!st.bot} data-testid="telegram-link">Link Telegram</button>
+      <span className="small muted"> {waiting ? "Tap Start in Telegram, this updates by itself…" : "Opens Telegram: tap Start and you're set."}</span>
+      {!st.bot && <span className="warn-text small"> Couldn't reach Telegram, try again later.</span>}
+      {error && <span className="warn-text small"> {error}</span>}
+    </span>
   );
 }
 
 export default function NotifyPage() {
-  const [st, setSt] = useNotify();
+  const [st, setSt, reload] = useNotify();
   const [msg, setMsg] = useState("");
   const set = (patch) => {
     const prefs = { ...st.prefs, ...patch };
@@ -39,15 +70,7 @@ export default function NotifyPage() {
   return (
     <div className="panel" data-testid="notify-settings">
       <h3>Telegram</h3>
-      <p><TelegramLink st={st} /></p>
-      {st && !st.configured && (
-        <ol className="small muted notify-setup">
-          <li>In Telegram, message <strong>@BotFather</strong>, send <code>/newbot</code> and copy the token. Message your new bot once, then open
-            <code>https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code> and copy <code>chat.id</code>.</li>
-          <li>Create <code>backend/.env</code> with <code>TELEGRAM_BOT_TOKEN=…</code> and <code>TELEGRAM_CHAT_ID=…</code> (one per line).</li>
-          <li>Restart the backend. Pushes go out while it runs; <code>python -m app.notify "hello"</code> tests delivery.</li>
-        </ol>
-      )}
+      <p><TelegramLink st={st} reload={reload} /></p>
       <h3>What to send</h3>
       {st?.prefs ? (
         <div className="notify-kinds">

@@ -11,7 +11,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -21,7 +21,7 @@ from nba_fantasy_shared.providers.nba_api_provider import NbaApiProvider
 from nba_fantasy_shared.providers.sleeper_provider import SleeperProvider
 from nba_fantasy_shared.storage import JsonStore
 
-from . import calculations, config, notify
+from . import auth, calculations, config, notify
 from .core.api import data, leagues, players
 from .core.engine.draft_state import DraftError
 from .core.services.app_state import AppState, PullAlreadyRunning
@@ -46,11 +46,13 @@ def build_default_state(data_dir=None) -> AppState:
 
 
 def create_app(state: AppState | None = None) -> FastAPI:
-    """Build the FastAPI app: CORS for the dev servers, the data / players / leagues / draft / season routers under /api, a health check, error handlers (draft errors 400, unknown league 404, pull already running 409), and the built frontend at / when STATIC_DIR exists."""
+    """Build the FastAPI app: CORS for the dev servers, the auth and admin routers, the data (admin only) / players / leagues /
+    draft / season / notify routers under /api behind sign-in (and league ownership, auth.current_user), the public calculators, a health check, error handlers (draft errors 400, unknown league 404, pull already running 409), and the built frontend at / when STATIC_DIR exists."""
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         """Create the real application state on startup when none was injected (tests inject one)."""
         if getattr(app.state, "app_state", None) is None:
+            notify.load_env()
             app.state.app_state = build_default_state()
             log.info("AppState initialised from %s", app.state.app_state.store.root)
             notify.start_watcher(app.state.app_state)
@@ -61,12 +63,15 @@ def create_app(state: AppState | None = None) -> FastAPI:
     app.add_middleware(CORSMiddleware, allow_origins=DEFAULT_ORIGINS, allow_credentials=True,
                        allow_methods=["*"], allow_headers=["*"])
 
-    app.include_router(data.router, prefix="/api")
-    app.include_router(players.router, prefix="/api")
-    app.include_router(leagues.router, prefix="/api")
-    app.include_router(draft.router, prefix="/api")
-    app.include_router(season.router, prefix="/api")
-    app.include_router(notify.router, prefix="/api")
+    signed_in, admin = [Depends(auth.current_user)], [Depends(auth.require_admin)]
+    app.include_router(auth.router, prefix="/api")
+    app.include_router(auth.admin_router, prefix="/api")
+    app.include_router(data.router, prefix="/api", dependencies=admin)
+    app.include_router(players.router, prefix="/api", dependencies=signed_in)
+    app.include_router(leagues.router, prefix="/api", dependencies=signed_in)
+    app.include_router(draft.router, prefix="/api", dependencies=signed_in)
+    app.include_router(season.router, prefix="/api", dependencies=signed_in)
+    app.include_router(notify.router, prefix="/api", dependencies=signed_in)
     app.include_router(calculations.router, prefix="/api")
 
     @app.get("/api/health")

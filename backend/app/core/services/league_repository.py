@@ -90,10 +90,10 @@ class LeagueRepository:
         self.store.write_model(rel, doc)
         return rel
 
-    def summaries(self) -> list[dict]:
-        """One summary per league (id, name, status); a corrupt file is listed as unreadable instead of hiding the others."""
+    def summaries(self, ids: list[str] | None = None) -> list[dict]:
+        """One summary per league (id, name, status) of `ids` (default: all); a corrupt file is listed as unreadable instead of hiding the others."""
         out = []
-        for league_id in self.list_ids():
+        for league_id in self.list_ids() if ids is None else [i for i in ids if self.exists(i)]:
             try:
                 doc = self.load(league_id)
             except Exception:
