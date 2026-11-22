@@ -185,6 +185,66 @@ def test_admin_switches_the_bot_and_everyone_relinks(app, monkeypatch):
     assert "TELEGRAM_BOT_TOKEN" not in os.environ and admin.get("/api/admin/telegram").json()["configured"] is False
 
 
+def test_admin_sees_who_is_online_and_where(app, monkeypatch):
+    """Stats mark users seen in the last 3 minutes as online and show their last IP with its place, looked up once per IP
+    (a private or unparsable address is never sent out)."""
+    from app import auth
+
+    state = app.state.app_state
+    fan, admin = TestClient(app), TestClient(app)
+    fan_id = sign_in(fan, "fan@test.local")["id"]
+    fan.get("/api/auth/me")
+    sign_in(admin)
+    state.accounts._q("UPDATE users SET last_ip = '8.8.8.8' WHERE id = ?", fan_id)
+    calls = []
+
+    class R:
+        """ipwho.is's answer for 8.8.8.8 (shape from a real pull on 2026-11-22)."""
+        def json(self):
+            """The parsed body."""
+            return {"success": True, "country_code": "US", "region": "California", "city": "San Jose", "connection": {"isp": "Google LLC"}}
+
+    monkeypatch.setattr(auth.requests, "get", lambda url, **k: calls.append(url) or R())
+    st = admin.get("/api/admin/stats").json()
+    row = next(u for u in st["recent"] if u["id"] == fan_id)
+    assert st["online"] == 2 and row["online"] and row["ip"] == "8.8.8.8"
+    assert row["geo"] == {"ip": "8.8.8.8", "place": "San Jose, California, US", "isp": "Google LLC"}
+    admin.get("/api/admin/stats")
+    assert calls == ["https://ipwho.is/8.8.8.8?fields=success,city,region,country_code,connection"]   # saved, not looked up again
+    assert auth.lookup_geo("10.0.0.1") is None and auth.lookup_geo("testclient") is None and len(calls) == 1
+    state.accounts._q("UPDATE users SET last_seen = last_seen - 600 WHERE id = ?", fan_id)
+    assert not next(u for u in admin.get("/api/admin/stats").json()["recent"] if u["id"] == fan_id)["online"]
+
+
+def test_admin_sends_a_telegram_message(app, monkeypatch):
+    """Admins message every linked premium-and-up user, or one of them; a plain user's leftover chat never gets it."""
+    state = app.state.app_state
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123456789:" + "A" * 35)
+    sent = []
+
+    class R:
+        """A Telegram 200."""
+        status_code = 200
+
+        def raise_for_status(self):
+            """Nothing to raise."""
+
+    monkeypatch.setattr(notify.requests, "post", lambda url, json, **k: sent.append((json["chat_id"], json["text"])) or R())
+    fan, plain, admin = TestClient(app), TestClient(app), TestClient(app)
+    fan_id = sign_in(fan, "fan@test.local")["id"]
+    plain_id = sign_in(plain, "plain@test.local")["id"]
+    sign_in(admin)
+    state.accounts.set_role(fan_id, "premium")
+    state.accounts.consume_link(state.accounts.link_token(fan_id), 7, "Sam")
+    state.accounts._q("UPDATE users SET tg_chat_id = 8 WHERE id = ?", plain_id)
+    assert fan.post("/api/admin/telegram/send", json={"text": "hi"}).status_code == 403
+    assert admin.post("/api/admin/telegram/send", json={"text": "  "}).status_code == 400
+    assert admin.post("/api/admin/telegram/send", json={"text": "<b>Lineups lock</b> soon"}).json() == {"sent": 1, "of": 1}
+    assert sent == [(7, "<b>Lineups lock</b> soon")]
+    assert admin.post("/api/admin/telegram/send", json={"text": "x", "user_id": plain_id}).status_code == 404
+    assert admin.post("/api/admin/telegram/send", json={"text": "just you", "user_id": fan_id}).json() == {"sent": 1, "of": 1}
+
+
 def test_bot_token_format_is_checked_before_any_call(monkeypatch):
     """A malformed token never reaches Telegram (it would land in the request URL)."""
     monkeypatch.setattr(notify.requests, "get", lambda *a, **k: (_ for _ in ()).throw(AssertionError("called Telegram")))

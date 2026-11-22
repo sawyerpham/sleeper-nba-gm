@@ -8,13 +8,14 @@ http://localhost:5173), ADMIN_EMAILS (comma-separated)."""
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import os
 from typing import Literal
 
 import requests
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .accounts import SESSION_TTL, RateLimited
 from .core.api.deps import get_state
@@ -22,6 +23,8 @@ from .core.api.deps import get_state
 log = logging.getLogger(__name__)
 COOKIE = "session"
 RESEND = "https://api.resend.com/emails"
+GEO = "https://ipwho.is/{}?fields=success,city,region,country_code,connection"
+GEO_PER_LOAD = 10  # new IPs looked up per admin stats load (each one once; the result is saved)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -55,7 +58,7 @@ def current_user(request: Request) -> dict:
     """The signed-in user (401 otherwise). A route with a `league_id` (path or query) also needs the user to own that
     league: someone else's league is a 404, the same as one that doesn't exist."""
     accounts = get_state(request).accounts
-    user = accounts.user_for_session(request.cookies.get(COOKIE))
+    user = accounts.user_for_session(request.cookies.get(COOKIE), client_ip(request))
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sign in first")
     lid = request.path_params.get("league_id") or request.query_params.get("league_id")
@@ -195,8 +198,53 @@ def admin_set_role(user_id: int, body: RoleIn, request: Request) -> dict:
     return {"id": user["id"], "email": user["email"], "role": user["kind"]}
 
 
+def lookup_geo(ip: str) -> dict | None:
+    """Where an IP is, from ipwho.is: {ip, place ("City, Region, CC"), isp}; None for a private address or a failed lookup."""
+    try:
+        if not ipaddress.ip_address(ip).is_global:
+            return None
+        r = requests.get(GEO.format(ip), timeout=4).json()
+    except (ValueError, requests.RequestException):
+        return None
+    if not r.get("success"):
+        return None
+    place = ", ".join(x for x in (r.get("city"), r.get("region"), r.get("country_code")) if x)
+    return {"ip": ip, "place": place, "isp": (r.get("connection") or {}).get("isp")}
+
+
 @admin_router.get("/stats")
 def admin_stats(request: Request) -> dict:
-    """The admin panel's numbers: accounts.stats() plus the size of the player pool and how many leagues are on disk."""
+    """The admin panel's numbers: accounts.stats() plus the size of the player pool and how many leagues are on disk. Users
+    whose last IP has no saved location get it looked up (GEO_PER_LOAD per load)."""
     state = get_state(request)
-    return {**state.accounts.stats(), "players": len(state.players), "leagues_on_disk": len(state.leagues.list_ids())}
+    stats = state.accounts.stats()
+    for u in [u for u in stats["recent"] if u["ip"] and (u["geo"] or {}).get("ip") != u["ip"]][:GEO_PER_LOAD]:
+        geo = lookup_geo(u["ip"])
+        if geo:
+            state.accounts.set_geo(u["id"], geo)
+            u["geo"] = geo
+    return {**stats, "players": len(state.players), "leagues_on_disk": len(state.leagues.list_ids())}
+
+
+class TelegramMessageIn(BaseModel):
+    """POST /admin/telegram/send body: the text, and one user's id (None = everyone with Telegram linked)."""
+    text: str = Field(min_length=1, max_length=2000)
+    user_id: int | None = None
+
+
+@admin_router.post("/telegram/send")
+def admin_send_telegram(body: TelegramMessageIn, request: Request) -> dict:
+    """Send a message from the bot to one linked user or all of them (sent as plain text, so nothing in it is markup).
+    400 without a bot or a blank text, 404 when that user has no linked chat."""
+    from . import notify
+
+    accounts = get_state(request).accounts
+    text = body.text.strip()
+    if not notify.configured() or not text:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "No bot set" if text else "Write a message first")
+    to = [u for u in accounts.telegram_recipients() if body.user_id is None or u["id"] == body.user_id]
+    if body.user_id is not None and not to:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "That user has no linked Telegram")
+    sent = sum(notify.send(text, u["tg_chat_id"], accounts) for u in to)
+    log.info("%s sent a Telegram message to %s of %s", request.state.user["email"], sent, len(to))
+    return {"sent": sent, "of": len(to)}

@@ -44,6 +44,46 @@ function BotSettings() {
   );
 }
 
+/** Send a Telegram message from the bot to every linked user (premium and up) or one of them. */
+function SendTelegram({ users }) {
+  const linked = users.filter((u) => u.telegram && u.role !== "user");
+  const [to, setTo] = useState("");
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const send = async (e) => {
+    e.preventDefault();
+    const who = to ? linked.find((u) => String(u.id) === to)?.email : `all ${linked.length} linked users`;
+    if (!window.confirm(`Send this to ${who}?`)) return;
+    setBusy(true); setMsg("");
+    try {
+      const r = await api.post("/admin/telegram/send", { text, user_id: to ? Number(to) : null });
+      setMsg(`Sent to ${r.sent} of ${r.of}.`);
+      if (r.sent) setText("");
+    } catch (err) {
+      setMsg(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="panel" data-testid="admin-send">
+      <h3>Send on Telegram</h3>
+      {!linked.length ? <p className="muted">Nobody has Telegram linked yet.</p> : (
+        <form className="ap-admin-send" onSubmit={send}>
+          <select value={to} onChange={(e) => setTo(e.target.value)} aria-label="Send to" data-testid="admin-send-to">
+            <option value="">Everyone linked ({linked.length})</option>
+            {linked.map((u) => <option key={u.id} value={u.id}>{u.email}</option>)}
+          </select>
+          <textarea rows={3} maxLength={2000} placeholder="Message" aria-label="Message" value={text} onChange={(e) => setText(e.target.value)} data-testid="admin-send-text" />
+          <button type="submit" className="primary" disabled={busy || !text.trim()} data-testid="admin-send-go">{busy ? "Sending…" : "Send"}</button>
+        </form>
+      )}
+      {msg && <p className="small" role="status">{msg}</p>}
+    </section>
+  );
+}
+
 /** Admin tab: usage numbers, sign-ups over 14 days, the most recently seen users, and the data pull. */
 const KIND = { owner: "Owner", admin: "Admin", premium: "Premium", user: "User" };
 const GIVES = { admin: "the Admin tab, data pulls, Telegram alerts, and can change other people's type", premium: "Telegram alerts", user: "their own leagues only" };
@@ -63,6 +103,7 @@ export default function AdminPage({ onPoolChanged }) {
     try { await api.put(`/admin/users/${u.id}/role`, { role }); load(); } catch (e) { setError(e.message); }
   };
   const tiles = st ? [
+    ["On the site now", st.online, "seen in the last 3 min"],
     ["Users", st.users, `${st.premium} premium · ${st.admins} admin`],
     ["Active today", st.active_24h, `${st.active_7d} this week · ${st.new_7d} new`],
     ["Leagues", st.leagues, `${st.leagues_on_disk} on disk`],
@@ -94,10 +135,11 @@ export default function AdminPage({ onPoolChanged }) {
           <section className="panel">
             <h3>Users <span className="small muted">most recently seen first</span></h3>
             <table className="ap-admin-users">
-              <thead><tr><th>Email</th><th>Type</th><th>Joined</th><th>Last seen</th><th>Leagues</th><th>Telegram</th><th><span className="sr-only">Change type</span></th></tr></thead>
+              <thead><tr><th>Email</th><th>Type</th><th>Joined</th><th>Last seen</th><th>Where</th><th>Leagues</th><th>Telegram</th><th><span className="sr-only">Change type</span></th></tr></thead>
               <tbody>
                 {st.recent.map((u) => (
-                  <tr key={u.id}><td>{u.email}</td><td><span className={`ap-role ${u.role}`}>{KIND[u.role]}</span></td><td>{when(u.created_at)}</td><td>{when(u.last_seen)}</td><td>{u.leagues}</td><td>{u.telegram ? "linked" : "-"}</td>
+                  <tr key={u.id}><td>{u.online && <i className="ap-online" title="On the site now" />}{u.email}</td><td><span className={`ap-role ${u.role}`}>{KIND[u.role]}</span></td><td>{when(u.created_at)}</td><td>{u.online ? "now" : when(u.last_seen)}</td>
+                    <td>{u.geo?.place || "-"}{u.ip && <span className="small muted ap-ip" title={u.geo?.isp || undefined}>{u.ip}</span>}</td><td>{u.leagues}</td><td>{u.telegram ? "linked" : "-"}</td>
                     <td>{u.role === "owner" ? <span className="small muted" title="Set in ADMIN_EMAILS on the server">fixed</span>
                       : <select value={u.role} onChange={(e) => setRole(u, e.target.value)} aria-label={`Account type for ${u.email}`} data-testid={`role-${u.id}`}>
                           {["user", "premium", "admin"].map((r) => <option key={r} value={r}>{KIND[r]}</option>)}</select>}</td></tr>
@@ -106,6 +148,7 @@ export default function AdminPage({ onPoolChanged }) {
             </table>
           </section>
         )}
+        {st && <SendTelegram users={st.recent} />}
         <BotSettings />
         <DataPage onPoolChanged={onPoolChanged} />
       </div>

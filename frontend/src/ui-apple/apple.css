@@ -226,3 +226,10 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
 .ap-role.premium { background: color-mix(in srgb, #34c759 24%, transparent); }
 /* Telegram lead-time boxes inside the notification lines. */
 .notify-lead { width: 52px; padding: 1px 6px; margin: 0 2px; font-size: var(--fs-xs); }
+/* Admin: who's on the site, and the Telegram message form. */
+.ap-online { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+.ap-ip { display: block; font-variant-numeric: tabular-nums; }
+.ap-admin-send { display: flex; flex-direction: column; gap: 8px; max-width: 560px; }
+.ap-admin-send textarea { width: 100%; resize: vertical; font: inherit; }
+.ap-admin-send button { align-self: flex-start; }
+@media (max-width: 699px) { .ap-admin-users { display: block; overflow-x: auto; } }

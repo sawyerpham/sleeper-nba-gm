@@ -20,6 +20,7 @@ LOGIN_TTL = 15 * 60
 SESSION_TTL = 30 * 24 * 3600
 LINK_TTL = 10 * 60
 SEEN_EVERY = 60
+ONLINE_S = 3 * 60  # seen this recently = on the site now (open pages call the API every minute)
 # Plain addresses only: letters, digits and . _ % + - before the @, a dotted domain after it. No spaces, quotes, angle
 # brackets, commas or line breaks, so an address can't smuggle extra recipients, headers or markup into the email.
 EMAIL = re.compile(r"^[a-z0-9._%+-]{1,64}@(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$")
@@ -83,8 +84,10 @@ class Accounts:
         with self._lock:
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.executescript(SCHEMA)
-            if "role" not in {r[1] for r in self._db.execute("PRAGMA table_info(users)")}:
-                self._db.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'")
+            cols = {r[1] for r in self._db.execute("PRAGMA table_info(users)")}
+            for col, ddl in (("role", "TEXT NOT NULL DEFAULT 'user'"), ("last_ip", "TEXT"), ("geo", "TEXT")):
+                if col not in cols:
+                    self._db.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
 
     def _q(self, sql: str, *args) -> list[sqlite3.Row]:
         """Run one statement and return its rows."""
@@ -140,8 +143,9 @@ class Accounts:
         self._q("DELETE FROM tokens WHERE expires < ?", now)
         return session, user
 
-    def user_for_session(self, session: str | None) -> dict | None:
-        """The signed-in user for a session token (last_seen refreshed at most once a minute), or None."""
+    def user_for_session(self, session: str | None, ip: str | None = None) -> dict | None:
+        """The signed-in user for a session token, or None. last_seen (and last_ip, the caller's address) is refreshed at
+        most once a minute, or at once when the IP changes."""
         if not session:
             return None
         rows = self._q("SELECT u.* FROM tokens t JOIN users u ON u.id = t.user_id WHERE t.hash = ? AND t.kind = 'session' AND t.expires > ?",
@@ -149,9 +153,17 @@ class Accounts:
         if not rows:
             return None
         user = self._user(rows[0])
-        if (user["last_seen"] or 0) < time.time() - SEEN_EVERY:
-            self._q("UPDATE users SET last_seen = ? WHERE id = ?", time.time(), user["id"])
+        if (user["last_seen"] or 0) < time.time() - SEEN_EVERY or (ip and ip != user["last_ip"]):
+            self._q("UPDATE users SET last_seen = ?, last_ip = COALESCE(?, last_ip) WHERE id = ?", time.time(), ip, user["id"])
         return user
+
+    def set_geo(self, user_id: int, geo: dict) -> None:
+        """Save where a user's last IP is (`geo` has the `ip` it was looked up for)."""
+        self._q("UPDATE users SET geo = ? WHERE id = ?", json.dumps(geo), user_id)
+
+    def telegram_recipients(self) -> list[dict]:
+        """Users with a linked Telegram chat whose account type includes Telegram (premium and up)."""
+        return [u for u in (self._user(r) for r in self._q("SELECT * FROM users WHERE tg_chat_id IS NOT NULL ORDER BY email")) if u["telegram"]]
 
     def logout(self, session: str | None) -> None:
         """End a session."""
@@ -294,13 +306,15 @@ class Accounts:
         by_day = {r[0]: r[1] for r in self._q(
             "SELECT date(created_at, 'unixepoch') d, COUNT(*) FROM users WHERE created_at > ? GROUP BY d", now - 14 * day)}
         days = [time.strftime("%Y-%m-%d", time.gmtime(now - k * day)) for k in range(13, -1, -1)]
-        recent = self._q("""SELECT u.id, u.email, u.role, u.created_at, u.last_seen, u.tg_chat_id IS NOT NULL tg, COUNT(l.league_id) leagues
+        recent = self._q("""SELECT u.id, u.email, u.role, u.created_at, u.last_seen, u.last_ip, u.geo, u.tg_chat_id IS NOT NULL tg,
+                                   COUNT(l.league_id) leagues
                             FROM users u LEFT JOIN leagues l ON l.user_id = u.id GROUP BY u.id ORDER BY u.last_seen DESC LIMIT 100""")
         return {
             "users": count("SELECT COUNT(*) FROM users"),
             "admins": sum(k in ("owner", "admin") for k in kinds),
             "premium": sum(k == "premium" for k in kinds),
             "new_7d": count("SELECT COUNT(*) FROM users WHERE created_at > ?", now - 7 * day),
+            "online": count("SELECT COUNT(*) FROM users WHERE last_seen > ?", now - ONLINE_S),
             "active_24h": count("SELECT COUNT(*) FROM users WHERE last_seen > ?", now - day),
             "active_7d": count("SELECT COUNT(*) FROM users WHERE last_seen > ?", now - 7 * day),
             "leagues": count("SELECT COUNT(*) FROM leagues"),
@@ -311,6 +325,7 @@ class Accounts:
             "login_emails_24h": events("login_email", now - day),
             "signups_by_day": [{"day": d, "n": by_day.get(d, 0)} for d in days],
             "recent": [{"id": r["id"], "email": r["email"], "created_at": r["created_at"], "last_seen": r["last_seen"],
-                        "telegram": bool(r["tg"]), "leagues": r["leagues"], "role": role_of(r["email"], r["role"])}
+                        "telegram": bool(r["tg"]), "leagues": r["leagues"], "role": role_of(r["email"], r["role"]),
+                        "ip": r["last_ip"], "geo": json.loads(r["geo"]) if r["geo"] else None, "online": (r["last_seen"] or 0) > now - ONLINE_S}
                        for r in recent],
         }
