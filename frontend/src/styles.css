@@ -632,6 +632,7 @@ button.tiny { font-size: var(--fs-3xs); padding: 1px 6px; }
 .lm-row.lead strong { color: var(--ok); }
 .season-block table { width: 100%; }
 .news-item { padding: 4px 0; border-bottom: 1px solid var(--border); }
+.news-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; } .news-top strong { min-width: 0; } .news-date { flex: none; color: var(--text); white-space: nowrap; }
 .news-item .muted { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .team-ranks { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 4px 0 10px; }
 .team-ranks-head, .team-ranks-row { display: flex; justify-content: space-between; align-items: baseline; }

@@ -98,7 +98,7 @@ export function SeasonSummary({ sea, onOpenGame, onOpenMatchup }) {
           <div className="bid-label sp-head">Latest news</div>
           {sea.news.map((n, i) => (
             <div key={i} className="news-item small">
-              <strong>{n.headline}</strong> <span className="muted">{n.published ? new Date(n.published).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}</span>
+              <div className="news-top"><strong>{n.headline}</strong><span className="news-date">{n.published ? new Date(n.published).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}</span></div>
               {n.story && n.story !== n.headline && <div className="muted">{n.story}</div>}
             </div>
           ))}
