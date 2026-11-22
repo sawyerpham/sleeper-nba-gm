@@ -20,7 +20,7 @@ import Icon from "../core/Icon.jsx";
 
 const POSITIONS = ["PG", "SG", "SF", "PF", "C"];
 
-export default function DraftPage({ leagueId }) {
+export default function DraftPage({ leagueId, leagueName }) {
   const [view, setView] = useState(null);
   const [settings, setSettings] = useState(null);
   const [rankings, setRankings] = useState([]);
@@ -149,8 +149,8 @@ export default function DraftPage({ leagueId }) {
     });
   }, [rankings, filter, posFilter, sort]);
 
-  if (!leagueId) return <p className="muted">Select or create a league on the Settings tab first.</p>;
-  if (!view) return <p className={error ? undefined : "muted"}>{error || "Loading…"}</p>;
+  if (!leagueId) return <div className="panel muted" data-testid="no-league">No Sleeper league selected! Pick one in Settings.</div>;
+  if (!view) return <div className={`panel ${error ? "error" : "muted"}`}>{error || "Loading…"}</div>;
 
   const live = view.status === "live";
   const bump = () => setRefreshKey((k) => k + 1);
@@ -214,7 +214,8 @@ export default function DraftPage({ leagueId }) {
   const upcoming = [...order.slice(start), ...order.slice(0, start)].filter(canNominate).slice(1, 3).map(nameOf);
 
   return (
-    <div>
+    <div className="ap-page ap-view-draft">
+      <div className="ap-top"><h1 className="ap-title">Draft<span>{leagueName}</span></h1></div>
       <div className="panel draft-top">
         <div className="draft-head">
           <span className={`status-pill ${view.status}`} data-testid="draft-status">{view.status}</span>

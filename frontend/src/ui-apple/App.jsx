@@ -44,7 +44,7 @@ export default function App() {
       </aside>
       <main className="ap-main">
         {tab === "home" && <HomePage leagueId={leagueId} setLeagueId={app.setLeagueId} setTab={app.goTab} />}
-        {tab === "draft" && <DraftPage leagueId={leagueId} />}
+        {tab === "draft" && <DraftPage leagueId={leagueId} leagueName={app.leagueName} />}
         {SEASON_VIEWS[tab] && <AppleSeason leagueId={leagueId} leagueName={app.leagueName} view={SEASON_VIEWS[tab]} onWeek={() => setTab("season")} />}
       </main>
       <SettingsModal app={app} />

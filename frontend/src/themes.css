@@ -49,6 +49,7 @@ html:root[data-theme="apple"] {
 :root[data-theme="apple"] :is(.bid-label, .sp-head, th) { text-transform: none; letter-spacing: 0; font-weight: 600; }
 :root[data-theme="apple"] th { background: transparent; backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); }
 :root[data-theme="apple"] .panel { border-color: var(--border-inner); }
+:root[data-theme="apple"] :is(.room-card:not(.user, .next), .dg-rank > .block-bar) { border-color: var(--border-inner); }
 :root[data-theme="apple"] button { border-radius: 999px; border-color: transparent; background: var(--panel-2); font-weight: 500; transition: background 0.15s, transform 0.1s; }
 :root[data-theme="apple"] button:hover { filter: none; background: color-mix(in srgb, var(--text) 12%, transparent); }
 :root[data-theme="apple"] button:active:not(:disabled) { transform: scale(0.97); }
