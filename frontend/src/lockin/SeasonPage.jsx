@@ -250,7 +250,8 @@ function GameChips({ games, today, lockDate, lockGuess, lockable, benched, day, 
             style={cols ? { gridColumn: cols.indexOf(g.date) + 1 } : lane?.xs ? { left: lane.xs.get(tipMs(g)) ?? 0, ...(lane.scale < 1 && { width: 100 * lane.scale }) } : undefined}
             className={`game-chip ${graph ? "graph" : ""} ${played ? "played" : ""} ${live ? "live" : ""} ${g.date === today && upcoming ? "today" : ""} ${lockDate === g.date ? `locked ${lockGuess ? "guess" : ""}` : ""} ${day ? (g.date === day && upcoming ? "pick" : lockDate === g.date || live || (g.state === "post" && !dead) ? "" : "dim") : ""} ${dead ? "dead" : ""} ${onOpen && g.event ? "openable" : ""}`}
             data-tip={tip}>
-            <span className="gch-day">{live ? shortQuarter(g.detail) : dayName(g.date)} <span className="gch-time">{live ? "LIVE"
+            {cols && <img className="gch-bg" src={teamLogo(g.opp)} alt="" />}
+            <span className="gch-day">{live ? shortQuarter(g.detail) : cols ? `${g.home ? "vs" : "@"} ${g.opp}` : dayName(g.date)} <span className="gch-time">{live ? "LIVE"
               : lockDate === g.date && toggle !== "" ? <LockIcon />  
               : played ? "final" : timeOf(g.tip).replace(":00", "").replace(" PM", "p").replace(" AM", "a")}</span></span>
             {toggle && <button className="gch-lockbtn corner" onClick={lockClick} aria-label="Lock" data-testid="lock-game"><LockIcon open /></button>}
@@ -502,6 +503,9 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
         {arrows && <button className="mu-arrow neon-arrow" onClick={() => step(1)} data-tip="Next matchup" aria-label="Next matchup" data-testid="mu-next"><NeonArrow dir="right" /></button>}
       </div>
       <div className="mu-scroll">
+      {cols && lane && <div className="mu-days" data-testid="mu-days">{[lane.l, lane.r].filter((x) => x != null).map((x, i) => (
+        <div key={i} className="mu-days-row" style={{ left: x, width: lane.w, gridTemplateColumns: `repeat(${cols.length}, minmax(0, 1fr))` }}>
+          {cols.map((d) => <span key={d}>{dayName(d)}</span>)}</div>))}</div>}
       <div className="mu-grid with-arrows" ref={gridRef} style={{ gridTemplateRows: tracks.join(" "), minHeight: minH }}>
         {arrows && <SwapArrows pairs={me.pairs} side="left" gutter={gutter} names={(sid) => data.players[sid]?.name || sid} />}
         {!thin && arrows && <SwapArrows pairs={them.pairs} side="right" gutter={gutter} names={(sid) => data.players[sid]?.name || sid} />}

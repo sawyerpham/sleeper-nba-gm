@@ -19,7 +19,7 @@ html:root[data-theme="apple"] {
   --rank-0: #248a3d; --rank-1: #34c759; --rank-2: #a2c51b; --rank-3: #ffcc00; --rank-4: #ff9f0a; --rank-5: #ff6b5e; --rank-6: #ff3b30;
   --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Inter, "Segoe UI", system-ui, sans-serif;
   --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", Inter, "Segoe UI", system-ui, sans-serif; --font-num: var(--font-display);
-  --radius: 18px; --glass: blur(28px) saturate(180%); --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.05);
+  --radius: 4px; --glass: blur(28px) saturate(180%); --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.05);
   --ap-bg: radial-gradient(60vw 50vh at 8% 0%, rgba(10, 132, 255, 0.16), transparent 70%), radial-gradient(55vw 55vh at 100% 15%, rgba(191, 90, 242, 0.13), transparent 70%), radial-gradient(60vw 50vh at 60% 110%, rgba(52, 199, 89, 0.12), transparent 70%);
   color-scheme: light;
 }
@@ -50,32 +50,32 @@ html:root[data-theme="apple"] {
 :root[data-theme="apple"] th { background: transparent; backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); }
 :root[data-theme="apple"] .panel { border-color: var(--border-inner); }
 :root[data-theme="apple"] :is(.room-card:not(.user, .next), .dg-rank > .block-bar) { border-color: var(--border-inner); }
-:root[data-theme="apple"] button { border-radius: 999px; border-color: transparent; background: var(--panel-2); font-weight: 500; transition: background 0.15s, transform 0.1s; }
+:root[data-theme="apple"] button { border-radius: 4px; border-color: transparent; background: var(--panel-2); font-weight: 500; transition: background 0.15s, transform 0.1s; }
 :root[data-theme="apple"] button:hover { filter: none; background: color-mix(in srgb, var(--text) 12%, transparent); }
 :root[data-theme="apple"] button:active:not(:disabled) { transform: scale(0.97); }
 :root[data-theme="apple"] button.primary { background: var(--primary); color: var(--on-primary); }
 :root[data-theme="apple"] button.primary:hover { background: color-mix(in srgb, var(--primary) 88%, #000); }
 :root[data-theme="apple"] button.ghost { background: transparent; }
-:root[data-theme="apple"] button.small { border-radius: 999px; }
+:root[data-theme="apple"] button.small { border-radius: 4px; }
 :root[data-theme="apple"] button.small:not(.icon-btn, :has(> svg:only-child)) { padding: 4px 12px; }
 :root[data-theme="apple"] button:focus-visible, :root[data-theme="apple"] :is(input, select, textarea):focus { outline: 0; box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 35%, transparent); border-color: var(--primary); }
-:root[data-theme="apple"] :is(input, select, textarea) { border-radius: 10px; border-color: var(--border-inner); }
+:root[data-theme="apple"] :is(input, select, textarea) { border-radius: 4px; border-color: var(--border-inner); }
 :root[data-theme="apple"] header.top { background: var(--header); border-bottom: 1px solid var(--border); }
-:root[data-theme="apple"] header.top nav { background: var(--panel-2); border-radius: 10px; }
-:root[data-theme="apple"] header.top nav button { border-radius: 8px; background: transparent; }
+:root[data-theme="apple"] header.top nav { background: var(--panel-2); border-radius: 4px; }
+:root[data-theme="apple"] header.top nav button { border-radius: 4px; background: transparent; }
 :root[data-theme="apple"] header.top nav button.active { background: var(--panel-solid); color: var(--c); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14); }
-:root[data-theme="apple"] .profile-tabs { background: var(--panel-2); border-radius: 10px; padding: 2px; }
-:root[data-theme="apple"] .profile-tabs button { border-radius: 8px; background: transparent; }
+:root[data-theme="apple"] .profile-tabs { background: var(--panel-2); border-radius: 4px; padding: 2px; }
+:root[data-theme="apple"] .profile-tabs button { border-radius: 4px; background: transparent; }
 :root[data-theme="apple"] .profile-tabs button.active { background: var(--panel-solid); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16); }
 :root[data-theme="apple"] .matchup .mu-team { background: var(--panel-solid); border: 1px solid var(--border-inner); box-shadow: var(--shadow); }
 :root[data-theme="apple"] .matchup .mu-team:not(.right) { border-color: color-mix(in srgb, var(--primary) 50%, var(--border)); }
-:root[data-theme="apple"] :is(.mu-card, .sec, .guide-card, .sp-game, .timeline, .tl-next, .game-chip, .sp-stat) { border-radius: 14px; border-color: var(--border-inner); }
+:root[data-theme="apple"] :is(.mu-card, .sec, .guide-card, .sp-game, .timeline, .tl-next, .game-chip, .sp-stat) { border-radius: 4px; border-color: var(--border-inner); }
 :root[data-theme="apple"] :is(.mu-card, .sec, .guide-card, .sp-game, .timeline) { background: var(--panel-solid); }
 :root[data-theme="apple"] .ap-sheet :is(.sec, .sp-game) { background: var(--panel-2); border-color: var(--border); }
 :root[data-theme="apple"] .panel.matchup { background: var(--panel); }
 :root[data-theme="apple"] .game-chip.today { background: var(--primary-soft); border-color: transparent; }
 :root[data-theme="apple"] .modal-backdrop { background: rgba(0, 0, 0, 0.32); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
-:root[data-theme="apple"] .modal { background: var(--panel); border-radius: 22px; border-color: var(--border-inner); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3); }
+:root[data-theme="apple"] .modal { background: var(--panel); border-radius: 4px; border-color: var(--border-inner); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3); }
 :root[data-theme="apple"] .log-box.even { background: #ffd60a; }
 :root[data-theme="apple"] .log-box.down { background: #ff6b5e; }
 .wv-table tbody { counter-reset: claim; }
@@ -94,26 +94,26 @@ html:root[data-theme="apple"] {
 :root[data-theme="apple"] .wv-bid { background: var(--primary); color: #fff; font-weight: 600; }
 :root[data-theme="apple"] .wv-chip { background: var(--panel-2); }
 :root[data-theme="apple"] .wv-next { background: var(--primary-soft); color: var(--info-t); }
-:root[data-theme="apple"] .wv-drop { border-radius: 14px; }
-:root[data-theme="apple"] :is(.wv-meter, .wv-bar) { height: 6px; border-radius: 999px; }
-:root[data-theme="apple"] .wv-bar > span { border-radius: 999px; background: var(--ok); }
-:root[data-theme="apple"] .tr-team { border-bottom: 1px solid var(--border-inner); border-radius: 12px; padding: 9px 8px; }
-:root[data-theme="apple"] .tr-counts span { padding: 1px 9px; border-radius: 999px; }
+:root[data-theme="apple"] .wv-drop { border-radius: 4px; }
+:root[data-theme="apple"] :is(.wv-meter, .wv-bar) { height: 6px; border-radius: 4px; }
+:root[data-theme="apple"] .wv-bar > span { border-radius: 4px; background: var(--ok); }
+:root[data-theme="apple"] .tr-team { border-bottom: 1px solid var(--border-inner); border-radius: 4px; padding: 9px 8px; }
+:root[data-theme="apple"] .tr-counts span { padding: 1px 9px; border-radius: 4px; }
 :root[data-theme="apple"] .tr-counts .health-out { background: var(--bad); }
 :root[data-theme="apple"] .tr-counts .health-q { background: var(--even); }
 :root[data-theme="apple"] .news-item { padding: 12px 4px; border-bottom: 1px solid var(--border-inner); }
-:root[data-theme="apple"] .news-item.injury { background: var(--bad); border-radius: 14px; border-bottom: 0; padding-inline: 12px; margin: 2px 0; }
+:root[data-theme="apple"] .news-item.injury { background: var(--bad); border-radius: 4px; border-bottom: 0; padding-inline: 12px; margin: 2px 0; }
 :root[data-theme="apple"] .news-title { font-size: var(--fs-md); font-weight: 600; }
 :root[data-theme="apple"] .news-time { font-size: var(--fs-xs); }
-:root[data-theme="apple"] .news-filters { border-radius: 18px; }
-:root[data-theme="apple"] .team-ranks-side { padding: 6px 14px 8px; border-radius: 16px; background: var(--panel-2); }
+:root[data-theme="apple"] .news-filters { border-radius: 4px; }
+:root[data-theme="apple"] .team-ranks-side { padding: 6px 14px 8px; border-radius: 4px; background: var(--panel-2); }
 :root[data-theme="apple"] .team-ranks-head { font-size: var(--fs-md); border-bottom: 1px solid var(--border); padding: 6px 0; }
 :root[data-theme="apple"] .team-ranks-row { padding: 6px 0; border-bottom: 1px solid var(--border-inner); }
 :root[data-theme="apple"] .team-ranks-row:last-child { border-bottom: 0; }
-:root[data-theme="apple"] .team-ranks :is(.team-ranks-row, .team-ranks-head) strong { padding: 1px 10px; border-radius: 999px; background: color-mix(in srgb, currentColor 14%, transparent); font-weight: 600; font-size: var(--fs-xs); }
+:root[data-theme="apple"] .team-ranks :is(.team-ranks-row, .team-ranks-head) strong { padding: 1px 10px; border-radius: 4px; background: color-mix(in srgb, currentColor 14%, transparent); font-weight: 600; font-size: var(--fs-xs); }
 :root[data-theme="apple"] table.depth-grid { border-collapse: separate; border-spacing: 4px; margin-inline: -4px; width: calc(100% + 8px); }
 :root[data-theme="apple"] table.depth-grid th { background: transparent; border: 0; color: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
-:root[data-theme="apple"] table.depth-grid td { border: 0; border-radius: 999px; background: var(--panel-2); padding: 4px 10px; }
+:root[data-theme="apple"] table.depth-grid td { border: 0; border-radius: 4px; background: var(--panel-2); padding: 4px 10px; }
 :root[data-theme="apple"] table.depth-grid td.dg-pos { background: transparent; padding-inline: 4px; }
 :root[data-theme="apple"] table.depth-grid td:nth-child(2) { font-weight: 600; }
 :root[data-theme="apple"] .dg-cell.self { background: var(--primary-soft); color: var(--info-t); }
