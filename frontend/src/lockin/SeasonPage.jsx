@@ -693,7 +693,8 @@ function TeamsReport({ leagueId, open, refreshKey }) {
                 <Headshot sleeperId={h.sid} name={h.name} size={24} />
                 <span className={`health-${h.group} ${h.starter ? "tr-starter" : ""}`}>{h.name}</span>
                 {h.role && <span className={`role-tag ${h.role.star ? "star" : ""}`}
-                  data-tip={h.role.shared_with ? `Shares the #1 option with ${h.role.shared_with.name} (${h.role.shared_with.fpg} projected FP/G)` : undefined}>{h.role.label}</span>}
+                  data-tip={h.role.shared_with ? `Shares the #1 option with ${h.role.shared_with.name} (${h.role.shared_with.fpg} projected FP/G)` : undefined}>{h.role.label.replace(" option", "").replace("Role player", "RP")}</span>}
+                {/^out$/i.test(h.status) && <InjuryTag tag="Out" />}
                 <span className="muted small">{[/^out$/i.test(h.status) ? "" : h.status, h.body, h.note].filter(Boolean).join(" · ")}</span></div>))}</div>
           </div>
         </div>
