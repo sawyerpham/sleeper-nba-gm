@@ -9,6 +9,7 @@ http://localhost:5173), ADMIN_EMAILS (comma-separated)."""
 from __future__ import annotations
 
 import ipaddress
+import json
 import logging
 import os
 from typing import Literal
@@ -17,7 +18,7 @@ import requests
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
-from .accounts import SESSION_TTL, RateLimited
+from .accounts import SESSION_TTL, UI_DEFAULTS, RateLimited
 from .core.api.deps import get_state
 
 log = logging.getLogger(__name__)
@@ -151,7 +152,26 @@ def logout(request: Request, response: Response) -> dict:
 
 def me_of(user: dict) -> dict:
     """What the frontend needs about the signed-in user."""
-    return {"id": user["id"], "email": user["email"], "admin": user["admin"], "telegram": user["telegram"], "kind": user["kind"]}
+    return {"id": user["id"], "email": user["email"], "admin": user["admin"], "telegram": user["telegram"], "kind": user["kind"],
+            "ui": get_ui(user)}
+
+
+def get_ui(user: dict) -> dict:
+    """The user's display settings from their row, defaults filled in."""
+    return {**UI_DEFAULTS, **json.loads(user.get("ui") or "{}")}
+
+
+class UiIn(BaseModel):
+    """PUT /auth/ui body: the display settings (Settings > Appearance)."""
+    swap_arrows: bool = True
+    nicknames: bool = True
+    timeline: bool = True
+
+
+@router.put("/ui")
+def set_ui(body: UiIn, request: Request, user: dict = Depends(current_user)) -> dict:
+    """Save the signed-in user's display settings on their account."""
+    return get_state(request).accounts.set_ui(user["id"], body.model_dump())
 
 
 @router.get("/me")

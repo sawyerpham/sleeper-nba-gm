@@ -276,7 +276,8 @@ def test_owner_promotes_and_demotes_and_nobody_else_can(app):
     assert owner.put(f"/api/admin/users/{owner_id}/role", json={"role": "user"}).status_code == 400
     assert owner.put("/api/admin/users/999/role", json={"role": "admin"}).status_code == 404
     assert owner.put(f"/api/admin/users/{fan_id}/role", json={"role": "admin"}).json()["role"] == "admin"
-    assert fan.get("/api/auth/me").json() == {"id": fan_id, "email": "fan@test.local", "admin": True, "telegram": True, "kind": "admin"}
+    assert fan.get("/api/auth/me").json() == {"id": fan_id, "email": "fan@test.local", "admin": True, "telegram": True, "kind": "admin",
+                                                 "ui": {"swap_arrows": True, "nicknames": True, "timeline": True}}
     assert fan.get("/api/admin/stats").json()["admins"] == 2
     assert fan.put(f"/api/admin/users/{owner_id}/role", json={"role": "user"}).status_code == 400   # admins can't demote the owner
     state.accounts.consume_link(state.accounts.link_token(fan_id), 9, "Fan")
@@ -399,3 +400,12 @@ def test_a_user_deletes_their_account_and_its_data(app):
     assert "mine" not in state.store.read_json(LOCKS_FILE) and "mine" not in state.store.read_json(WATCH_FILE)
     assert not state.accounts._q("SELECT 1 FROM events WHERE user_id = ? OR email = 'fan@test.local'", fan_id)
     assert owner.get("/api/auth/me").status_code == 200
+
+
+def test_display_settings_are_saved_on_the_account(app):
+    """/auth/ui keeps the Appearance checkboxes on the account: defaults all on, a PUT sticks and comes back with /auth/me."""
+    c = TestClient(app)
+    sign_in(c)
+    assert c.get("/api/auth/me").json()["ui"] == {"swap_arrows": True, "nicknames": True, "timeline": True}
+    assert c.put("/api/auth/ui", json={"swap_arrows": False, "nicknames": True, "timeline": True}).json() == {"swap_arrows": False, "nicknames": True, "timeline": True}
+    assert c.get("/api/auth/me").json()["ui"]["swap_arrows"] is False

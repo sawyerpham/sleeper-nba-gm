@@ -160,16 +160,16 @@ function KeeperHistoryEditor({ leagueId, history, managers, reload }) {
     <details className="panel panel-toggle" data-testid="keepers-toggle">
       <summary><h3>Keeper history (prior seasons) <span className="muted small">— what each keeper cost in that season; this year's keepers and their prices are entered when you start the draft</span></h3></summary>
       <div className="row small" style={{ marginBottom: 6 }}>
-        season <input type="text" value={season} onChange={(e) => setSeason(e.target.value)} style={{ width: 80, minWidth: 0 }} />
+        season <input type="text" value={season} onChange={(e) => setSeason(e.target.value)} style={{ width: 100, minWidth: 0 }} />
         <button onClick={addAllManagers} data-testid="history-add-all">Add a row for every manager</button>
         <span className="muted">then just pick each player and the price; empty rows are ignored</span>
       </div>
-      <table>
+      <table className="keeper-hist">
         <thead><tr><th>season</th><th>manager</th><th>player</th><th>cost type</th><th>$ paid (auction) / round (draft)</th><th>pick</th><th></th></tr></thead>
         <tbody>
           {rows.map((r, i) => (
             <tr key={i}>
-              <td><input type="text" value={r.season} onChange={(e) => update(i, { season: e.target.value })} style={{ width: 80, minWidth: 0 }} /></td>
+              <td><input type="text" value={r.season} onChange={(e) => update(i, { season: e.target.value })} /></td>
               <td>
                 <select value={r.manager_id} onChange={(e) => update(i, { manager_id: e.target.value })}>
                   {managers.map((m) => <option key={m.manager_id} value={m.manager_id}>{m.name}</option>)}

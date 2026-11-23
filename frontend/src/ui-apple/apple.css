@@ -194,7 +194,7 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
 .ap-sheet > .panel { scrollbar-width: none; } .ap-sheet > .panel::-webkit-scrollbar { display: none; }
 .ap .ap-mascot-row { justify-content: center; background: none; }
 .ap-mascot { margin: 0; flex: none; font: 600 var(--fs-2xs)/1.15 ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: var(--muted); white-space: pre; background: none; border: 0 !important; }
-.ap-rec { flex: none; font-size: var(--fs-3xs); font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ap-rec { flex: none; font-size: var(--fs-2xs); font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
 .ap-who { display: inline-flex; gap: 0; padding: 0; overflow: hidden; border-radius: 999px; background: var(--panel-solid); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14); }
 :root[data-theme] .ap-who button { max-width: 150px; padding: 7px 18px; border: 0; border-radius: 0; background: var(--panel-2); color: var(--muted); font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 :root[data-theme] .ap-who button:hover { color: var(--text); background: var(--panel-2); }

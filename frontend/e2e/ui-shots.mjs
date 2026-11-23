@@ -23,9 +23,8 @@ const PROPS = ["display", "position", "color", "background-color", "background-i
   "padding", "margin", "border", "border-radius", "box-shadow", "gap", "opacity", "text-transform", "width", "height", "grid-template-columns", "flex", "cursor", "filter", "backdrop-filter"];
 const BASE = process.env.DA_URL || "http://localhost:5173";
 const LEAGUE = process.env.DA_LEAGUE || "tobedecided";
-const WALL = process.env.WALL || "";
 const THEME = process.env.THEME || "courtside";
-const OUT = `e2e/screenshots/ui-${ui}-${w}${process.env.SCHEME ? "-" + process.env.SCHEME : ""}${WALL ? "-" + WALL : ""}${THEME ? "-" + THEME : ""}`;
+const OUT = `e2e/screenshots/ui-${ui}-${w}${process.env.SCHEME ? "-" + process.env.SCHEME : ""}${THEME ? "-" + THEME : ""}`;
 fs.mkdirSync(OUT, { recursive: true });
 
 const browser = await chromium.launch({ channel: process.env.DA_BROWSER || "msedge", headless: true });
@@ -36,7 +35,7 @@ page.on("pageerror", (e) => errors.push(e.message));
 
 async function open(tab, ready) {
   await page.goto(BASE);
-  await page.evaluate(([t, l, u, w, th]) => { localStorage.setItem("da.tab", t); localStorage.setItem("da.league", l); localStorage.setItem("da.ui", u === "new" ? "" : u); localStorage.setItem("da.wall", w); localStorage.setItem("da.theme", th); }, [tab, LEAGUE, ui, WALL, THEME]);
+  await page.evaluate(([t, l, u, th]) => { localStorage.setItem("da.tab", t); localStorage.setItem("da.league", l); localStorage.setItem("da.ui", u === "new" ? "" : u); localStorage.setItem("da.theme", th); }, [tab, LEAGUE, ui, THEME]);
   await page.goto(BASE);
   if (ready) await (ready.startsWith("[") ? page.locator(ready) : page.getByTestId(ready)).first().waitFor();
   await page.waitForTimeout(1200);

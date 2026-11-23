@@ -1,3 +1,4 @@
+import { loadUiPrefs } from "./uiPrefs.js";
 import React, { useEffect, useState } from "react";
 import { api } from "../api.js";
 import Icon from "./Icon.jsx";
@@ -9,11 +10,12 @@ export default function AuthGate({ children }) {
   useEffect(() => {
     const url = new URL(window.location.href);
     const token = url.searchParams.get("login");
-    const done = () => api.get("/auth/me").then(setUser).catch(() => setUser(null));
+    const got = (u) => { loadUiPrefs(u.ui); setUser(u); };
+    const done = () => api.get("/auth/me").then(got).catch(() => setUser(null));
     if (!token) return void done();
     url.searchParams.delete("login");
     window.history.replaceState(null, "", url.pathname + url.search + url.hash);
-    api.post("/auth/verify", { token }).then(setUser).catch((e) => { setError(e.message); done(); });
+    api.post("/auth/verify", { token }).then(got).catch((e) => { setError(e.message); done(); });
   }, []);
   if (user === undefined) return null;
   if (!user) return <Login error={error} />;

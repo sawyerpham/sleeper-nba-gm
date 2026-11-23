@@ -5,19 +5,10 @@ import SettingsPage from "./SettingsPage.jsx";
 import NotifyPage from "./NotifyPage.jsx";
 import Icon from "./Icon.jsx";
 import { signOut } from "./Auth.jsx";
+import { setUiPref, useUiPref } from "./uiPrefs.js";
 import useBackdrop from "./useBackdrop.js";
 
 
-const WALLPAPERS = [
-  ["", "No wallpaper"],
-  ["kawhi-dagger", "Kawhi dagger"],
-  ["wemby-block", "Wemby block"],
-  ["lin-calderon", "Lin over Calderón"],
-  ["haliburton-msg", "Haliburton at MSG"],
-  ["curry-okc", "Curry from deep"],
-  ["lebron-block", "LeBron chase-down block"],
-  ["lebron-chalk", "LeBron chalk toss"],
-];
 export const SEASON_VIEWS = { season: "week", news: "news", standings: "league", waivers: "waivers" };
 
 export function useAppState() {
@@ -36,7 +27,6 @@ export function useAppState() {
     return () => window.removeEventListener("keydown", k);
   }, [settingsOpen]);
   const [leagueId, setLeagueIdState] = useState(() => localStorage.getItem("da.league") || "");
-  const [wall, setWall] = useState(() => { const w = localStorage.getItem("da.wall") || ""; return WALLPAPERS.some(([id]) => id === w) ? w : ""; });
   const [health, setHealth] = useState(null);
 
   const setLeagueId = useCallback((id) => {
@@ -63,11 +53,6 @@ export function useAppState() {
     }).catch(() => {});
   }, [leagueId, tab]);
 
-  useEffect(() => {
-    document.documentElement.style.setProperty("--wall", wall ? `url(/wallpapers/${wall}.png)` : "none");
-    document.documentElement.dataset.wall = wall;
-    localStorage.setItem("da.wall", wall);
-  }, [wall]);
 
   useEffect(() => { document.documentElement.dataset.theme = "apple"; }, []);
 
@@ -81,7 +66,7 @@ export function useAppState() {
     return () => clearInterval(t);
   }, [refreshHealth]);
 
-  return { tab, setTab, goTab, settingsOpen, setSettingsOpen, leagueId, setLeagueId, leagueName, wall, setWall, health, refreshHealth };
+  return { tab, setTab, goTab, settingsOpen, setSettingsOpen, leagueId, setLeagueId, leagueName, health, refreshHealth };
 }
 
 /** Ask for the account's email again, then delete the account and everything kept for it, and go back to sign-in. */
@@ -100,6 +85,7 @@ async function deleteAccount() {
 export function SettingsModal({ app, user }) {
   const close = () => app.setSettingsOpen(false);
   const backdrop = useBackdrop(close);
+  const arrows = useUiPref("swap_arrows"), nicks = useUiPref("nicknames"), timeline = useUiPref("timeline");
   if (!app.settingsOpen) return null;
   return (
     <div className="modal-backdrop" {...backdrop} data-testid="settings-modal">
@@ -112,11 +98,9 @@ export function SettingsModal({ app, user }) {
           <button className="small danger" onClick={deleteAccount} data-testid="delete-account">Delete account</button></p>}
       </div>
       <div className="panel section-card" data-testid="section-appearance"><h2>Appearance</h2>
-      <div className="panel wall-pick"><h3>Wallpaper</h3>
-        <select value={app.wall} onChange={(e) => app.setWall(e.target.value)} data-testid="wallpaper">
-          {WALLPAPERS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-        </select>
-      </div>
+        <label className="inline"><input type="checkbox" checked={arrows} onChange={(e) => setUiPref("swap_arrows", e.target.checked)} data-testid="arrows" /> Swap arrows</label>
+        <label className="inline"><input type="checkbox" checked={timeline} onChange={(e) => setUiPref("timeline", e.target.checked)} data-testid="timeline-pref" /> Timeline</label>
+        <label className="inline"><input type="checkbox" checked={nicks} onChange={(e) => setUiPref("nicknames", e.target.checked)} data-testid="nicks" /> Player nicknames</label>
       </div>
       {user.telegram && <div className="panel section-card" data-testid="section-notify"><h2>Notifications</h2>
         <NotifyPage />

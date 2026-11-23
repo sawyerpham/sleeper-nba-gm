@@ -32,6 +32,7 @@ LIMITS = {
     "tg_sent": [("user_id", 100, 24 * 3600)],
     "sleeper_sync": [("user_id", 30, 3600)],   # each sync refetches from Sleeper; the season one empties the shared cache
 }
+UI_DEFAULTS = {"swap_arrows": True, "nicknames": True, "timeline": True}   # display settings, per account (Settings > Appearance)
 EVENT_KEEP_DAYS = 90   # usage events (with their IPs) older than this are deleted by prune(), run with the daily backup
 
 SCHEMA = """
@@ -87,7 +88,7 @@ class Accounts:
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.executescript(SCHEMA)
             cols = {r[1] for r in self._db.execute("PRAGMA table_info(users)")}
-            for col, ddl in (("role", "TEXT NOT NULL DEFAULT 'user'"), ("last_ip", "TEXT"), ("geo", "TEXT")):
+            for col, ddl in (("role", "TEXT NOT NULL DEFAULT 'user'"), ("last_ip", "TEXT"), ("geo", "TEXT"), ("ui", "TEXT")):
                 if col not in cols:
                     self._db.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
 
@@ -256,6 +257,17 @@ class Accounts:
     def set_prefs(self, user_id: int, prefs: dict) -> None:
         """Save a user's notification settings."""
         self._q("UPDATE users SET prefs = ? WHERE id = ?", json.dumps(prefs), user_id)
+
+    def ui(self, user_id: int) -> dict:
+        """A user's saved display settings (Settings > Appearance), with defaults: every option on."""
+        raw = self._one("SELECT ui FROM users WHERE id = ?", user_id)
+        return {**UI_DEFAULTS, **(json.loads(raw) if raw else {})}
+
+    def set_ui(self, user_id: int, ui: dict) -> dict:
+        """Save a user's display settings; returns them."""
+        ui = {k: bool(ui.get(k, v)) for k, v in UI_DEFAULTS.items()}
+        self._q("UPDATE users SET ui = ? WHERE id = ?", json.dumps(ui), user_id)
+        return ui
 
     def link_token(self, user_id: int) -> str:
         """A single-use Telegram link token for the bot's /start (valid LINK_TTL); RateLimited past 5 an hour."""

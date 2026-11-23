@@ -81,9 +81,6 @@ frontend/e2e/*.log
 !**/tests/fixtures/**/*.csv
 screenshots/
 
-# wallpaper photos: Getty images, kept local (backgroundimages/pixelate.py makes them)
-frontend/public/wallpapers/*
-!frontend/public/wallpapers/lebron-chalk.png
 
 # Personal Windows launch scripts (kept locally, not in the repo)
 start.ps1
