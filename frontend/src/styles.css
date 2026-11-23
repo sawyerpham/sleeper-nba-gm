@@ -829,8 +829,17 @@ main:has(.season-grid) { max-width: none; padding: 12px 16px; flex: 1; min-heigh
 .chips-lane > .chips-row > .game-chip { justify-content: center; margin: 9px 0; }
 .chips-table { display: grid; gap: 6px; width: 100%; box-sizing: border-box; padding-right: 9px; min-width: 0; align-self: stretch; align-items: stretch; }
 .chips-table > .game-chip { justify-content: center; min-width: 0; width: 100%; margin: 9px 0; box-sizing: border-box; }
-.chips-table > .game-chip.graph { max-width: 60px; justify-self: center; }
-.matchup.no-timeline .mu-id { width: min(320px, 18vw); }
+.chips-table > .game-chip.graph { max-width: 72px; justify-self: center; }
+.matchup.table-view .mu-id { width: min(320px, 18vw); }
+.matchup.table-view .chips-table { gap: 1px; padding-right: 0; }
+.matchup.table-view .chips-table > .game-chip { padding: 2px 1px; }
+.matchup.table-view .chips-table > .game-chip .gch-day { font-size: clamp(var(--fs-3xs), 18cqw, var(--fs-xs)); }
+.matchup.table-view .chips-table > .game-chip .gch-fp { font-size: clamp(var(--fs-3xs), 22cqw, var(--fs-md)); }
+.matchup.table-view .chips-table > .game-chip .gch-exp { font-size: clamp(var(--fs-3xs), 18cqw, var(--fs-sm)); }
+.matchup.table-view .chips-table > .game-chip.graph .gch-day { font-size: clamp(var(--fs-3xs), 18cqw, var(--fs-2xs)); }
+.matchup.table-view .chips-table > .game-chip.graph .gch-fp { font-size: clamp(var(--fs-3xs), 20cqw, var(--fs-sm)); }
+.matchup.table-view .chips-table > .game-chip.graph .gch-exp { font-size: clamp(var(--fs-3xs), 16cqw, var(--fs-2xs)); }
+.matchup.table-view .chips-table > .game-chip { margin: 0; max-width: none; justify-self: stretch; border-radius: 4px; }
 .time-line { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--primary); opacity: 0.35; pointer-events: none; }
 .team-name-tag { display: inline-flex; align-items: center; gap: 8px; min-width: 0; vertical-align: middle; }
 .team-name-lines { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
@@ -1021,15 +1030,13 @@ main:has(.season-grid) { max-width: none; padding: 12px 16px; flex: 1; min-heigh
 @media (prefers-reduced-motion: reduce) { .teammap *, .teammap { animation: none !important; } .teammap path { stroke-dashoffset: 0; } .tm-pin { opacity: 1; } }
 
 @media (max-width: 1599px) { .mu-sub .nick { display: none; } }
-.chips-row > .game-chip.graph { flex: 1 1 0; min-width: 0; max-width: 60px; margin: 2px 0; padding: 2px 1px; gap: 1px; }
-.game-chip.graph .gch-day { font-size: min(12px, 22cqw); }
-.game-chip.graph .gch-time { display: none; }
-.game-chip.graph .gch-fp { font-size: min(13px, 24cqw); line-height: 1.1; }
-.gch-bar { position: relative; flex: 1; min-height: 6px; width: 55%; }
-.gch-bar > i { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 2px 2px 0 0; }
-.gch-bar > .exp { background: color-mix(in srgb, var(--muted) 45%, transparent); }
-.gch-bar > .act { background: var(--primary); }
-.game-chip.live .gch-bar > .act { background: var(--danger); }
+.chips-row > .game-chip.graph { flex: 1 1 0; min-width: 0; max-width: 72px; margin: 2px 0; padding: 2px 1px; gap: 1px; }
+.game-chip.graph .gch-day { font-size: clamp(var(--fs-3xs), 18cqw, var(--fs-2xs)); line-height: 1.1; }
+.game-chip.graph .gch-time { display: block; font-size: 0.92em; line-height: 1.1; }
+@container (min-width: 56px) { .game-chip.graph .gch-time { display: inline; font-size: inherit; line-height: inherit; } }
+.game-chip.graph.live .gch-time { display: none; }
+.game-chip.graph .gch-fp { font-size: clamp(var(--fs-3xs), 20cqw, var(--fs-sm)); line-height: 1.1; }
+.game-chip.graph .gch-exp { margin: 0; font-size: clamp(var(--fs-3xs), 16cqw, var(--fs-2xs)); line-height: 1.1; }
 .game-chip.graph .gch-lockbtn.corner { width: 16px; height: 16px; top: -6px; right: -5px; border-width: 1px; }
 .game-chip.graph .gch-lockbtn.corner .gch-lock { width: 8px; height: 10px; }
 .game-chip.graph .gch-play { width: 7px; height: 8px; }

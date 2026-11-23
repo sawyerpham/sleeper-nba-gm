@@ -10,6 +10,7 @@ import useBackdrop from "../core/useBackdrop.js";
 import useSwipe from "../core/useSwipe.js";
 import TeamLink, { TeamLinkContext } from "../core/TeamLink.jsx";
 import { SEASON_VIEWS, SettingsModal, useAppState } from "../core/Shell.jsx";
+import { useNBAMatches, findMatch, watchUrl } from "../lockin/streams.jsx";
 import useSeason from "../lockin/useSeason.js";
 import { CardNav, CurrentCard, SeasonTools, WeekNav, callsOf, nextCheckIn, nowOf, slate } from "../lockin/seasonBits.jsx";
 import { LeagueView, NewsView, TeamName, flashEl, WaiversView, WeekView, dayName, fp, lockEdge, lockableOf, pct, quarters, teamLogo, untilText } from "../lockin/SeasonPage.jsx";
@@ -241,6 +242,7 @@ function AppleStandings({ data, onPick }) {
 }
 
 function Slate({ data, s, rid }) {
+  const { list: matches } = useNBAMatches();
   const { date, list } = slate(data, rid);
   return (
     <section className="panel ap-group" data-testid="slate">
@@ -250,7 +252,7 @@ function Slate({ data, s, rid }) {
         <div key={g.event} role="button" tabIndex={0} className={`ap-row ap-game ${g.state}`} onClick={() => s.openGame(g.sel)} onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) s.openGame(g.sel); }}>
           <span className="ap-teams">
             {[[g.away, g.awayScore, g.homeScore, g.awayRecord], [g.home, g.homeScore, g.awayScore, g.homeRecord]].map(([t, sc, opp, rec]) => (
-              <span key={t} className={`ap-team${g.state === "post" && sc < opp ? " lost" : ""}`}><TeamLink abbr={t}><img src={teamLogo(t)} alt="" width={26} height={26} /></TeamLink><strong>{t}</strong>{rec && <small className="ap-rec">{rec}</small>}{g.state !== "pre" && <b>{sc ?? ""}</b>}</span>
+              <span key={t} className={`ap-team${g.state === "post" && sc < opp ? " lost" : ""}`}><TeamLink abbr={t}><img src={teamLogo(t)} alt="" width={26} height={26} /></TeamLink><strong>{t}</strong>{rec && <small className="ap-rec">{rec}</small>}{g.state !== "pre" && <b>{sc ?? ""}</b>}{g.state === "post" && <i className="ap-win" aria-hidden="true">{sc > opp ? "◂" : ""}</i>}</span>
             ))}
             {g.state === "pre" && <b className="ap-vs">-</b>}
           </span>
@@ -259,6 +261,7 @@ function Slate({ data, s, rid }) {
           ))}</span>
           <span className="ap-meta">
             <span className="ap-game-status">{g.state === "in" ? <><i className="live-dot" />{quarters(g.detail)}</> : g.state === "post" ? "Final" : timeOf(g.tip)}</span>
+            {g.state !== "post" && <a className="gp-watch" href={watchUrl(findMatch(matches, g.sel.game, g.sel.team))} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>▶ Watch</a>}
           </span>
         </div>
       ))}

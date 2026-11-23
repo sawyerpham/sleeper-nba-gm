@@ -166,6 +166,7 @@ class UiIn(BaseModel):
     swap_arrows: bool = True
     nicknames: bool = True
     timeline: bool = True
+    table_view: bool = False
 
 
 @router.put("/ui")

@@ -85,7 +85,7 @@ async function deleteAccount() {
 export function SettingsModal({ app, user }) {
   const close = () => app.setSettingsOpen(false);
   const backdrop = useBackdrop(close);
-  const arrows = useUiPref("swap_arrows"), nicks = useUiPref("nicknames"), timeline = useUiPref("timeline");
+  const arrows = useUiPref("swap_arrows"), nicks = useUiPref("nicknames"), timeline = useUiPref("timeline"), tableView = useUiPref("table_view");
   if (!app.settingsOpen) return null;
   return (
     <div className="modal-backdrop" {...backdrop} data-testid="settings-modal">
@@ -100,6 +100,7 @@ export function SettingsModal({ app, user }) {
       <div className="panel section-card" data-testid="section-appearance"><h2>Appearance</h2>
         <label className="inline"><input type="checkbox" checked={arrows} onChange={(e) => setUiPref("swap_arrows", e.target.checked)} data-testid="arrows" /> Swap arrows</label>
         <label className="inline"><input type="checkbox" checked={timeline} onChange={(e) => setUiPref("timeline", e.target.checked)} data-testid="timeline-pref" /> Timeline</label>
+        <label className="inline"><input type="checkbox" checked={tableView} onChange={(e) => setUiPref("table_view", e.target.checked)} data-testid="table-view" /> Table view</label>
         <label className="inline"><input type="checkbox" checked={nicks} onChange={(e) => setUiPref("nicknames", e.target.checked)} data-testid="nicks" /> Player nicknames</label>
       </div>
       {user.telegram && <div className="panel section-card" data-testid="section-notify"><h2>Notifications</h2>

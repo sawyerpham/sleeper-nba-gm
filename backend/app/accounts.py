@@ -32,7 +32,7 @@ LIMITS = {
     "tg_sent": [("user_id", 100, 24 * 3600)],
     "sleeper_sync": [("user_id", 30, 3600)],   # each sync refetches from Sleeper; the season one empties the shared cache
 }
-UI_DEFAULTS = {"swap_arrows": True, "nicknames": True, "timeline": True}   # display settings, per account (Settings > Appearance)
+UI_DEFAULTS = {"swap_arrows": True, "nicknames": True, "timeline": True, "table_view": False}   # display settings, per account (Settings > Appearance)
 EVENT_KEEP_DAYS = 90   # usage events (with their IPs) older than this are deleted by prune(), run with the daily backup
 
 SCHEMA = """

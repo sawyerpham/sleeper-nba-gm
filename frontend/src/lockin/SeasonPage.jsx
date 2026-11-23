@@ -227,7 +227,6 @@ export const pct = (x) => `${Math.round((x ?? 0) * 100)}%`;
 
 function GameChips({ games, today, lockDate, lockGuess, lockable, benched, day, lane, cols, team, onOpen, onLock }) {
   const graph = useNarrow();
-  const peak = Math.max(1, ...games.map((x) => Math.max(x.fp ?? 0, x.pace ?? 0, x.proj ?? 0)));
   if (!games.length) return lane ? <span className="chips-lane"><span className="muted small">no games</span></span> : <span className="muted small">no games</span>;
   const chips = games.map((g, i) => {
         const played = g.fp != null, live = g.state === "in" || (played && g.state !== "post");
@@ -256,10 +255,8 @@ function GameChips({ games, today, lockDate, lockGuess, lockable, benched, day, 
               : played ? "final" : timeOf(g.tip).replace(":00", "").replace(" PM", "p").replace(" AM", "a")}</span></span>
             {toggle && <button className="gch-lockbtn corner" onClick={lockClick} aria-label="Lock" data-testid="lock-game"><LockIcon open /></button>}
             {toggle === "" && <button className="gch-lockbtn corner unlock" onClick={lockClick} aria-label="Unlock" data-testid="unlock-game"><LockIcon /></button>}
-            {graph ? <>
-              <span className="gch-bar"><i className="exp" style={{ height: `${100 * (exp ?? 0) / peak}%` }} />{played && <i className="act" style={{ height: `${100 * g.fp / peak}%` }} />}</span>
-              <span className="gch-fp">{fp(played ? g.fp : exp)}</span>
-            </> : <span className="gch-fp">{played ? fp(g.fp) : "—"}<span className={`gch-exp ${live && g.pace != null && g.proj != null ? (g.pace >= g.proj ? "up" : "down") : ""}`}>{fp(exp)}</span></span>}
+            {graph ? <><span className="gch-fp">{fp(played ? g.fp : exp)}</span>
+              {live && <span className={`gch-exp ${g.pace != null && g.proj != null ? (g.pace >= g.proj ? "up" : "down") : ""}`}>{fp(exp)}</span>}</> : <span className="gch-fp">{played ? fp(g.fp) : "—"}<span className={`gch-exp ${live && g.pace != null && g.proj != null ? (g.pace >= g.proj ? "up" : "down") : ""}`}>{fp(exp)}</span></span>}
           </span>
         );
       });
@@ -384,7 +381,7 @@ export function flashEl(el) {
 }
 
 export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow, focus, pill }) {
-  const narrow = useNarrow(), thin = useThin(), mobile = useMobile(), arrows = useUiPref("swap_arrows") && !mobile, timeline = useUiPref("timeline"), gutter = !arrows ? 0 : narrow ? 60 : ARROW_GUTTER;
+  const narrow = useNarrow(), thin = useThin(), mobile = useMobile(), arrows = useUiPref("swap_arrows") && !mobile, timeline = useUiPref("timeline"), tableView = useUiPref("table_view"), gutter = !arrows ? 0 : narrow ? 60 : ARROW_GUTTER;
   const idxOf = (rid) => data.matchups.findIndex((pair) => pair.some((m) => m.roster_id === rid));
   const mineIdx = Math.max(0, idxOf(plan.roster_id));
   const [idx, setIdx] = useState(() => (focus && idxOf(focus.rid) >= 0 ? idxOf(focus.rid) : mineIdx));
@@ -451,8 +448,8 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
   const games = (players) => players.flatMap((r) => (data.players[r.sid]?.games || []).map((g) => [tipMs(g), g.date]));
   const xs = React.useMemo(() => (narrow ? { xs: null } : laneXs([...games(shown?.players || []), ...games(shown?.opponent?.players || [])], lane?.w - CHIP_INSET)),
     [shown, data.players, lane?.w, narrow]);
-  const cols = React.useMemo(() => (timeline || mobile ? null
-    : [...new Set([...games(shown?.players || []), ...games(shown?.opponent?.players || [])].map((g) => g[1]))].sort()), [shown, data.players, timeline, mobile]);
+  const cols = React.useMemo(() => (!tableView || mobile ? null
+    : [...new Set([...games(shown?.players || []), ...games(shown?.opponent?.players || [])].map((g) => g[1]))].sort()), [shown, data.players, tableView, mobile]);
   const n = data.matchups.length;
   const step = (d) => setIdx((i) => (i + d + n) % n);
   const nav = (
@@ -481,7 +478,7 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
   );
   const benchAt = L.lines.length + 2, irAt = benchAt + nBench + (nBench ? 1 : 0);
   return (
-    <div className={`panel matchup ${thin ? "thin" : ""} ${mobile ? "mobile" : ""} ${arrows ? "" : "no-arrows"} ${timeline ? "" : "no-timeline"}`} data-testid="my-week" style={{ "--gut": `${gutter}px` }}>
+    <div className={`panel matchup ${thin ? "thin" : ""} ${mobile ? "mobile" : ""} ${arrows ? "" : "no-arrows"} ${tableView ? "table-view" : ""}`} data-testid="my-week" style={{ "--gut": `${gutter}px` }}>
       {timeline && !mobile && tl?.segments.length > 0 && <Timeline tl={tl} nowMs={nowMs} atMs={atMs} setAt={setAt} view={differs ? view : "best"} setView={setView} differs={differs} />}
       {gap && <div className="small muted mu-gap" data-testid="sleeper-gap">Sleeper still shows yesterday's lineup: the arrows start from it, so skip any move you've already made.</div>}
       <div className="mu-head" {...swipe}>
@@ -508,7 +505,7 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
       <div className="mu-grid with-arrows" ref={gridRef} style={{ gridTemplateRows: tracks.join(" "), minHeight: minH }}>
         {arrows && <SwapArrows pairs={me.pairs} side="left" gutter={gutter} names={(sid) => data.players[sid]?.name || sid} />}
         {!thin && arrows && <SwapArrows pairs={them.pairs} side="right" gutter={gutter} names={(sid) => data.players[sid]?.name || sid} />}
-        {timeline && tl && lane && xs.xs?.size > 0 && [["l", lane.l], ["r", lane.r]].filter(([, x]) => x != null).map(([k, x]) => (
+        {timeline && !tableView && tl && lane && xs.xs?.size > 0 && [["l", lane.l], ["r", lane.r]].filter(([, x]) => x != null).map(([k, x]) => (
           <div key={k} className="time-line" data-testid={`time-line-${k}`} style={{ left: x + laneAt(xs.xs, atMs, Date.parse(tl.start), Date.parse(tl.end), lane.w) - 1 }} />
         ))}
         {L.lines.map((l, i) => row(l, R.lines[i], `s${i}`, l.slot, false, i + 1))}

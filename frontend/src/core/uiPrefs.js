@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import { api } from "../api.js";
 
 /** The signed-in account's display settings (Settings > Appearance), kept on the server: loaded with /auth/me, saved by PUT /auth/ui. */
-let prefs = { swap_arrows: true, nicknames: true, timeline: true };
+let prefs = { swap_arrows: true, nicknames: true, timeline: true, table_view: false };
 const listeners = new Set();
 
 export const getUiPref = (key) => prefs[key];
