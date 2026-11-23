@@ -48,7 +48,8 @@ export function SeasonSummary({ sea, onOpenGame, onOpenMatchup }) {
             ))}
           </div>
           <div className="sp-last-row">
-            <div className="small muted">{g.min} min · {g.pts} pts · {g.reb} reb · {g.ast} ast · {g.stl} stl · {g.blk} blk · {g.to} to{g.fga != null && <> · {g.fgm}/{g.fga} FG · {g.ftm}/{g.fta} FT</>}</div>
+            <div className="small muted best-line">{[["PTS", g.pts], ["REB", g.reb], ["AST", g.ast], ["STL", g.stl], ["BLK", g.blk], ["TO", g.to]].map(([k, v]) => <span key={k}><strong>{v}</strong> {k}</span>)}
+              {g.fga != null && <><span>{g.fgm}/{g.fga} FG</span><span>{g.ftm}/{g.fta} FT</span></>}<span>{g.min} MIN</span></div>
             <div className="sp-fp"><span>{f2(g.fp)}</span><small>FP</small></div>
           </div>
         </div>
@@ -128,7 +129,7 @@ export function SeasonLog({ sea }) {
     <table className="sp-log" data-testid="season-log">
       <thead><tr><th>WK</th><th>OPP</th><th>DATE</th>{LOG_COLS.map(([h]) => <th key={h} className="log-cell">{h}</th>)}</tr></thead>
       <tbody>{sea.season_log.map((r) => (
-        <tr key={r.date} className={`${r.week === sea.week ? "this-week" : ""} ${r.fp == null ? "muted" : ""}`}>
+        <tr key={r.date} className={`${r.week === sea.week ? "this-week" : ""} ${r.week % 2 ? "wk-alt" : ""} ${r.fp == null ? "muted" : ""}`}>
           <td>{r.week}</td><td>{r.home ? "" : "@"}<TeamTag abbr={r.opp} /></td><td>{mmdd(r.date)}</td>
           {LOG_COLS.map(([h, f, k]) => {
             const tone = r.fp == null ? null : logTone(k, r[k], avg[k]);

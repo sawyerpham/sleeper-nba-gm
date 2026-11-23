@@ -778,6 +778,12 @@ def team_schedule(schedule: list[dict], abbr: str) -> list[dict]:
     return out
 
 
+def _record(games: list[dict]) -> str | None:
+    """'W-L' of a team_schedule's finished games, None before the first."""
+    res = [g["result"] for g in games if g["result"]]
+    return f"{res.count('W')}-{res.count('L')}" if res else None
+
+
 def team_player_stats(session, rows: list[dict], done: set[str], abbr: str) -> list[dict]:
     """The Team card's Stats tab: every player's per-game line for this team (Sleeper's per-game rows, finished games
     only; a traded player counts only his games here): MIN PTS REB AST FG% FT% 3P% STL BLK TO PF, most minutes first.
@@ -1143,6 +1149,7 @@ def season_player(session, fetch: Fetch, player_id: int, week: int | None = None
             "retired": me.get("retired", False), "game_log": log[:GAME_LOG], "overall_rank": overall, "pos_rank": pos_rank,
             "team_ranks": team_ranks(season_rows, team_abbr, {g.get("game_id") for g in schedule if g.get("status") == "complete"})
             if team_abbr else None,
+            "team_record": _record(team_schedule(schedule, team_abbr)) if team_abbr else None,
             "acquired": acquisitions(session, fetch, view, sid),
             "season_log": season_log, "averages": averages, "games_played": len(done), "last_game": last, "next_game": next_game,
             "owned": research.get("owned"), "started": research.get("started"),

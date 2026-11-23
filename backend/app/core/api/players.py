@@ -174,8 +174,18 @@ def team_header(state: AppState, session, abbr: str, rosters=None) -> dict:
     order = sorted(talent, key=lambda t: -talent[t])
     team_ref = next((t for t in state.stats.list_teams() if t.abbreviation == abbr), None) if hasattr(state.stats, "list_teams") else None
     rel = config.standings_rel(session.league.stats_season)
-    conference = ((state.store.read_json(rel)["teams"] if state.store.exists(rel) else {}).get(abbr) or {}).get("conference")
+    standings = state.store.read_json(rel)["teams"] if state.store.exists(rel) else {}
+    conference = (standings.get(abbr) or {}).get("conference")
+
+    def place(pool: dict) -> int | None:
+        """His 1-based place among `pool` by win % (ties broken by point differential)."""
+        key = lambda s: (-(s["wins"] / max(s["wins"] + s["losses"], 1)), -(s["diff"] or 0))  # noqa: E731
+        return sorted(pool, key=lambda t: key(pool[t])).index(abbr) + 1 if abbr in pool else None
+
     return {"abbr": abbr, "name": team_ref.full_name if team_ref else abbr, "conference": conference,
+            "conf_rank": place({t: s for t, s in standings.items() if s["conference"] == conference}),
+            "overall_rank": place(standings),
+            "record": f"{standings[abbr]['wins']}-{standings[abbr]['losses']}" if abbr in standings else None,
             "logo": f"https://sleepercdn.com/images/team_logos/nba/{abbr.lower()}.png",
             "talent_rank": order.index(abbr) + 1 if abbr in talent else None, "teams": len(order),
             "talent_fpg": round(talent.get(abbr, 0.0), 1),

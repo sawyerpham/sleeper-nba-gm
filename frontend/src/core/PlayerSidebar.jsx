@@ -94,7 +94,7 @@ export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, us
 
   const teamCard = data.team && (
     <div className="team-card" data-testid="team-card">
-      <TeamHead t={data.team} />
+      <TeamSummary t={{ ...data.team, player_rank: null }} record={sea?.team_record} />
       {season && sea?.team_ranks && <TeamRanks r={sea.team_ranks} />}
       {season && data.team.depth_grid ? <DepthGrid grid={data.team.depth_grid} onSelectPlayer={onSelectPlayer} /> : (
       <div className="teammates">
@@ -260,14 +260,19 @@ export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, us
   );
 }
 
-export function TeamHead({ t }) {
+/** The team summary box (logo, name, record, conference, standings and talent ranks), shared by the team panel and a player's Team tab. `record` overrides the standings record; `link` makes the name open the team. */
+export function TeamSummary({ t, record, link = true }) {
+  const rec = record ?? t.record;
   return (
-    <div className="team-card-head">
-      <img src={t.logo} alt="" width={40} height={40} className="team-logo" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
-      <div>
-        <div className="team-name"><TeamLink abbr={t.abbr}>{t.name}</TeamLink>{t.conference && <span className={`conf conf-${t.conference}`}>{t.conference}</span>}</div>
+    <div className="tp-head sec" data-testid="team-summary">
+      <img src={t.logo} alt="" width={52} height={52} onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
+      <div className="tp-title">
+        <h3 className="tp-name">{link ? <TeamLink abbr={t.abbr}>{t.name}</TeamLink> : t.name}
+          {rec && <span className="tp-rec muted" data-testid="team-nba-record">{rec}</span>}
+          {t.conference && <span className={`conf conf-${t.conference}`}>{t.conference}</span>}</h3>
         <div className="small muted">
           {t.player_rank && <><strong>#{t.player_rank}</strong> on the team · </>}
+          {t.conf_rank && <><strong>#{t.conf_rank}</strong> in the {t.conference} · <strong>#{t.overall_rank}</strong> overall · </>}
           <span title={`sum of the top 8 players' projected FP/G (${t.talent_fpg}); a fantasy-talent ranking, not a win projection`}>
             team <strong>#{t.talent_rank}</strong> of {t.teams} in projected fantasy talent
           </span>

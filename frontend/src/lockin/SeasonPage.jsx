@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { api, qs } from "../api.js";
 import Headshot from "../core/Headshot.jsx";
 import { PosList, PosTag } from "../core/Pos.jsx";
-import PlayerSidebar, { DepthGrid, TeamRanks } from "../core/PlayerSidebar.jsx";
+import PlayerSidebar, { DepthGrid, TeamRanks, TeamSummary } from "../core/PlayerSidebar.jsx";
 import TeamLink, { TeamLinkContext } from "../core/TeamLink.jsx";
 import PlayerSearch from "../core/PlayerSearch.jsx";
 import NeonArrow from "../core/NeonArrow.jsx";
@@ -74,25 +74,18 @@ export function TeamPanel({ abbr, leagueId, onOpenPid, onClose }) {
     <div className="panel scroll team-panel" data-testid="team-panel">
       <button className="sidebar-close" onClick={onClose} title="Close team" data-testid="team-close" aria-label="Close team"><Icon name="x" /></button>
       {!t ? <div className="muted">{error || `Loading ${abbr}…`}</div> : <>
-        <div className="tp-head sec">
-          <img src={t.logo} alt="" width={52} height={52} onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
-          <div>
-            <h3 className="tp-name">{t.name}{t.conference && <span className={`conf conf-${t.conference}`}>{t.conference}</span>}</h3>
-            <div className="small muted">{results.length > 0 && <><strong data-testid="team-nba-record">{results.filter((r) => r === "W").length}-{results.filter((r) => r === "L").length}</strong> · </>}
-              team <strong>#{t.talent_rank}</strong> of {t.teams} in projected fantasy talent</div>
-          </div>
-        </div>
+        <TeamSummary t={t} link={false} record={results.length ? `${results.filter((r) => r === "W").length}-${results.filter((r) => r === "L").length}` : null} />
         <nav className="profile-tabs" data-testid="team-tabs">
           {TEAM_TABS.map(([id, label]) => <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)} data-testid={`team-tab-${id}`}>{label}</button>)}
         </nav>
         {tab === "schedule" && (
           <DragScroll vertical className="tp-schedule sec news-scroll" data-testid="team-schedule">{t.schedule.map((g) => (
-            <div key={g.date} className="tp-game">
+            <div key={g.date} className={`tp-game ${Math.floor((Date.parse(g.date) / 864e5 + 3) / 7) % 2 ? "wk-alt" : ""}`}>
               <span className="small muted tp-date">{dayName(g.date)} {md(g.date)}</span>
               <span className="muted tp-at">{g.home ? "vs" : "@"}</span>
               <img src={teamLogo(g.opp)} alt="" width={22} height={22} />
               <TeamLink abbr={g.opp}>{t.names[g.opp] || g.opp}</TeamLink>
-              {g.result && <span className="tp-result"><strong className={g.result === "W" ? "ok" : "warn-text"}>{g.result}</strong> {g.pts}-{g.opp_pts}</span>}
+              {g.result && <><strong className={`tp-wl ${g.result === "W" ? "tp-w" : "warn-text"}`}>{g.result}</strong><span className="tp-result">{g.pts}-{g.opp_pts}</span></>}
             </div>
           ))}</DragScroll>
         )}
@@ -810,13 +803,13 @@ function BestGames({ leagueId, week, openPid, openGame }) {
                 <div className="small muted best-line">{b.lead.map(([k, v]) => <span key={k}><strong>{v}</strong> {k}</span>)}
                   <span>{b.fg[0]}/{b.fg[1]} FG</span><span>{b.ft[0]}/{b.ft[1]} FT</span><span>{b.min} MIN</span></div>
               </div>
+              <span className="best-fp">{fp(b.fp)}<small>FP</small></span>
               <div className={`best-gamecard ${g.event && openGame ? "clickable" : ""}`}
                 onClick={g.event && openGame ? () => openGame({ game: g, team: b.team, sid: b.sid, name: b.name }) : undefined}>
                 {[away, home].map(([abbr, pts]) => (
                   <div key={abbr} className={`best-gc-team ${abbr === b.team ? "his" : ""}`}><img src={teamLogo(abbr)} alt="" width={16} height={16} /> {abbr}<strong>{pts ?? "—"}</strong></div>))}
                 <div className="best-gc-status"><span className={g.state === "in" ? "gp-live" : ""}>{status}</span> {dayName(g.date)}</div>
               </div>
-              <span className="best-fp">{fp(b.fp)}<small>FP</small></span>
             </div>
           );
         })}</div>

@@ -656,8 +656,9 @@ table.depth-grid { width: 100%; margin-top: 8px; }
 .team-panel { position: relative; }
 .tp-head { display: flex; align-items: center; gap: 12px; margin: 30px 0 10px; }
 .tp-name { margin: 0; font-size: var(--fs-xl); }
-.tp-game { display: grid; grid-template-columns: 82px 22px 24px 1fr auto; align-items: center; gap: 8px; padding: 6px 2px; border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent); }
-.tp-date { white-space: nowrap; } .tp-at { text-align: center; } .tp-result { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tp-game { display: grid; grid-template-columns: 82px 22px 24px 1fr 14px 62px; align-items: center; gap: 8px; margin: 0 -12px; padding: 6px 14px; border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent); }
+.tp-date { white-space: nowrap; } .tp-at { text-align: center; } .tp-wl { text-align: center; } .tp-w { color: var(--ok); }
+.tp-game.wk-alt, .sp-log tr.wk-alt td { background: color-mix(in srgb, var(--primary) 9%, transparent); } .tp-result { white-space: nowrap; font-variant-numeric: tabular-nums; text-align: right; font-weight: 700; }
 .tp-stats-wrap { margin-top: 0; overflow-x: auto; cursor: grab; user-select: none; }
 .tp-stats-wrap.dragging { cursor: grabbing; }
 .news-scroll { overflow-y: auto; cursor: grab; user-select: none; }
@@ -830,9 +831,9 @@ main:has(.season-grid) { max-width: none; padding: 12px 16px; flex: 1; min-heigh
 .team-rec { flex-shrink: 0; }
 .team-avatar { border-radius: 50%; object-fit: cover; flex: none; background: var(--panel-2); }
 .mu-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.profile-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; margin: 12px 0 12px; padding: 3px; border-radius: 10px; background: var(--primary-soft); border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--border)); }
+.profile-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; margin: 12px 0 12px; padding: 3px; border-radius: 10px; background: var(--panel-solid); border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--border)); box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.35); }
 .profile-tabs button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: none; background: none; box-shadow: none; padding: 6px 4px; border-radius: 8px; font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
-.profile-tabs button.active { background: var(--primary); color: var(--on-primary); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); }
+.profile-tabs button.active { background: var(--primary); color: var(--on-primary); font-weight: 700; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45); }
 .sp-game { padding: 10px 12px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--border); margin-bottom: 12px; }
 .sp-game.live { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
 .sp-game-top { display: flex; justify-content: space-between; align-items: center; }
@@ -850,10 +851,15 @@ main:has(.season-grid) { max-width: none; padding: 12px 16px; flex: 1; min-heigh
 :is(.sp-grid-3, .sp-grid-2) .sp-stat { padding: 5px 8px; gap: 3px; text-align: center; } .sp-stat small { font-size: var(--fs-2xs); line-height: 1.25; } .sp-good { color: var(--ok); }
 .sp-stat > span { font-size: var(--fs-3xs); font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .sp-stat strong { font-size: var(--fs-md); }
-.sp-meta { margin-top: 10px; }
+.sp-meta { margin-top: 6px; }
+.sp-meta .sp-stat { padding: 2px 6px; gap: 1px; }
+.sp-meta .sp-stat strong { font-size: var(--fs-sm); }
+.sp-meta .sp-stat small { font-size: var(--fs-3xs); }
 .sec { padding: 10px 12px; margin-top: 10px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--border); }
-.tp-head.sec { margin: 34px 0 10px; }
-.profile-top { margin-top: 34px; }
+.tp-head.sec { margin: 8px 0 10px; }
+.tp-title { flex: 1; min-width: 0; }
+.tp-rec { margin-left: 8px; font-size: var(--fs-md); font-weight: 600; }
+.profile-top { margin-top: 8px; }
 .profile-top > h3 { display: block; margin: 0 0 4px; }
 .profile-top > h3 > :first-child { float: left; margin-right: 14px; }
 .profile-top .profile-tags { display: flex; align-items: flex-start; margin: 4px 0 0; }
@@ -1072,7 +1078,7 @@ header.top .brand .logo .icon { width: 20px; height: 20px; }
   .guide-odds { gap: 3px; margin-bottom: 2px; }
   .guide-chips { margin-top: 6px; gap: 4px; }
   .guide-swaps { gap: 5px 6px; }
-  .profile-top { margin-top: 28px; }
+  .profile-top { margin-top: 7px; }
   .profile-tabs { margin: 8px 0; } .profile-tabs button { padding: 4px; }
   .sp-head { margin: 6px 0 4px; } .sp-stat { padding: 3px 2px; } .sp-grid-5 { margin-top: 4px; }
   .sp-game { margin-bottom: 6px; } .sp-game-mid { margin: 3px 0 2px; } .sp-meta { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 2px 16px; }
