@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { PosTag } from "./Pos.jsx";
 import { api } from "../api.js";
 import useSaveShortcut from "../useSaveShortcut.js";
 
@@ -214,7 +215,7 @@ export default function SettingsPage({ leagueId }) {
         <div className="panel">
           <h3>Roster slots <span className="muted small">— {mandatory} mandatory (non-IR) slots must be filled by draft's end; IR is optional</span></h3>
           <div className="row">
-            {SLOT_TYPES.map((slot) => <label key={slot} className="inline">{slot} <Num value={slotCount(slot)} onChange={(v) => setSlot(slot, v || 0)} step="1" data-testid={`slot-${slot}`} /></label>)}
+            {SLOT_TYPES.map((slot) => <label key={slot} className="inline"><PosTag text={slot} /> <Num value={slotCount(slot)} onChange={(v) => setSlot(slot, v || 0)} step="1" data-testid={`slot-${slot}`} /></label>)}
           </div>
         </div>
 

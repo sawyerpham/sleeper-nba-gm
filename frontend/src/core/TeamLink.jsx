@@ -6,7 +6,7 @@ export function TeamTag({ abbr }) {
   if (!abbr) return null;
   return (
     <span className="team-tag">
-      <img src={`https://sleepercdn.com/images/team_logos/nba/${abbr.toLowerCase()}.png`} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+      <TeamLink abbr={abbr}><img src={`https://sleepercdn.com/images/team_logos/nba/${abbr.toLowerCase()}.png`} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} /></TeamLink>
       <TeamLink abbr={abbr} />
     </span>
   );

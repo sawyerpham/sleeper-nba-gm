@@ -155,13 +155,22 @@ def _team_block(state: AppState, session, player_id: int) -> dict:
                 "pos": (session.overrides.get(pid).eligibility if session.overrides.get(pid) else []),
                 "drafted_by": names.get(drafted.get(pid)), "is_self": pid == player_id}
 
+    inj = live_injuries(state)
     return {
         **team_header(state, session, abbr, rosters),
         "player_rank": next((i for i, (_, pid) in enumerate(roster, 1) if pid == player_id), None),
         "teammates": [mate(fpg_of[pid], pid) for pid in shown],
-        "depth_grid": depth_grid(session, roster, player_id, inj=live_injuries(state)),
+        "depth_grid": depth_grid(session, roster, player_id, inj=inj),
+        "injuries": team_injuries(session, inj, abbr),
         "role": _team_role(session, roster, player_id),
     }
+
+
+def team_injuries(session, inj: dict, abbr: str) -> list[dict]:
+    """One NBA team's Questionable / Out players (inj: sleeper_injuries), outs first; each carries his player_id when we know him. The Team card's Roster status."""
+    by_sid = {r.sleeper_id: pid for pid, r in session.players.items() if r.sleeper_id}
+    hurt = [{**h, "player_id": by_sid.get(sid)} for sid, h in inj.items() if h["team"] == abbr]
+    return sorted(hurt, key=lambda h: (h["group"] != "out", h["name"]))
 
 
 def team_header(state: AppState, session, abbr: str, rosters=None) -> dict:
@@ -203,7 +212,7 @@ def live_injuries(state: AppState) -> dict[str, dict]:
 
 def depth_grid(session, roster: list[tuple[float, int]], self_id: int | None = None, inj: dict | None = None) -> dict:
     """Sleeper's depth chart for one NBA team (roster: team_rosters' [(projected FP/G, player id)]): PG -> C,
-    1st / 2nd / 3rd option at each spot, each with his injury tag right now (inj: sleeper_injuries). Shared by the
+    1st to 5th option at each spot, each with his injury tag right now (inj: sleeper_injuries). Shared by the
     player profile's Team tab, the season game card and the Team card."""
     inj = inj or {}
     drafted = {p.player_id: p.manager_id for p in session.draft.picks}
@@ -218,10 +227,10 @@ def depth_grid(session, roster: list[tuple[float, int]], self_id: int | None = N
                 **{k: (inj.get(rec.sleeper_id) or {}).get(f) for k, f in (("injury", "status"), ("health", "group"), ("injury_body", "body"))}}
 
     def at(pos: str) -> list[int]:
-        """The (up to three) players at one position, in depth-chart order."""
+        """The (up to five) players at one position, in depth-chart order."""
         f = lambda pid: session.players[pid].fantasy
         return sorted((pid for pid in fpg_of if f(pid) and f(pid).depth_chart_position == pos and f(pid).depth_chart_order),
-                      key=lambda pid: f(pid).depth_chart_order)[:3]
+                      key=lambda pid: f(pid).depth_chart_order)[:5]
     return {pos: [cell(pid) for pid in at(pos)] for pos in ("PG", "SG", "SF", "PF", "C")}
 
 

@@ -3,6 +3,7 @@ import { PosList, PosTag, posClass, tierHue } from "./Pos.jsx";
 import { api, qs } from "../api.js";
 import { CallBadge, Term, TERMS } from "./Terms.jsx";
 import Headshot from "./Headshot.jsx";
+import DragScroll from "./DragScroll.jsx";
 import TeamLink, { TeamTag } from "./TeamLink.jsx";
 import { ordinal } from "../draft/SpendingGuide.jsx";
 import { SeasonHistory, SeasonLog, SeasonSummary } from "../lockin/SeasonProfile.jsx";
@@ -114,6 +115,7 @@ export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, us
           </div>
         ))}
       </div>)}
+      {season && <RosterStatus injuries={data.team.injuries || []} onOpenPid={onSelectPlayer} />}
     </div>
   );
 
@@ -265,7 +267,7 @@ export function TeamSummary({ t, record, link = true }) {
   const rec = record ?? t.record;
   return (
     <div className="tp-head sec" data-testid="team-summary">
-      <img src={t.logo} alt="" width={52} height={52} onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} />
+      <TeamLink abbr={link ? t.abbr : null}><img src={t.logo} alt="" width={52} height={52} onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} /></TeamLink>
       <div className="tp-title">
         <h3 className="tp-name">{link ? <TeamLink abbr={t.abbr}>{t.name}</TeamLink> : t.name}
           {rec && <span className="tp-rec muted" data-testid="team-nba-record">{rec}</span>}
@@ -303,13 +305,35 @@ export function TeamRanks({ r }) {
   );
 }
 
-export function DepthGrid({ grid, onSelectPlayer }) {
+/** The Team card's Roster status: this NBA team's Questionable and Out players, from the team endpoint's `injuries`. */
+export function RosterStatus({ injuries, onOpenPid }) {
   return (
-    <table className="depth-grid small" data-testid="depth-grid">
-      <thead><tr><th></th><th>1st</th><th>2nd</th><th>3rd</th></tr></thead>
+    <div className="sec" data-testid="team-injuries"><div className="bid-label sp-head">Roster status</div>{[["q", "help", "Questionable"], ["out", "minuscircle", "Out"]].map(([g, icon, title]) => {
+      const list = injuries.filter((h) => h.group === g);
+      return (
+        <section key={g} className={`tp-inj health-box-${g}`}>
+          <h4 className={`health-${g}`}><Icon name={icon} /> {title}</h4>
+          {list.map((h) => (
+            <div key={h.sid} className={`tp-inj-row ${h.player_id ? "clickable" : ""}`} onClick={() => h.player_id && onOpenPid?.(h.player_id)}>
+              <Headshot sleeperId={h.sid} name={h.name} size={28} />
+              <span><strong className={`health-${g}`}>{h.name}</strong> <span className="small"><PosList list={h.pos} /></span></span>
+              <span className="small tp-inj-tag">{h.status}{h.body ? ` · ${h.body}` : ""}{h.note ? ` · ${h.note}` : ""}</span>
+            </div>
+          ))}
+        </section>
+      );
+    })}</div>
+  );
+}
+
+export function DepthGrid({ grid, onSelectPlayer }) {
+  const cols = Math.max(3, ...Object.values(grid).map((l) => l.length));
+  return (
+    <DragScroll className="dg-scroll"><table className="depth-grid small" data-testid="depth-grid" style={{ "--cols": cols }}>
+      <thead><tr><th></th>{Array.from({ length: cols }, (_, i) => <th key={i}>{ordinal(i + 1)}</th>)}</tr></thead>
       <tbody>{["PG", "SG", "SF", "PF", "C"].map((pos) => (
         <tr key={pos} className="dg-row"><td className="dg-pos"><PosTag text={pos} /></td>
-          {[0, 1, 2].map((i) => {
+          {Array.from({ length: cols }, (_, i) => {
             const m = grid[pos]?.[i];
             return <td key={i} className={m ? `dg-cell ${m.is_self ? "self" : "clickable"}` : "muted"} onClick={() => m && !m.is_self && onSelectPlayer?.(m.player_id)}
               data-tip={m ? [m.injury && `${m.injury}${m.injury_body ? ` (${m.injury_body})` : ""}`, `${m.fpg} FP/G`, m.drafted_by && `drafted by ${m.drafted_by}`].filter(Boolean).join(" · ") : ""}>
@@ -317,6 +341,6 @@ export function DepthGrid({ grid, onSelectPlayer }) {
             </td>;
           })}
         </tr>))}</tbody>
-    </table>
+    </table></DragScroll>
   );
 }

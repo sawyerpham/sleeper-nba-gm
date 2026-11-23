@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { api, qs } from "../api.js";
 import Headshot from "../core/Headshot.jsx";
 import { PosList, PosTag } from "../core/Pos.jsx";
-import PlayerSidebar, { DepthGrid, TeamRanks, TeamSummary } from "../core/PlayerSidebar.jsx";
+import PlayerSidebar, { DepthGrid, RosterStatus, TeamRanks, TeamSummary } from "../core/PlayerSidebar.jsx";
 import TeamLink, { TeamLinkContext } from "../core/TeamLink.jsx";
 import PlayerSearch from "../core/PlayerSearch.jsx";
 import NeonArrow from "../core/NeonArrow.jsx";
@@ -83,7 +83,7 @@ export function TeamPanel({ abbr, leagueId, onOpenPid, onClose }) {
             <div key={g.date} className={`tp-game ${Math.floor((Date.parse(g.date) / 864e5 + 3) / 7) % 2 ? "wk-alt" : ""}`}>
               <span className="small muted tp-date">{dayName(g.date)} {md(g.date)}</span>
               <span className="muted tp-at">{g.home ? "vs" : "@"}</span>
-              <img src={teamLogo(g.opp)} alt="" width={22} height={22} />
+              <TeamLink abbr={g.opp}><img src={teamLogo(g.opp)} alt="" width={22} height={22} /></TeamLink>
               <TeamLink abbr={g.opp}>{t.names[g.opp] || g.opp}</TeamLink>
               {g.result && <><strong className={`tp-wl ${g.result === "W" ? "tp-w" : "warn-text"}`}>{g.result}</strong><span className="tp-result">{g.pts}-{g.opp_pts}</span></>}
             </div>
@@ -110,21 +110,7 @@ export function TeamPanel({ abbr, leagueId, onOpenPid, onClose }) {
         {tab === "news" && <DragScroll vertical className="sec news-scroll">{news ? (news.length ? news.map((n, i) => <NewsNote key={i} n={n} open={onOpenPid} />) : <div className="muted">No recent notes on this team's players.</div>)
           : <div className="muted">Loading news…</div>}</DragScroll>}
         {tab === "roster" && (
-          <div className="sec" data-testid="team-injuries"><div className="bid-label sp-head">Roster status</div>{[["q", "? Questionable", "Game-time and day-to-day decisions"], ["out", "(−) Out", "Out and injured reserve"]].map(([g, title, sub]) => {
-            const list = t.injuries.filter((h) => h.group === g);
-            return (
-              <section key={g} className={`tp-inj health-box-${g}`}>
-                <h4 className={`health-${g}`}>{title} <span className="small muted">· {sub} ({list.length})</span></h4>
-                {list.length ? list.map((h) => (
-                  <div key={h.sid} className={`tp-inj-row ${h.player_id ? "clickable" : ""}`} onClick={() => h.player_id && onOpenPid(h.player_id)}>
-                    <Headshot sleeperId={h.sid} name={h.name} size={28} />
-                    <span><strong className={`health-${g}`}>{h.name}</strong> <span className="small muted">{h.pos.join(" ")}</span></span>
-                    <span className="small tp-inj-tag">{h.status}{h.body ? ` · ${h.body}` : ""}{h.note ? ` · ${h.note}` : ""}</span>
-                  </div>
-                )) : <div className="small muted">None.</div>}
-              </section>
-            );
-          })}</div>
+          <RosterStatus injuries={t.injuries} onOpenPid={onOpenPid} />
         )}
       </>}
     </div>
@@ -180,7 +166,7 @@ export function GamePanel({ sel, data, leagueId, onOpenPid, onClose }) {
             <h4>Top performers</h4>
             <div className="gp-leaders">{g.teams.map((t) => (
               <div key={t.abbr}>
-                <div className="gp-leaders-team">{t.logo && <img src={t.logo} alt="" width={18} height={18} />}<TeamLink abbr={t.abbr} /></div>
+                <div className="gp-leaders-team">{t.logo && <TeamLink abbr={t.abbr}><img src={t.logo} alt="" width={18} height={18} /></TeamLink>}<TeamLink abbr={t.abbr} /></div>
                 {[...t.players].sort((a, b) => b.fp - a.fp).slice(0, 5).map((r) => {
                   const own = owner[normName(r.name)];
                   return (
@@ -658,7 +644,7 @@ function NewsNote({ n, open, owner }) {
         </span>
         {n.pos?.length > 0 && <span className="small"><PosList list={n.pos} /></span>}
         {n.role && <span className={`role-tag ${n.role.star ? "star" : ""}`}>{n.role.label}</span>}
-        {n.team && <span className="small muted news-team"><img src={teamLogo(n.team)} alt="" width={16} height={16} /><TeamLink abbr={n.team} /></span>}
+        {n.team && <span className="small muted news-team"><TeamLink abbr={n.team}><img src={teamLogo(n.team)} alt="" width={16} height={16} /></TeamLink><TeamLink abbr={n.team} /></span>}
         <InjuryTag tag={n.injury_tag} note={n.injury_note} />
         {owner && <span className="small muted">· {n.owner}</span>}
         <span className="small muted news-time">{newsTime(n.published)}</span>
@@ -807,7 +793,7 @@ function BestGames({ leagueId, week, openPid, openGame }) {
               <div className={`best-gamecard ${g.event && openGame ? "clickable" : ""}`}
                 onClick={g.event && openGame ? () => openGame({ game: g, team: b.team, sid: b.sid, name: b.name }) : undefined}>
                 {[away, home].map(([abbr, pts]) => (
-                  <div key={abbr} className={`best-gc-team ${abbr === b.team ? "his" : ""}`}><img src={teamLogo(abbr)} alt="" width={16} height={16} /> {abbr}<strong>{pts ?? "—"}</strong></div>))}
+                  <div key={abbr} className={`best-gc-team ${abbr === b.team ? "his" : ""}`}><TeamLink abbr={abbr}><img src={teamLogo(abbr)} alt="" width={16} height={16} /></TeamLink> {abbr}<strong>{pts ?? "—"}</strong></div>))}
                 <div className="best-gc-status"><span className={g.state === "in" ? "gp-live" : ""}>{status}</span> {dayName(g.date)}</div>
               </div>
             </div>

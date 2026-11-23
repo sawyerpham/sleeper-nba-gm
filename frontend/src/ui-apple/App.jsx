@@ -8,7 +8,7 @@ import Icon from "../core/Icon.jsx";
 import { TipLayer } from "../core/Terms.jsx";
 import useBackdrop from "../core/useBackdrop.js";
 import useSwipe from "../core/useSwipe.js";
-import { TeamLinkContext } from "../core/TeamLink.jsx";
+import TeamLink, { TeamLinkContext } from "../core/TeamLink.jsx";
 import { SEASON_VIEWS, SettingsModal, useAppState } from "../core/Shell.jsx";
 import useSeason from "../lockin/useSeason.js";
 import { CardNav, CurrentCard, SeasonTools, WeekNav, callsOf, nextCheckIn, nowOf, slate } from "../lockin/seasonBits.jsx";
@@ -247,10 +247,10 @@ function Slate({ data, s, rid }) {
       <h3>{date === data.today ? "League Tonight" : dayName(date)} <span className="small muted">{list.length} games</span></h3>
       <div className="ap-games">
       {list.map((g) => (
-        <button key={g.event} className={`ap-row ap-game ${g.state}`} onClick={() => s.openGame(g.sel)}>
+        <div key={g.event} role="button" tabIndex={0} className={`ap-row ap-game ${g.state}`} onClick={() => s.openGame(g.sel)} onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) s.openGame(g.sel); }}>
           <span className="ap-teams">
             {[[g.away, g.awayScore, g.homeScore, g.awayRecord], [g.home, g.homeScore, g.awayScore, g.homeRecord]].map(([t, sc, opp, rec]) => (
-              <span key={t} className={`ap-team${g.state === "post" && sc < opp ? " lost" : ""}`}><img src={teamLogo(t)} alt="" width={26} height={26} /><strong>{t}</strong>{rec && <small className="ap-rec">{rec}</small>}{g.state !== "pre" && <b>{sc ?? ""}</b>}</span>
+              <span key={t} className={`ap-team${g.state === "post" && sc < opp ? " lost" : ""}`}><TeamLink abbr={t}><img src={teamLogo(t)} alt="" width={26} height={26} /></TeamLink><strong>{t}</strong>{rec && <small className="ap-rec">{rec}</small>}{g.state !== "pre" && <b>{sc ?? ""}</b>}</span>
             ))}
             {g.state === "pre" && <b className="ap-vs">-</b>}
           </span>
@@ -260,7 +260,7 @@ function Slate({ data, s, rid }) {
           <span className="ap-meta">
             <span className="ap-game-status">{g.state === "in" ? <><i className="live-dot" />{quarters(g.detail)}</> : g.state === "post" ? "Final" : timeOf(g.tip)}</span>
           </span>
-        </button>
+        </div>
       ))}
       </div>
       {!list.length && <div className="ap-row ap-empty small muted">No games left this week.</div>}

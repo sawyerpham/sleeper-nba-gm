@@ -4,6 +4,7 @@
   box-shadow: var(--shadow); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); z-index: -1; }
 .ap-side > * { position: relative; }
 .ap .ap-brand { display: flex; align-items: center; gap: 12px; margin: 10px 10px 12px; padding: 8px; border-radius: 16px; background: transparent; text-align: left; }
+:root[data-theme] .ap .ap-brand { background: none; border: 0; box-shadow: none; }
 .ap-brand-icon { flex: none; width: 42px; height: 42px; display: grid; place-items: center; font-size: var(--fs-2xl); border-radius: 12px; color: #fff;
   background: linear-gradient(160deg, #ff9f0a, #ff6a00); box-shadow: 0 4px 12px rgba(255, 106, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
 .ap-brand-text { min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
@@ -71,7 +72,7 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
 .ap-pair > .panel { min-height: 0; overflow: visible; padding: 14px 6px 6px; }
 .ap-group h3 { margin: 0 0 6px 14px; font-size: var(--fs-lg); }
 .ap .ap-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 14px; border: 0; border-radius: 0; background: transparent; text-align: left; position: relative; }
-.ap-row + .ap-row::before { content: ""; position: absolute; top: 0; left: 14px; right: 0; border-top: 1px solid var(--border-inner); }.ap button.ap-row:hover { background: var(--hover); }
+.ap-row + .ap-row::before { content: ""; position: absolute; top: 0; left: 14px; right: 0; border-top: 1px solid var(--border-inner); }.ap :is(button, div).ap-row:hover { cursor: pointer; background: var(--hover); }
 .ap-empty { color: var(--muted); font-size: var(--fs-sm); }
 .ap-call { --st: var(--muted); }
 .ap-call.bad { --st: var(--danger); } .ap-call.even { --st: var(--q); } .ap-call.good { --st: var(--ok); }
@@ -80,9 +81,10 @@ main.ap-main:not(:has(.ap-page)) { padding: 24px 28px 48px; }
 .ap-call-when { flex: none; font-size: var(--fs-sm); font-weight: 600; color: var(--muted); }
 .ap-game { color: var(--text); font: inherit; }
 .ap-games { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 0 8px 4px; }.ap-games .ap-row::before { display: none; }
-.ap .ap-game { display: grid; grid-template-columns: minmax(0, 1fr) 150px auto; gap: 14px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel-2, transparent); }
+.ap .ap-game { display: grid; grid-template-columns: minmax(0, 1fr) 150px auto; gap: 14px; padding: 6.5px 14px; min-height: calc(var(--mu-av) + 19px); border: 1px solid var(--border); border-radius: 14px; background: var(--panel-2, transparent); }
 .ap-teams { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .ap-vs { position: absolute; right: 0; top: 50%; width: 2em; transform: translateY(-50%); text-align: center; font-size: var(--fs-lg); font-weight: 700; }
+.ap-team .team-link { position: relative; z-index: 1; display: inline-flex; }
 .ap-team { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .ap-team img { flex: none; width: 26px; height: 26px; object-fit: contain; }
 .ap-team strong { font-size: var(--fs-md); font-weight: 700; }

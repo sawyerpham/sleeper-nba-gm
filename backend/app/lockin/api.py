@@ -88,7 +88,7 @@ def best(league_id: str, week: int | None = Query(None, ge=1), state: AppState =
 @router.get("/team")
 def team(league_id: str, abbr: str = Query(..., pattern=r"^[A-Z]{2,4}$"), state: AppState = Depends(get_state)) -> dict:
     """One NBA team for the Team card: name, logo, fantasy-talent rank, offense / defense ranks and depth chart."""
-    from ..core.api.players import team_header
+    from ..core.api.players import team_header, team_injuries
 
     session = _session(state, league_id)
     head = team_header(state, session, abbr)
@@ -96,12 +96,10 @@ def team(league_id: str, abbr: str = Query(..., pattern=r"^[A-Z]{2,4}$"), state:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"unknown team {abbr}")
     fetch, year = _fetch(state), session.league.roster_season.split("-")[0]
     rows, done = team_stat_rows(fetch, year)
-    by_sid = {r.sleeper_id: pid for pid, r in session.players.items() if r.sleeper_id}
-    hurt = [{**h, "player_id": by_sid.get(sid)} for sid, h in sleeper_injuries(fetch).items() if h["team"] == abbr]
     return {**head, "ranks": team_ranks(rows, abbr, done), "names": _team_names(state),
             "schedule": team_schedule(fetch(f"{SLEEPER}/schedule/nba/regular/{year}", DAY_TTL) or [], abbr),
             "stats": team_player_stats(session, rows, done, abbr),
-            "injuries": sorted(hurt, key=lambda h: (h["group"] != "out", h["name"]))}
+            "injuries": team_injuries(session, sleeper_injuries(fetch), abbr)}
 
 
 def _team_names(state: AppState) -> dict[str, str]:

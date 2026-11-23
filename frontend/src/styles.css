@@ -11,7 +11,7 @@
   --even-t: #fcd34d; --bad: rgba(248, 113, 113, 0.14); --bad-t: #fca5a5; --warn: rgba(248, 113, 113, 0.14); --warn-t: #fca5a5;
   --sleeper: rgba(56, 189, 248, 0.14); --sleeper-t: #7dd3fc; --manual: rgba(251, 191, 36, 0.14); --manual-t: #fcd34d;
   --user-card: rgba(52, 211, 153, 0.06); --user-b: rgba(52, 211, 153, 0.35);
-  --pos-PG: #ff2c6d; --pos-SG: #ff7a00; --pos-SF: #00ffc6; --pos-PF: #00d7ff; --pos-C: #c96cff; --rank-0: #16a34a; --rank-1: #4ade80;
+  --pos-PG: #ff375f; --pos-SG: #ff9f0a; --pos-SF: #40c8e0; --pos-PF: #64a8ff; --pos-C: #da8fff; --rank-0: #16a34a; --rank-1: #4ade80;
   --rank-2: #bef264; --rank-3: #facc15; --rank-4: #fca5a5; --rank-5: #f87171; --rank-6: #dc2626;
   --fs-3xs: 11px; --fs-2xs: 12px; --fs-xs: 13px; --fs-sm: 14px; --fs-md: 15px; --fs-base: 16px; --fs-lg: 18px; --fs-xl: 20px; --fs-2xl: 22px; --fs-3xl: 26px; --fs-4xl: 30px; --fs-5xl: 34px; --fs-6xl: 40px;
   --font-ui: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; --font-num: var(--font-ui); --font-display: var(--font-ui);
@@ -652,6 +652,9 @@ button.tiny { font-size: var(--fs-3xs); padding: 1px 6px; }
 .team-ranks-head { font-weight: 700; font-size: var(--fs-md); padding-bottom: 4px; margin-bottom: 2px; border-bottom: 1px solid var(--border); }
 .team-ranks-row { padding: 3px 0; }
 table.depth-grid { width: 100%; margin-top: 8px; }
+.dg-scroll { overflow-x: auto; cursor: grab; user-select: none; scrollbar-width: none; } .dg-scroll::-webkit-scrollbar { display: none; } .dg-scroll.dragging { cursor: grabbing; }
+:root .dg-scroll table.depth-grid { width: max-content; min-width: 100%; } .dg-scroll table.depth-grid td { white-space: nowrap; }
+@media (max-width: 699px) { :root .dg-scroll table.depth-grid { table-layout: fixed; width: calc(100% * var(--cols) / 3); } .dg-scroll table.depth-grid th:first-child { width: 40px; } .dg-scroll table.depth-grid td { overflow: hidden; text-overflow: ellipsis; } }
 .health-q { color: var(--q); } .health-out { color: var(--danger); }
 .team-panel { position: relative; }
 .tp-head { display: flex; align-items: center; gap: 12px; margin: 30px 0 10px; }
@@ -774,12 +777,13 @@ main:has(.season-grid) { max-width: none; padding: 12px 16px; flex: 1; min-heigh
 .season-main > .matchup { flex: none; }
 .mu-scroll { display: flex; flex-direction: column; }
 .matchup.thin .mu-scroll { overflow-x: auto; scrollbar-width: thin; }
+:root { --mu-av: clamp(43px, 3.25vw, 58px); }
 .mu-cell { display: flex; min-height: 0; } .mu-cell > .mu-card { flex: 1; }
 .mu-slot.first { border-top: 1px dashed var(--border); }
 .mu-card { padding: 2px; align-items: stretch; }
 .mu-top { display: flex; min-width: 0; flex: 1; gap: 8px; align-items: stretch; }
 .mu-id { display: flex; align-items: center; flex: none; min-width: 0; padding: 2px 6px 2px 2px; border-radius: 8px; width: min(215px, 11.5vw); gap: 6px; margin-left: 0; padding-left: 5px; }
-.mu-id .headshot { width: clamp(34px, 2.6vw, 46px) !important; height: clamp(34px, 2.6vw, 46px) !important; }
+.mu-id .headshot { width: var(--mu-av) !important; height: var(--mu-av) !important; }
 .mu-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: clamp(13px, 0.85vw, 16px); }
 .mu-who .small { font-size: clamp(11px, 0.7vw, 13px); }
 .mu-call { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end; margin-left: auto; min-width: 0; }
@@ -799,7 +803,7 @@ main:has(.season-grid) { max-width: none; padding: 12px 16px; flex: 1; min-heigh
 .mu-score { display: inline-flex; align-items: center; gap: 8px; }
 .matchup .mu-team { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; text-align: left; padding: 2px 10px 2px 7px; border-radius: 10px; background: var(--primary-soft); border: 1px solid var(--primary); box-shadow: 0 0 6px var(--primary), 0 0 14px color-mix(in srgb, var(--primary) 55%, transparent), inset 0 0 6px color-mix(in srgb, var(--primary) 35%, transparent); }
 .matchup .mu-team.right { justify-content: flex-end; padding: 2px 5px 2px 10px; }
-.matchup .mu-team .team-avatar { width: clamp(34px, 2.6vw, 46px) !important; height: clamp(34px, 2.6vw, 46px) !important; }
+.matchup .mu-team .team-avatar { width: var(--mu-av) !important; height: var(--mu-av) !important; }
 .mu-team:not(.right) .mu-score { margin-left: auto; } .mu-team.right .mu-score { margin-right: auto; }
 .mu-exp-total { font-size: var(--fs-sm); font-weight: 600; color: var(--muted); }
 .mu-gap { text-align: center; margin: -12px 0 8px; }
@@ -1035,6 +1039,7 @@ tr.clickable:hover :is(.player-name, .tp-player > span:not(.pos-list), .gp-name,
 :root :is(.panel h2, .panel h3, .guide-head h3, .guide h4, .gp-section h4, .panel h4[class^="health-"], .wv-head h3, .news-teams h3, .dg-side h3, .modal > h3:first-child,
   .guide-card > .bid-label, .guide-chips .bid-label):not(.tp-name, :has(img, .headshot)) {
   color: var(--info-t); text-shadow: 0 0 8px color-mix(in srgb, var(--primary) 55%, transparent), 0 0 18px color-mix(in srgb, var(--primary) 25%, transparent); }
+:root .panel h4.health-q { color: var(--q); text-shadow: none; } :root .panel h4.health-out { color: var(--danger); text-shadow: none; }
 header.top nav button { text-shadow: 0 0 8px color-mix(in srgb, var(--c) 60%, transparent); }
 header.top nav button.active { text-shadow: 0 0 6px var(--c), 0 0 16px color-mix(in srgb, var(--c) 60%, transparent); }
 

@@ -1,4 +1,5 @@
 import React from "react";
+import { PosTag } from "../core/Pos.jsx";
 import TeamLink, { TeamTag } from "../core/TeamLink.jsx";
 import { fmt, tipInfo } from "./tz.js";
 import DragScroll from "../core/DragScroll.jsx";
@@ -92,7 +93,7 @@ export function SeasonSummary({ sea, onOpenGame, onOpenMatchup }) {
                 onClick: () => onOpenMatchup(sea.owner.roster_id), onKeyDown: (e) => e.key === "Enter" && onOpenMatchup(sea.owner.roster_id) })}>
               {sea.owner.is_user ? "You" : sea.owner.name}</strong>
             : <strong>Free agent</strong>}</div>
-          {sea.owner && <div className="sp-stat"><span>Slot</span><strong>{sea.owner.slot}</strong></div>}
+          {sea.owner && <div className="sp-stat"><span>Slot</span><strong><PosTag text={sea.owner.slot} /></strong></div>}
           <div className="sp-stat"><span>Status</span>{sea.retired ? <strong className="warn-text">retired</strong>
             : sea.injury_tag ? <><InjuryTag tag={sea.injury_tag} />{sea.injury_note && <small className="muted">{sea.injury_note.replace(`${sea.injury_tag}: `, "")}</small>}</> : <strong className="sp-good">healthy</strong>}</div>
         </div>
