@@ -283,6 +283,8 @@ export const LockIcon = ({ open }) => (
 
 const tipMs = (g) => Date.parse(g.tip) || Date.parse(`${g.date}T12:00:00`);
 
+/** Room left of a card's right edge after its last chip: the 9px the chips keep above and below. */
+const CHIP_INSET = 9;
 const CHIP_W = 100, CHIP_GAP = 6, HOUR_MIN = 4, HOUR_MAX = 12;
 function laneXs(games, width) {
   const day = new Map(games);
@@ -447,7 +449,7 @@ export function WeekView({ data, plan, open, openGame, setLock, leagueId, onShow
     return () => ro.disconnect();
   });
   const games = (players) => players.flatMap((r) => (data.players[r.sid]?.games || []).map((g) => [tipMs(g), g.date]));
-  const xs = React.useMemo(() => (narrow ? { xs: null } : laneXs([...games(shown?.players || []), ...games(shown?.opponent?.players || [])], lane?.w)),
+  const xs = React.useMemo(() => (narrow ? { xs: null } : laneXs([...games(shown?.players || []), ...games(shown?.opponent?.players || [])], lane?.w - CHIP_INSET)),
     [shown, data.players, lane?.w, narrow]);
   const cols = React.useMemo(() => (timeline || mobile ? null
     : [...new Set([...games(shown?.players || []), ...games(shown?.opponent?.players || [])].map((g) => g[1]))].sort()), [shown, data.players, timeline, mobile]);

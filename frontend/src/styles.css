@@ -827,7 +827,7 @@ main:has(.season-grid) { max-width: none; padding: 12px 16px; flex: 1; min-heigh
 .chips-lane > .game-chip { position: absolute; top: 50%; transform: translateY(-50%); width: 100px; height: calc(100% - 18px); justify-content: center; min-width: 0; box-sizing: border-box; }
 .chips-lane > .chips-row { display: flex; width: 100%; min-width: 0; flex-wrap: nowrap; align-self: stretch; }
 .chips-lane > .chips-row > .game-chip { justify-content: center; margin: 9px 0; }
-.chips-table { display: grid; gap: 6px; width: 100%; min-width: 0; align-self: stretch; align-items: stretch; }
+.chips-table { display: grid; gap: 6px; width: 100%; box-sizing: border-box; padding-right: 9px; min-width: 0; align-self: stretch; align-items: stretch; }
 .chips-table > .game-chip { justify-content: center; min-width: 0; width: 100%; margin: 9px 0; box-sizing: border-box; }
 .chips-table > .game-chip.graph { max-width: 60px; justify-self: center; }
 .matchup.no-timeline .mu-id { width: min(320px, 18vw); }
