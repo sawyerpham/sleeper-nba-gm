@@ -833,7 +833,10 @@ main:has(.season-grid) { max-width: none; padding: 12px 16px; flex: 1; min-heigh
 .chips-table > .game-chip.graph { max-width: 72px; justify-self: center; }
 .matchup.table-view .mu-id { width: min(320px, 18vw); }
 :root[data-theme] .matchup.table-view .mu-card { border-radius: 4px; }
-.matchup.table-view .chips-table > .game-chip :is(.gch-day, .gch-time, .gch-fp, .gch-exp) { color: var(--text); font-weight: 700; text-shadow: 0 0 3px rgba(0, 0, 0, 0.95), 0 1px 2px rgba(0, 0, 0, 0.9); }
+.matchup.table-view .chips-table > .game-chip :is(.gch-day, .gch-time, .gch-fp) { color: var(--text); font-weight: 700; text-shadow: 0 0 3px rgba(0, 0, 0, 0.95), 0 1px 2px rgba(0, 0, 0, 0.9); }
+/* The estimate stays gray beside the real points (green / red while live, as elsewhere). */
+.matchup.table-view .chips-table > .game-chip .gch-exp { color: var(--muted); font-weight: 500; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9); }
+.matchup.table-view .chips-table > .game-chip .gch-exp.up { color: var(--ok); } .matchup.table-view .chips-table > .game-chip .gch-exp.down { color: var(--danger); }
 .gch-bg { position: absolute; inset: 10%; width: 80%; height: 80%; object-fit: contain; opacity: 0.3; filter: saturate(0.7); pointer-events: none; z-index: -1; }
 .game-chip:is(.today, .pick) .gch-bg { opacity: 0.5; filter: none; }
 .mu-days { position: relative; height: 20px; }
