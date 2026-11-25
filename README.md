@@ -286,7 +286,17 @@ you are the only user. Buy a domain (about $10 a year) once other people need si
 **Only one copy may run the Telegram bot.** Telegram hands each message to one poller, and two watchers would both send
 alerts. Once the server is up, run locally without `TELEGRAM_BOT_TOKEN`, or with a second bot from @BotFather.
 
-Everyday: `git pull && docker compose -f compose.prod.yml up -d --build` to update; `docker compose -f compose.prod.yml
+**Continuous deployment.** Every push to `main` that passes CI (ruff, pytest, the frontend build, the Docker build) is
+deployed by the `deploy` job in `.github/workflows/ci.yml`: it SSHes in with a key that can only run `deploy/cd.sh`
+(pull, rebuild, wait until healthy), then checks `/api/health`. One-time setup:
+1. Make a key without a passphrase: `ssh-keygen -t ed25519 -N "" -C github-actions-deploy -f ~/.ssh/nba_fantasy_deploy`.
+2. On the server, add one line to `~/.ssh/authorized_keys` that locks it to the script:
+   `command="/home/ubuntu/app/deploy/cd.sh",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty <contents of nba_fantasy_deploy.pub>`
+3. In GitHub, Settings > Secrets and variables > Actions > New repository secret: name `DEPLOY_SSH_KEY`, value the
+   private key file `nba_fantasy_deploy`. Until it exists the job passes without deploying.
+If you use your own host, change the pinned `HOST_KEY` in the workflow (`ssh-keyscan -t ed25519 <host>`).
+
+By hand: `git pull && docker compose -f compose.prod.yml up -d --build` to update; `docker compose -f compose.prod.yml
 logs -f app` for logs. Backups: every day at 09:00 UTC, `backend/data/backups/data-YYYY-MM-DD.tgz` (accounts, leagues and
 settings, 14 days kept; `docker compose -f compose.prod.yml exec app python -m app.backup` runs one now). They sit on the
 same disk, so copy one off the VM now and then (`scp ubuntu@<ip>:~/app/backend/data/backups/<file> .`).

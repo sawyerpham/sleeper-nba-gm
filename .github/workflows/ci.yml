@@ -52,3 +52,28 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: docker build -t nba-fantasy-tool .
+
+  deploy:
+    name: Deploy to fantasy.sawyerpham.dev
+    needs: [backend, frontend, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency: deploy
+    env:
+      HAS_KEY: ${{ secrets.DEPLOY_SSH_KEY != '' }}   # until the secret is added, the job passes without deploying
+    steps:
+      - name: Redeploy over SSH
+        if: env.HAS_KEY == 'true'
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          # the server's host key, pinned so the runner never trusts a different machine
+          HOST_KEY: fantasy.sawyerpham.dev ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINO1atayZVp0RD1wNtmPMPfxzmrvBpzoHttd5C3Igycw
+        run: |
+          install -d -m 700 ~/.ssh
+          echo "$DEPLOY_SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          echo "$HOST_KEY" > ~/.ssh/known_hosts
+          # the key's forced command (deploy/cd.sh) pulls main, rebuilds and waits for the app to be healthy
+          ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes ubuntu@fantasy.sawyerpham.dev
+      - name: Check the site answers
+        if: env.HAS_KEY == 'true'
+        run: curl -fsS -o /dev/null --retry 5 --retry-delay 5 --retry-all-errors https://fantasy.sawyerpham.dev/api/health
