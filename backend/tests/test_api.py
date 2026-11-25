@@ -427,6 +427,19 @@ def test_player_detail_has_his_team_with_teammates_and_ranks(pulled):
     assert [order.index(m["depth"][:-1]) for m in starters] == sorted(order.index(m["depth"][:-1]) for m in starters)
 
 
+def test_player_detail_works_for_a_player_with_no_projection(pulled):
+    """A deep-bench player with no projection or valuation (not in his team's roster list) still gets his Team block; it used to 500."""
+    client, *_ = pulled
+    league(client, "lg-nobody", "Nobody League")
+    session = client.app.state.app_state.get_session("lg-nobody")
+    pid = next(p for p, r in session.players.items() if r.team_abbr and p != JOKIC)
+    session.players[pid].projection = None
+    session.valuations.pop(pid, None)
+    r = client.get(f"/api/players/{pid}?league_id=lg-nobody&include_history=false")
+    assert r.status_code == 200, r.text
+    assert any(m["is_self"] and m["fpg"] == 0 for m in r.json()["team"]["teammates"])
+
+
 def test_nba_teams_and_room_strength(pulled):
     """Nba teams and room strength."""
     client, *_ = pulled

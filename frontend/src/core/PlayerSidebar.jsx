@@ -35,7 +35,7 @@ export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, us
     ]).then(([d, f, r, sp, se]) => {
       if (ticket !== latest.current) return;
       setData(d); setFit(f); setRec(r); setSpend(sp); setSea(se); setError("");
-    }).catch((e) => { if (ticket === latest.current) setError(e.message); });
+    }).catch((e) => { if (ticket === latest.current) setError(e.message || "Couldn't load this player."); });
   }, [leagueId, playerId, live, season]);
 
   useEffect(() => { load(); }, [load, refreshKey]);

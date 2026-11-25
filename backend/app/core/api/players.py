@@ -139,7 +139,7 @@ def _team_block(state: AppState, session, player_id: int) -> dict:
         return (f.depth_chart_order, pos_order.index(f.depth_chart_position))
     by_depth = sorted((pid for _, pid in roster), key=lambda pid: (depth(pid), -dict((p, f) for f, p in roster)[pid]))
     shown = by_depth[:ROTATION + 2]
-    if player_id not in shown:
+    if player_id not in shown and player_id in session.players:   # a player with no projection is not in the roster
         shown.append(player_id)
     fpg_of = {pid: f for f, pid in roster}
 
@@ -159,7 +159,7 @@ def _team_block(state: AppState, session, player_id: int) -> dict:
     return {
         **team_header(state, session, abbr, rosters),
         "player_rank": next((i for i, (_, pid) in enumerate(roster, 1) if pid == player_id), None),
-        "teammates": [mate(fpg_of[pid], pid) for pid in shown],
+        "teammates": [mate(fpg_of.get(pid, 0.0), pid) for pid in shown],
         "depth_grid": depth_grid(session, roster, player_id, inj=inj),
         "injuries": team_injuries(session, inj, abbr),
         "role": _team_role(session, roster, player_id),
