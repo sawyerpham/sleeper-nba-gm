@@ -5,10 +5,15 @@
 ![Python 3.13](https://img.shields.io/badge/python-3.13-3776ab.svg)
 ![React 19](https://img.shields.io/badge/react-19-61dafb.svg)
 
+**Live at [fantasy.sawyerpham.dev](https://fantasy.sawyerpham.dev).** Sign in with your email (a one-time link, no
+password), connect your Sleeper league, and pick which manager you are.
+
 A full-stack assistant for Sleeper NBA fantasy leagues. Before the season it runs an auction-draft advisor. During the
 season it runs a lineup engine for Sleeper's **Lock-In** format: at any minute of the week it shows the best lineup,
 which finished games to lock, which bench player to swap in before the next tip, and how much each call changes the
-chance of winning the matchup. It is used every week by a 12-team league and pushes its calls to Telegram.
+chance of winning the matchup. A 12-team league uses it every week, and it pushes its calls to Telegram.
+
+![The Today page: win chance, the next check-in, lockable games, League Tonight, the Do now list, and the matchup in Table view](docs/today.png)
 
 ## What it does
 
@@ -32,6 +37,8 @@ chance of winning the matchup. It is used every week by a 12-team league and pus
   games each would play once a claim lands.
 - News: notes for your players, your league and free agents, with a teams report ranking NBA teams by starters hurt.
 - Telegram pushes: each GTD / OUT / swap / lock call once at its alarm time, and the lineup moves due before a tip.
+- Your way to look at it: a table view with one column per game day, a timeline view spaced by tip time, light and
+  dark mode, and a phone layout.
 
 **Before the season (auction drafts)**
 
@@ -154,185 +161,31 @@ about 0.03 from sample noise alone), and real margins still run wider than the p
 
 ## Testing and CI
 
-- 321 backend tests (`pytest`) run offline against captured real API responses under `backend/tests/fixtures`:
+- 374 backend tests (`pytest`) run offline against captured real API responses under `backend/tests/fixtures`:
   the engine, the API, reconciliation, scoring, the week plan and the Telegram watcher.
 - `frontend/src/lockin/swaps.check.mjs` replays every lineup swap the UI can propose and asserts each step is legal.
 - Playwright end-to-end scripts in `frontend/e2e`: a mock auction draft driven entirely through the browser, and
-  screenshot / computed-style diffs for CSS refactors (`e2e/ui-shots.mjs` still carries options for the removed UIs).
-- GitHub Actions runs `ruff`, the test suite, the swap checks, the production build and the Docker build on every push.
+  screenshot / computed-style diffs for CSS refactors.
+- GitHub Actions runs `ruff`, the test suite, the swap checks, the production build and the Docker build on every push,
+  and deploys `main` when they pass.
 
-## Run it
+## Production
 
-### Docker
-
-```sh
-docker compose run --rm app python -m app.pull   # first time only: NBA game logs and the Sleeper player file (a few minutes)
-docker compose up --build                         # then open http://localhost:8000
-```
-
-Pulled data lives in `backend/data/`, which the container mounts, so Docker and local runs share it.
-
-### Local
-
-Needs Python 3.13 and Node 20+.
-
-```sh
-cd backend
-python -m venv venv
-./venv/bin/python -m pip install -r requirements.txt     # Windows: .\venv\Scripts\python.exe
-./venv/bin/python -m app.pull
-./venv/bin/python -m app.serve --port 8000
-```
-
-In another terminal:
-
-```sh
-cd frontend
-npm install
-npm run dev          # http://localhost:5173, proxies /api to the backend
-```
-
-Then create a league, enter your Sleeper league id in Settings and pick which manager you are.
-
-Checks: `python -m pytest -q tests` and `ruff check` for the backend, `node src/lockin/swaps.check.mjs` and
-`npm run build` for the frontend.
-
-### Accounts and sign-in
-
-Every page needs an account. You sign in with your email: the app emails a one-time link (valid 15 minutes) through
-[Resend](https://resend.com), and the session lasts 30 days. Account types: **User** (sees only their own leagues),
-**Premium** (adds Telegram alerts and the Notifications settings), **Admin** and **Owner**. Owners are the emails in
-`ADMIN_EMAILS` and can't be changed in the app, so you can't lock yourself out; owners and admins set anyone else's type
-from the Admin tab. Admins and owners also get the **Admin** tab: every user with their type, activity, sign-ups, alerts
-sent, the Telegram bot, and the data pull.
-
-Security: every write from a browser must come from this site (a CSRF check on the Origin header, on top of the SameSite
-session cookie); every response carries a strict Content-Security-Policy (scripts only from this site), no framing and
-no Referer; emails are limited to plain addresses (no line breaks, quotes, commas or markup); Sleeper ids must be numbers
-and names have length caps; all database queries are parameterized and React escapes everything it shows. In production
-Caddy also caps request bodies at 1 MB and sends HSTS. The app runs as a plain user in its container, the API docs
-(`/docs`) are off on the https site, a regular account holds at most 10 leagues and 30 Sleeper syncs an hour, usage
-events (with IPs) are deleted after 90 days, and anyone but an owner can delete their account and its data from
-Settings > Account.
-
-Settings go in `backend/.env` (gitignored):
-```
-ADMIN_EMAILS=you@example.com            # comma-separated owners (permanent admins)
-RESEND_API_KEY=re_...                   # without it the sign-in link is printed in the backend log (local dev)
-MAIL_FROM=NBA Fantasy <login@yourdomain.com>   # a sender on a domain verified in Resend
-APP_URL=http://localhost:5173           # where the emailed link points; https://... in production (makes the cookie Secure)
-```
-Accounts live in `backend/data/app.db` (SQLite). An admin's first sign-in takes over the leagues created before accounts
-existed. Health (`/api/health`) and the calculators stay public.
-
-### Telegram notifications (optional; Premium, Admin and Owner accounts)
-
-Telegram alerts come with Premium, Admin and Owner accounts; plain users don't see the option.
-
-1. In Telegram, message @BotFather, send `/newbot` and copy the token.
-2. Paste it in **Admin > Telegram bot** (no restart needed), or put `TELEGRAM_BOT_TOKEN=123456:ABC-your-token` in
-   `backend/.env` and restart. The backend runs a watcher (polls every minute near games, logs to
-   `backend/data/cache/notify.log`) and a bot thread that answers `/start` and `/stop`.
-3. Open Settings > Notifications and tap **Link Telegram**, which opens the bot with a one-time code; tapping **Start**
-   links that chat. `/stop` or **Unlink** turns it off, and a chat that blocks the bot is unlinked automatically.
-   Switching bots in the Admin tab unlinks every chat (a new bot can't message chats that never started it).
-4. Test delivery to a chat with `python -m app.notify <chat id> "hello"` from `backend`.
-
-The same section picks what to push (lock calls, keep / swap calls, players ruled OUT, GTD / DTD or cleared, lineup
-moves) and the win chance a lock call must add before it is pushed. Each league's alerts go to its owner's chat.
-
-## Deploy (free: Oracle Cloud Always Free)
-
-One small VM runs everything: the app container (API plus the built frontend, one address, so the sign-in cookie
-just works) behind Caddy, which gets and renews the HTTPS certificate by itself. Files: `deploy/`.
-
-What you need: an Oracle Cloud account (Always Free; a card is checked but not charged). A domain is optional: without
-one, use the free `<ip-with-dashes>.sslip.io` name (for IP 140.238.1.2: `140-238-1-2.sslip.io`), which already points at
-your server, and Resend's default sender, which emails only the address that owns the Resend account. That's enough when
-you are the only user. Buy a domain (about $10 a year) once other people need sign-in emails.
-
-1. **VM.** In Oracle Cloud: Compute > Instances > Create. Image **Ubuntu 24.04**, shape **VM.Standard.A1.Flex**
-   (Ampere, Always Free up to 4 OCPU / 24 GB; 1 OCPU / 6 GB is plenty). Add your SSH key and create it. If it says
-   "out of capacity", try another availability domain or try again later.
-2. **Ports.** Networking > Virtual cloud networks > your VCN > Security Lists > Default: add ingress rules for TCP 80,
-   TCP 443 and UDP 443 from `0.0.0.0/0`.
-3. **DNS.** With a domain: add an `A` record (for example `app.yourdomain.com`) pointing at the VM's public IP. Without
-   one: skip this and use `<ip-with-dashes>.sslip.io` as the domain below.
-4. **Install.** Push this repo to GitHub, SSH in (`ssh ubuntu@<ip>`), then:
-   ```
-   curl -fsSLO https://raw.githubusercontent.com/<you>/<repo>/main/deploy/setup.sh
-   bash setup.sh https://github.com/<you>/<repo>.git
-   exit                      # log back in so the docker group applies
-   ```
-   It installs Docker, opens 80/443 in the VM's firewall, clones to `~/app` and schedules the daily backup.
-   The app container runs as user id 1001 (Ubuntu's `ubuntu` on Oracle; check with `id -u`, and build with
-   `--build-arg APP_UID=<yours>` if it differs), so `backend/data` must belong to it: `chmod 600 ~/app/backend/.env`
-   once it exists, and after copying data in, `sudo chown -R $(id -u):$(id -g) ~/app/backend/data`.
-   (A private repo: clone with a GitHub deploy key or token instead.)
-5. **Settings.** Create `~/app/deploy/.env` with `DOMAIN=app.yourdomain.com` and `~/app/backend/.env` with:
-   ```
-   APP_URL=https://app.yourdomain.com
-   ADMIN_EMAILS=you@example.com
-   RESEND_API_KEY=re_...
-   MAIL_FROM=NBA Fantasy <login@yourdomain.com>    # leave out without a domain (Resend's default sender)
-   TELEGRAM_BOT_TOKEN=...
-   ```
-   In Resend: Domains > Add domain, add the DNS records it shows, and wait for "Verified"; until then it only emails you.
-6. **Start.** `cd ~/app/deploy && docker compose -f compose.prod.yml up -d --build`, then open `https://app.yourdomain.com`.
-   The first build takes a few minutes; the certificate comes within a minute of the first visit.
-7. **Data.** Sign in with your admin email and run the pull from the **Admin** tab. Or copy your local data over first,
-   which keeps your leagues and accounts: `scp -r backend/data ubuntu@<ip>:~/app/backend/` (with the app stopped).
-
-**Only one copy may run the Telegram bot.** Telegram hands each message to one poller, and two watchers would both send
-alerts. Once the server is up, run locally without `TELEGRAM_BOT_TOKEN`, or with a second bot from @BotFather.
-
-**Continuous deployment.** Every push to `main` that passes CI (ruff, pytest, the frontend build, the Docker build) is
-deployed by the `deploy` job in `.github/workflows/ci.yml`: it SSHes in with a key that can only run `deploy/cd.sh`
-(pull, rebuild, wait until healthy), then checks `/api/health`. One-time setup:
-1. Make a key without a passphrase: `ssh-keygen -t ed25519 -N "" -C github-actions-deploy -f ~/.ssh/nba_fantasy_deploy`.
-2. On the server, add one line to `~/.ssh/authorized_keys` that locks it to the script:
-   `command="/home/ubuntu/app/deploy/cd.sh",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty <contents of nba_fantasy_deploy.pub>`
-3. In GitHub, Settings > Secrets and variables > Actions > New repository secret: name `DEPLOY_SSH_KEY`, value the
-   private key file `nba_fantasy_deploy`. Until it exists the job passes without deploying.
-If you use your own host, change the pinned `HOST_KEY` in the workflow (`ssh-keyscan -t ed25519 <host>`).
-
-By hand: `git pull && docker compose -f compose.prod.yml up -d --build` to update; `docker compose -f compose.prod.yml
-logs -f app` for logs. Backups: every day at 09:00 UTC, `backend/data/backups/data-YYYY-MM-DD.tgz` (accounts, leagues and
-settings, 14 days kept; `docker compose -f compose.prod.yml exec app python -m app.backup` runs one now). They sit on the
-same disk, so copy one off the VM now and then (`scp ubuntu@<ip>:~/app/backend/data/backups/<file> .`).
+- **Accounts:** passwordless email sign-in (one-time links, 30-day sessions), per-account leagues, and account tiers
+  (Telegram alerts for Premium), with an admin dashboard for users, activity and the data pull.
+- **Security:** CSRF checks on the Origin header on top of SameSite cookies, a strict Content-Security-Policy,
+  parameterized queries, per-account rate limits, input caps, and self-service account deletion. Usage data with IPs
+  expires after 90 days.
+- **Delivery:** one Docker container serves the API and the built frontend behind Caddy (automatic HTTPS) on an ARM VM.
+  GitHub Actions runs the checks on every push and deploys `main` when they pass, over SSH with a key that can only run
+  the deploy script, then confirms the site answers. Data is backed up daily.
 
 ## Calculations API
 
-The calculations the app shows are also exposed as a small JSON API, so you can run any of them on your own numbers
-without a league. It needs no setup beyond starting the backend.
-
-1. Start the backend: `python -m app.serve --port 8000` from `backend` (or `docker compose up`).
-2. Open `http://localhost:8000/docs`. Under **calculations**, click an endpoint, press **Try it out**, then **Execute**.
-3. Or from a terminal:
-
-```sh
-# what is available: every calculation with its formula, inputs, constants and a ready-to-send example request
-curl http://localhost:8000/api/calculations
-
-# run one: the chance to win a week, given each team's expected total and variance
-curl -X POST http://localhost:8000/api/calculations/win-chance   -H "Content-Type: application/json"   -d '{"mine": {"mean": 130, "variance": 25}, "theirs": {"mean": 124.9, "variance": 100}}'
-# {"id":"win-chance","result":{"win_chance":0.6759,"opponent_win_chance":0.3241}}
-```
-
-Each entry in the catalog has a `run` block holding its path and an example request body you can copy.
-
-| `POST /api/calculations/...` | Computes |
-|---|---|
-| `win-chance` | chance to win the week from two teams' totals and spreads |
-| `lock-or-wait` | the value of waiting on a player's games to come, and the expected-points call |
-| `live-finish-estimate` | where a game in progress will finish |
-| `game-swing` | how much one game can swing a player's night |
-| `lineup-seating` | players seated into slots under multi-position eligibility |
-| `fantasy-points` | fantasy points for a stat line under a league's scoring |
-
-Two calculations need real data, so they are in the catalog but have no endpoint of their own: the check-in
-timeline (part of `/api/leagues/{league_id}/season/plan`) and the auction valuations (they need pulled game logs).
-The code is in `backend/app/calculations.py`.
+The math behind the app is also a small public JSON API: `GET /api/calculations` lists each calculation with its
+formula, inputs and an example request, and `POST /api/calculations/<id>` runs it on your own numbers (win chance,
+lock or wait, live finish estimate, game swing, lineup seating, fantasy points). The code is in
+`backend/app/calculations.py`; `docs/calculations.tex` writes the formulas out.
 
 ## Repository layout
 
@@ -351,12 +204,37 @@ frontend/src/
 shared/nba_fantasy_shared/   models, providers, reconcile, scoring, storage
 ```
 
+## Run it locally
+
+<details>
+<summary>Python 3.13 and Node 20+</summary>
+
+```sh
+cd backend
+python -m venv venv
+./venv/bin/python -m pip install -r requirements.txt     # Windows: .\venv\Scripts\python.exe
+./venv/bin/python -m app.pull                            # first time: NBA game logs and the Sleeper player file
+./venv/bin/python -m app.serve --port 8000
+```
+
+In another terminal:
+
+```sh
+cd frontend
+npm install
+npm run dev          # http://localhost:5173, proxies /api to the backend
+```
+
+Sign in with any email: without a mail key the sign-in link is printed in the backend log. Checks: `ruff check` from
+the repo root, `python -m pytest -q tests` from `backend`, `npm run build` from `frontend`. Docker:
+`docker compose up --build`, then http://localhost:8000.
+
+</details>
+
 ## Scope
 
-Sleeper leagues only. The in-season views support the Lock-In format; the Draft tab supports auction drafts. The app is
-single-user with no login: it is meant to run on your own machine or a private container. Projections and news come
-from Sleeper's feeds; stats.nba.com throttles aggressively and blocks some cloud networks, so the first data pull is
-best run from a home connection.
+Sleeper leagues only. The in-season views support the Lock-In format; the Draft tab supports auction drafts.
+Projections and news come from Sleeper's feeds.
 
 ## License
 
