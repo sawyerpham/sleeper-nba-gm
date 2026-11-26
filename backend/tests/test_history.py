@@ -32,6 +32,19 @@ def test_a_players_past_seasons_and_log_in_league_scoring(tmp_path):
     assert (log[0]["team"], log[0]["opp"], log[0]["home"], log[0]["to"], log[0]["pm"]) == ("SEA", "NJN", False, 2, -7)
 
 
+def test_past_weeks_run_monday_to_sunday_from_opening_night_through_the_playoffs(tmp_path):
+    """Opening night Fri 1996-11-01 (another player's game) is week 1 with that Sunday; Monday starts week 2; a playoff
+    game (id 004...) keeps counting weeks and is tagged PO."""
+    path = tmp_path / "history.db"
+    db = connect(path)
+    store(db, [_line("1996-97", "0029600001", date(1996, 11, 1), 10).model_copy(update={"player_id": 8}),
+               _line("1996-97", "0029600020", date(1996, 11, 3), 10), _line("1996-97", "0029600030", date(1996, 11, 4), 10),
+               _line("1996-97", "0049600001", date(1997, 4, 24), 10)])
+    db.close()
+    log = player_log(path, 7, "1996-97", ScoringSettings())
+    assert [(r["week"], r["stage"]) for r in log] == [(1, None), (2, None), (26, "PO")]
+
+
 def test_find_event_maps_old_team_codes_to_espns():
     """stats.nba.com says NJN; ESPN's scoreboard says NJ (seen for 1996-11-01). Unknown teams find nothing."""
     board = {"events": [{"id": "961101", "date": "1996-11-02T00:30Z", "status": {"type": {"state": "post"}},

@@ -150,11 +150,12 @@ export function SeasonLog({ sea, leagueId, onOpenGame }) {
       )}
       {!rows ? <div className="small muted loading">{past?.error || "Loading…"}</div> : (
         <table className="sp-log" data-testid="season-log">
-          <thead><tr>{current && <th>WK</th>}<th>OPP</th><th>DATE</th>{LOG_COLS.map(([h]) => <th key={h} className="log-cell">{h}</th>)}</tr></thead>
+          <thead><tr><th>WK</th><th>OPP</th><th>DATE</th>{LOG_COLS.map(([h]) => <th key={h} className="log-cell">{h}</th>)}</tr></thead>
           <tbody>{rows.map((r) => (
-            <tr key={r.date} className={`${current && r.week === sea.week ? "this-week" : ""} ${current && r.week % 2 ? "wk-alt" : ""} ${r.fp == null ? "muted" : onOpenGame ? "clickable" : ""}`}
+            <tr key={r.date} className={`${current && r.week === sea.week ? "this-week" : ""} ${r.week % 2 ? "wk-alt" : ""} ${r.fp == null ? "muted" : onOpenGame ? "clickable" : ""}`}
               onClick={r.fp != null && onOpenGame ? () => open(r) : undefined}>
-              {current && <td>{r.week}</td>}<td>{r.home ? "" : "@"}<TeamTag abbr={r.opp} /></td><td>{mmdd(r.date)}</td>
+              <td>{r.week}</td><td>{r.home ? "" : "@"}<TeamTag abbr={r.opp} /></td>
+              <td>{mmdd(r.date)}{r.stage && <span className="log-stage" title={r.stage === "PO" ? "Playoffs" : "Play-in"}>{r.stage}</span>}</td>
               {LOG_COLS.map(([h, f, k]) => {
                 const tone = r.fp == null ? null : logTone(k, r[k], avg[k]);
                 return <td key={h} className="num log-cell">
