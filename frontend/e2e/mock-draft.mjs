@@ -86,7 +86,7 @@ try {
   const jokic = top[0].player_id;
   await page.getByTestId(`rank-row-${jokic}`).click();
   await page.getByTestId("player-sidebar").waitFor();
-  assert(/C · age \d+/.test(await page.getByTestId("player-sidebar").locator("h3").first().textContent()), "profile header shows positions and age");
+  assert(/\bC\b/.test(await page.getByTestId("player-sidebar").locator("h3").first().textContent()) && /Age\s*\d+/i.test(await page.getByTestId("profile-bio").textContent()), "profile header shows positions, bio shows age");
   summary.steps.push("sidebar shows Sleeper positions and injury (read-only)");
 
   await page.getByTestId("btn-start").click();

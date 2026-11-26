@@ -60,12 +60,11 @@ export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, us
     <>
       {onClose && <button className="sidebar-close" onClick={onClose} title="Close profile" data-testid="sidebar-close" aria-label="Close profile"><Icon name="x" /></button>}
       <div className="sec profile-top">
-      {season && <button className={`small watch-btn ${watched.includes(shownId) ? "on" : ""}`} onClick={() => toggleWatch(shownId)} data-testid="watch-btn">{watched.includes(shownId) ? "Unwatch" : "Watch"}</button>}
       <h3>
         <Headshot sleeperId={rec_.sleeper_id} name={rec_.full_name} size={96} large />
         {rec_.full_name} <span className="muted">{rec_.fantasy?.number != null && `#${rec_.fantasy.number} `}{rec_.team_abbr ? <TeamTag abbr={rec_.team_abbr} /> : "FA"}</span>
         <span className="profile-tags">
-          <span>{ov.eligibility.length ? <PosList list={ov.eligibility} /> : "no position"} · age {bio.age ?? "?"}</span>
+          <span>{ov.eligibility.length ? <PosList list={ov.eligibility} /> : "no position"}</span>
           {season && data.team?.role && (
             <span className="profile-ranks"><span className={`role-tag ${data.team.role.star ? "star" : ""}`} data-testid="team-role"
               data-tip={data.team.role.shared_with ? `Shares the #1 option with ${data.team.role.shared_with.name} (${data.team.role.shared_with.fpg} projected FP/G)` : undefined}>{data.team.role.star ? "★ " : ""}{data.team.role.label}</span></span>
@@ -88,10 +87,14 @@ export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, us
         {rec_.team_conflict && <span className="badge info">NBA.com {rec_.team_conflict.nba_api} / Sleeper {rec_.team_conflict.sleeper}</span>}
         {!rec_.has_stats && <span className="badge warn">no stats</span>}
       </h3>
-      <div className="small muted">
-        {bio.height_in ? `${Math.floor(bio.height_in / 12)}'${bio.height_in % 12}"` : "?"} · {bio.weight_lbs ?? "?"} lb
-        {bio.years_exp != null ? ` · ${bio.years_exp} yrs exp` : ""}{bio.draft_year ? ` · drafted ${bio.draft_year} R${bio.draft_round} #${bio.draft_number}` : ""}
-      </div>
+      <dl className="profile-bio" data-testid="profile-bio">
+        {[["Height", bio.height_in && `${Math.floor(bio.height_in / 12)}'${bio.height_in % 12}"`],
+          ["Weight", bio.weight_lbs && `${bio.weight_lbs} lb`],
+          ["Exp", bio.years_exp != null && (bio.years_exp ? `${bio.years_exp} yr${bio.years_exp > 1 ? "s" : ""}` : "Rookie")],
+          ["Draft", bio.draft_year && `${bio.draft_year} R${bio.draft_round} #${bio.draft_number}`],
+          ["Age", bio.age]].filter(([, v]) => v).map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
+      </dl>
+      {season && <button className={`small watch-btn ${watched.includes(shownId) ? "on" : ""}`} onClick={() => toggleWatch(shownId)} data-testid="watch-btn">{watched.includes(shownId) ? "Unwatch" : "Watch"}</button>}
       </div>
       {error && <div className="error">{error}</div>}
     </>

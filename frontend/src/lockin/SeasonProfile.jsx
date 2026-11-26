@@ -124,6 +124,7 @@ function logTone(k, v, avg) {
   if (LESS_IS_BETTER.has(k)) rel = -rel;
   return rel >= 0.08 ? "up" : rel > -0.08 ? "even" : "down";
 }
+const STAGE_NAMES = { PO: "Playoffs", PI: "Play-in" };
 /** The game log: this season's schedule (Sleeper) or, picked from the season menu, a past season's games (history.db),
  *  newest first with a blank row between the playoffs, the play-in and the regular season. A played row opens that
  *  game's card; the picked season is kept in the card's history entry (view / onView) so Back returns to it. */
@@ -155,7 +156,9 @@ export function SeasonLog({ sea, leagueId, onOpenGame, view, onView }) {
           <thead><tr><th>WK</th><th>OPP</th><th>DATE</th>{LOG_COLS.map(([h]) => <th key={h} className="log-cell">{h}</th>)}</tr></thead>
           <tbody>{rows.map((r, i) => (
             <React.Fragment key={r.date}>
-              {i > 0 && (r.stage || null) !== (rows[i - 1].stage || null) && <tr className="log-break"><td colSpan={3 + LOG_COLS.length} /></tr>}
+              {i > 0 && (r.stage || null) !== (rows[i - 1].stage || null) && (
+                <tr className="log-break"><td colSpan={3 + LOG_COLS.length}><div className="log-break-line">{STAGE_NAMES[rows[i - 1].stage] || "Regular season"}</div></td></tr>
+              )}
               <tr className={`${current && r.week === sea.week ? "this-week" : ""} ${r.week % 2 ? "wk-alt" : ""} ${r.fp == null ? "muted" : onOpenGame ? "clickable" : ""}`}
                 onClick={r.fp != null && onOpenGame ? () => open(r) : undefined}>
                 <td>{r.week}</td><td>{r.home ? "" : "@"}<TeamTag abbr={r.opp} /></td><td>{mmdd(r.date)}</td>
