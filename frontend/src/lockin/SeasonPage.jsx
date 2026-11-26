@@ -131,12 +131,14 @@ export function GamePanel({ sel, data, leagueId, onOpenPid, onClose }) {
   const [g, setG] = useState(null);
   const [error, setError] = useState("");
   const { list: matches } = useNBAMatches();
+  const { event, date, team, opp, state } = sel.game;
   useEffect(() => {
-    const load = () => api.get(`/leagues/${leagueId}/season/game` + qs({ event: sel.game.event })).then((x) => { setG(x); setError(""); }).catch((e) => setError(e.message));
+    const load = () => api.get(`/leagues/${leagueId}/season/game` + qs(event ? { event } : { date, team, opp })).then((x) => { setG(x); setError(""); }).catch((e) => setError(e.message));
     load();
+    if (!event && state === "post") return undefined; // a finished game opened from a game log: nothing left to refresh
     const t = setInterval(load, REFRESH_MS);
     return () => clearInterval(t);
-  }, [leagueId, sel.game.event]);
+  }, [leagueId, event, date, team, opp, state]);
   const owner = {};
   for (const t of data.teams) for (const sid of t.players) {
     const n = data.players[sid]?.name;
@@ -211,7 +213,7 @@ export function GamePanel({ sel, data, leagueId, onOpenPid, onClose }) {
               ) : <div className="small muted">No minutes yet.</div>}
               {t.dnp.some((d) => d.reason) && <div className="small muted gp-dnp">{g.state === "post" ? "DNP" : "Not in yet"}: {t.dnp.filter((d) => d.reason).map((d) => d.name).join(", ")}</div>}
               {t.ranks && <TeamRanks r={t.ranks} />}
-              <DepthGrid grid={t.depth_grid} onSelectPlayer={onOpenPid} />
+              {t.depth_grid && <DepthGrid grid={t.depth_grid} onSelectPlayer={onOpenPid} />}
             </section>
           );
         })}

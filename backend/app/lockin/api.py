@@ -12,11 +12,13 @@ from ..auth import limited
 from ..core.api.deps import _session, get_state
 from ..core.api.players import _team_role, team_rosters
 from ..core.services.app_state import AppState
+from ..history import DB_NAME, player_log, player_seasons
 from .service import (
     DAY_TTL,
     SLEEPER,
     _cache,
     best_games,
+    find_event,
     game_detail,
     http_fetch,
     injury_report,
@@ -74,9 +76,19 @@ def plan(league_id: str, week: int | None = Query(None, ge=1), roster_id: int | 
 
 
 @router.get("/game")
-def game(league_id: str, event: str = Query(..., pattern=r"^\d+$"), state: AppState = Depends(get_state)) -> dict:
-    """One NBA game (ESPN event id) for the game card: score, box scores in league FP, depth charts."""
-    return game_detail(_session(state, league_id), _fetch(state), event)
+def game(league_id: str, event: str | None = Query(None, pattern=r"^\d+$"), day: date | None = Query(None, alias="date"),
+         team: str | None = Query(None, pattern=r"^[A-Z]{2,4}$"), opp: str | None = Query(None, pattern=r"^[A-Z]{2,4}$"),
+         state: AppState = Depends(get_state)) -> dict:
+    """One NBA game for the game card: score, box scores in league FP, depth charts. By ESPN event id, or by date and
+    team (a game log row, any season)."""
+    session, fetch = _session(state, league_id), _fetch(state)
+    if event is None:
+        if day is None or team is None:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "give event, or date and team")
+        event = find_event(fetch, day.isoformat(), team, opp)
+        if event is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "game not found")
+    return game_detail(session, fetch, event)
 
 
 @router.get("/best")
@@ -160,9 +172,20 @@ def player(league_id: str, player_id: int, week: int | None = Query(None, ge=1),
     """A player's in-season profile (summary, game log, history)."""
     session = _session(state, league_id)
     try:
-        return season_player(session, _fetch(state), player_id, week)
+        out = season_player(session, _fetch(state), player_id, week)
+        now = session.league.roster_season
+        out["seasons"] = [now, *(s for s in player_seasons(state.store.root / DB_NAME, player_id) if s != now)]
+        return out
     except ValueError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+
+@router.get("/player/{player_id}/log")
+def player_past_log(league_id: str, player_id: int, season: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
+                    state: AppState = Depends(get_state)) -> dict:
+    """A player's game log for one past season (history.db), in the league's scoring."""
+    session = _session(state, league_id)
+    return {"season": season, "log": player_log(state.store.root / DB_NAME, player_id, season, session.league.scoring)}
 
 
 @router.get("/news")

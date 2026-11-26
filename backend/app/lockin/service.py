@@ -344,7 +344,9 @@ def game_detail(session, fetch: Fetch, event: str) -> dict:
     data = fetch(ESPN_SUMMARY.format(event), LIVE_TTL) or {}
     comp = ((data.get("header") or {}).get("competitions") or [{}])[0]
     st = (comp.get("status") or {}).get("type") or {}
-    rows, done = team_stat_rows(fetch, session.league.roster_season.split("-")[0])
+    year = session.league.roster_season.split("-")[0]
+    now = (comp.get("date") or "9999")[:10] >= f"{year}-08-01"  # a past season's game: no ranks or depth chart (they're this season's)
+    rows, done = team_stat_rows(fetch, year) if now else ([], set())
     box = {ESPN_TEAM.get(t["team"]["abbreviation"], t["team"]["abbreviation"]): t
            for t in (data.get("boxscore") or {}).get("players") or []}
     teams = []
@@ -374,10 +376,20 @@ def game_detail(session, fetch: Fetch, event: str) -> dict:
         teams.append({"abbr": abbr, "name": c["team"].get("displayName"), "logo": ((c["team"].get("logos") or [{}])[0]).get("href"),
                       "score": c.get("score"), "home": c.get("homeAway") == "home",
                       "record": next((r.get("summary") for r in c.get("record") or [] if r.get("type") == "total"), None),
-                      "players": played, "dnp": dnp, "ranks": team_ranks(rows, abbr, done),
-                      "depth_grid": depth_grid(session, sorted(by_team.get(abbr, []), reverse=True), inj=hurt)})
+                      "players": played, "dnp": dnp, "ranks": team_ranks(rows, abbr, done) if now else None,
+                      "depth_grid": depth_grid(session, sorted(by_team.get(abbr, []), reverse=True), inj=hurt) if now else None})
     teams.sort(key=lambda t: t["home"])
     return {"event": event, "tip": comp.get("date"), "state": st.get("state"), "detail": st.get("shortDetail"), "teams": teams}
+
+
+ESPN_OLD = {"NJN": "NJ", "CHH": "CHA", "NOH": "NOP", "NOK": "NOP"}  # stats.nba.com codes of moved teams -> ESPN's (seen 2026-11-25)
+
+
+def find_event(fetch: Fetch, day: str, team: str, opp: str | None = None) -> str | None:
+    """The ESPN event id of `team`'s game on `day` (any season; stats.nba.com team codes work), else its opponent's."""
+    games = espn_day(fetch, day, today_ct())
+    hit = next((games[ESPN_OLD.get(t, t)] for t in (team, opp) if t and ESPN_OLD.get(t, t) in games), None)
+    return hit and hit.get("event")
 
 
 def best_games(session, fetch: Fetch, week: int | None = None, n: int = 10, today: date | None = None) -> list[dict]:

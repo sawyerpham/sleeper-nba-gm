@@ -129,7 +129,7 @@ export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, us
         </nav>
         {!ready ? <div className="small muted loading">Loading…</div>
           : tab === "summary" ? <SeasonSummary sea={sea} onOpenGame={onOpenGame} onOpenMatchup={onOpenMatchup} />
-          : tab === "log" ? <SeasonLog sea={sea} />
+          : tab === "log" ? <SeasonLog key={sea.player_id} sea={sea} leagueId={leagueId} onOpenGame={onOpenGame} />
           : tab === "team" ? (teamCard || <div className="small muted">No NBA team.</div>)
           : <SeasonHistory sea={sea} />}
       </div>

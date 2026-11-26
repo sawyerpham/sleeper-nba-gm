@@ -214,6 +214,7 @@ cd backend
 python -m venv venv
 ./venv/bin/python -m pip install -r requirements.txt     # Windows: .\venv\Scripts\python.exe
 ./venv/bin/python -m app.pull                            # first time: NBA game logs and the Sleeper player file
+./venv/bin/python -m app.history                         # optional, once: past seasons' game logs (data/history.db, ~95 MB)
 ./venv/bin/python -m app.serve --port 8000
 ```
 

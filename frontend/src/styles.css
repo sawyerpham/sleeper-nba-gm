@@ -901,6 +901,7 @@ main:has(.season-grid) { max-width: none; padding: 12px 16px; flex: 1; min-heigh
 .sp-log th { font-size: var(--fs-3xs); font-weight: 700; color: var(--muted); padding: 4px 3px; border-bottom: 1px solid var(--border); text-align: left; }
 .sp-log td { padding: 4px 3px; border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent); white-space: nowrap; }
 .sp-log .num { text-align: right; }
+.log-season { margin: 0 0 8px; }
 .sp-log tr.this-week td { background: var(--primary-soft); }
 .sp-log .log-cell { text-align: center; }
 .sp-log td.log-cell { padding: 1px; }
