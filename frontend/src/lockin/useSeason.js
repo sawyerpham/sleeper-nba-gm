@@ -35,10 +35,13 @@ export default function useSeason(leagueId, onWeek) {
   const setLock = (sid, gameDate) => api.post(`/leagues/${leagueId}/season/locks`, { week: data.week, sleeper_id: sid, game_date: gameDate })
     .then(() => setTick((t) => t + 1)).catch((e) => setError(e.message));
 
+  const gameKey = (g) => g && (g.game.event || `${g.game.date}-${g.team}`);
   const go = (entry) => setNav(({ stack, i }) => {
-    const same = (a, b) => (a?.pid && a.pid === b.pid) || (a?.game && a.game.game.event === b.game?.game.event) || (a?.team && a.team === b.team);
+    const same = (a, b) => (a?.pid && a.pid === b.pid) || (a?.game && gameKey(a.game) === gameKey(b.game)) || (a?.team && a.team === b.team);
     return same(stack[i], entry) ? { stack, i } : { stack: [...stack.slice(0, i + 1), entry], i: i + 1 };
   });
+  // The open card's view (a profile's tab, its game log's season), kept in its history entry so Back returns to it.
+  const setView = (patch) => setNav(({ stack, i }) => ({ stack: stack.map((e, k) => (k === i ? { ...e, view: { ...e.view, ...patch } } : e)), i }));
   const close = () => setNav({ stack: [], i: -1 });
   const cur = nav.stack[nav.i] || null;
   const openPid = (pid) => (pid ? go({ pid }) : close());
@@ -48,7 +51,7 @@ export default function useSeason(leagueId, onWeek) {
 
   return {
     week, setWeek, data, plan, error, tick, syncing, sync, setLock, matchup, openMatchup,
-    cur, go, close, openPid, open, openTeam: (abbr) => go({ team: abbr }), openGame: (g) => go({ game: g }),
+    cur, go, close, openPid, open, setView, openTeam: (abbr) => go({ team: abbr }), openGame: (g) => go({ game: g }),
     back: nav.i > 0 ? () => setNav((n) => ({ ...n, i: n.i - 1 })) : null,
     forward: nav.i < nav.stack.length - 1 ? () => setNav((n) => ({ ...n, i: n.i + 1 })) : null,
   };

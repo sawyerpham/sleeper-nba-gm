@@ -124,11 +124,13 @@ function logTone(k, v, avg) {
   if (LESS_IS_BETTER.has(k)) rel = -rel;
   return rel >= 0.08 ? "up" : rel > -0.08 ? "even" : "down";
 }
-/** The game log: this season's schedule (Sleeper) or, picked from the season menu, a past season's games (history.db).
- *  A played row opens that game's card. */
-export function SeasonLog({ sea, leagueId, onOpenGame }) {
+/** The game log: this season's schedule (Sleeper) or, picked from the season menu, a past season's games (history.db),
+ *  newest first with a blank row between the playoffs, the play-in and the regular season. A played row opens that
+ *  game's card; the picked season is kept in the card's history entry (view / onView) so Back returns to it. */
+export function SeasonLog({ sea, leagueId, onOpenGame, view, onView }) {
   const seasons = sea.seasons?.length ? sea.seasons : [null];
-  const [season, setSeason] = useState(seasons[0]);
+  const [season, setSeasonState] = useState(seasons.includes(view?.season) ? view.season : seasons[0]);
+  const setSeason = (s) => { setSeasonState(s); onView?.({ season: s }); };
   const [past, setPast] = useState(null);
   const current = season === seasons[0];
   useEffect(() => {
@@ -136,7 +138,7 @@ export function SeasonLog({ sea, leagueId, onOpenGame }) {
     api.get(`/leagues/${leagueId}/season/player/${sea.player_id}/log` + qs({ season }))
       .then(setPast).catch((e) => setPast({ season, error: e.message }));
   }, [leagueId, sea.player_id, season, current]);
-  const rows = current ? sea.season_log : past?.season === season ? past.log : null;
+  const rows = current ? sea.season_log : past?.season === season ? [...past.log].reverse() : null;
   const played = (rows || []).filter((r) => r.fp != null);
   const avg = Object.fromEntries(LOG_COLS.map(([, , k]) => [k, played.reduce((t, r) => t + (r[k] || 0), 0) / (played.length || 1)]));
   const open = (r) => onOpenGame({ game: { date: r.date, team: r.team || sea.team, opp: r.opp, state: !current || r.status === "complete" ? "post" : "in" },
@@ -151,17 +153,19 @@ export function SeasonLog({ sea, leagueId, onOpenGame }) {
       {!rows ? <div className="small muted loading">{past?.error || "Loading…"}</div> : (
         <table className="sp-log" data-testid="season-log">
           <thead><tr><th>WK</th><th>OPP</th><th>DATE</th>{LOG_COLS.map(([h]) => <th key={h} className="log-cell">{h}</th>)}</tr></thead>
-          <tbody>{rows.map((r) => (
-            <tr key={r.date} className={`${current && r.week === sea.week ? "this-week" : ""} ${r.week % 2 ? "wk-alt" : ""} ${r.fp == null ? "muted" : onOpenGame ? "clickable" : ""}`}
-              onClick={r.fp != null && onOpenGame ? () => open(r) : undefined}>
-              <td>{r.week}</td><td>{r.home ? "" : "@"}<TeamTag abbr={r.opp} /></td>
-              <td>{mmdd(r.date)}{r.stage && <span className="log-stage" title={r.stage === "PO" ? "Playoffs" : "Play-in"}>{r.stage}</span>}</td>
-              {LOG_COLS.map(([h, f, k]) => {
-                const tone = r.fp == null ? null : logTone(k, r[k], avg[k]);
-                return <td key={h} className="num log-cell">
-                  {r.fp == null ? "" : <span className={`log-box ${tone || ""}`}>{f(r)}</span>}</td>;
-              })}
-            </tr>
+          <tbody>{rows.map((r, i) => (
+            <React.Fragment key={r.date}>
+              {i > 0 && (r.stage || null) !== (rows[i - 1].stage || null) && <tr className="log-break"><td colSpan={3 + LOG_COLS.length} /></tr>}
+              <tr className={`${current && r.week === sea.week ? "this-week" : ""} ${r.week % 2 ? "wk-alt" : ""} ${r.fp == null ? "muted" : onOpenGame ? "clickable" : ""}`}
+                onClick={r.fp != null && onOpenGame ? () => open(r) : undefined}>
+                <td>{r.week}</td><td>{r.home ? "" : "@"}<TeamTag abbr={r.opp} /></td><td>{mmdd(r.date)}</td>
+                {LOG_COLS.map(([h, f, k]) => {
+                  const tone = r.fp == null ? null : logTone(k, r[k], avg[k]);
+                  return <td key={h} className="num log-cell">
+                    {r.fp == null ? "" : <span className={`log-box ${tone || ""}`}>{f(r)}</span>}</td>;
+                })}
+              </tr>
+            </React.Fragment>
           ))}</tbody>
         </table>
       )}

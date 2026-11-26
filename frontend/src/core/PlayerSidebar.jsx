@@ -11,7 +11,7 @@ import Icon from "./Icon.jsx";
 import { useWatch } from "./watch.js";
 
 const TABS = [["summary", "Summary"], ["log", "Game Log"], ["team", "Team"], ["history", "History"]];
-export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, userName, onBlock, rankings, onSelectPlayer, season, plan, onClose, onOpenGame, onOpenMatchup }) {
+export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, userName, onBlock, rankings, onSelectPlayer, season, plan, onClose, onOpenGame, onOpenMatchup, view, onView }) {
   const [watched, toggleWatch] = useWatch(leagueId);
   const [data, setData] = useState(null);
   const [rec, setRec] = useState(null);
@@ -19,7 +19,11 @@ export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, us
   const [fit, setFit] = useState(null);
   const [error, setError] = useState("");
   const [sea, setSea] = useState(null);
-  const [tab, setTab] = useState("summary");
+  // The tab lives in the card's history entry (view / onView) too, so Back from a game returns to the same tab.
+  const [tab, setTabState] = useState(view?.tab || "summary");
+  const setTab = (t) => { setTabState(t); onView?.({ tab: t }); };
+  useEffect(() => { if (view?.tab) setTabState(view.tab); }, [view?.tab]);
+  useEffect(() => { if (!view?.tab) onView?.({ tab }); }, [playerId]); // a new player keeps the open tab: record it in his entry
 
   const latest = useRef(0);
   const load = useCallback(() => {
@@ -129,7 +133,7 @@ export default function PlayerSidebar({ leagueId, playerId, live, refreshKey, us
         </nav>
         {!ready ? <div className="small muted loading">Loading…</div>
           : tab === "summary" ? <SeasonSummary sea={sea} onOpenGame={onOpenGame} onOpenMatchup={onOpenMatchup} />
-          : tab === "log" ? <SeasonLog key={sea.player_id} sea={sea} leagueId={leagueId} onOpenGame={onOpenGame} />
+          : tab === "log" ? <SeasonLog key={sea.player_id} sea={sea} leagueId={leagueId} onOpenGame={onOpenGame} view={view} onView={onView} />
           : tab === "team" ? (teamCard || <div className="small muted">No NBA team.</div>)
           : <SeasonHistory sea={sea} />}
       </div>

@@ -902,7 +902,7 @@ main:has(.season-grid) { max-width: none; padding: 12px 16px; flex: 1; min-heigh
 .sp-log td { padding: 4px 3px; border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent); white-space: nowrap; }
 .sp-log .num { text-align: right; }
 .log-season { margin: 0 0 8px; }
-.log-stage { margin-left: 4px; padding: 0 3px; border-radius: 3px; font-weight: 700; color: var(--primary); border: 1px solid currentColor; }
+.sp-log tr.log-break td { height: 14px; padding: 0; border-bottom: none; background: none; }
 .sp-log tr.this-week td { background: var(--primary-soft); }
 .sp-log .log-cell { text-align: center; }
 .sp-log td.log-cell { padding: 1px; }
