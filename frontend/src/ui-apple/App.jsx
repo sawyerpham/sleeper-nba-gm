@@ -187,20 +187,28 @@ const MASCOT = String.raw`    /\_/\
  '.   |   .'
    '-...-'`;
 
+/** The Do now list: each call's title and one short line; a call with a longer explanation opens it on click. */
 function Calls({ data, plan }) {
   const calls = plan ? callsOf(data, plan) : [];
+  const [open, setOpen] = useState(() => new Set());
+  const toggle = (k) => setOpen((s) => { const n = new Set(s); if (!n.delete(k)) n.add(k); return n; });
   return (
     <section className="panel ap-group" data-testid="calls">
       <h3>Do now</h3>
       {!plan && <div className="ap-row ap-empty">Loading…</div>}
       {plan && !calls.length && <div className="ap-row ap-empty ap-mascot-row"><pre className="ap-mascot" role="img" aria-label="Nothing to do right now">{MASCOT}</pre></div>}
-      {calls.map((c) => (
-        <div key={c.key} className={`ap-row ap-call ${c.tone}`} data-testid="watch-line">
-          <span className="ap-call-icon"><Icon name={CALL_ICON[c.kind] || "alert"} /></span>
-          <span className="ap-call-body"><strong>{c.title}</strong>{c.text && <span className="small muted">{c.text}</span>}</span>
-          <span className="ap-call-when">{!c.when || c.when === "now" ? "Now" : timeOf(c.when)}</span>
-        </div>
-      ))}
+      {calls.map((c) => {
+        const more = c.short && c.text && c.text !== c.short, shown = open.has(c.key);
+        return (
+          <div key={c.key} className={`ap-row ap-call ${c.tone} ${more ? "clickable" : ""}`} data-testid="watch-line"
+            {...(more && { role: "button", tabIndex: 0, "aria-expanded": shown, onClick: () => toggle(c.key), onKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(c.key); } } })}>
+            <span className="ap-call-icon"><Icon name={CALL_ICON[c.kind] || "alert"} /></span>
+            <span className="ap-call-body"><strong>{c.title}{more && <Icon name="chevron-down" className={`ap-call-more ${shown ? "open" : ""}`} />}</strong>
+              {(shown ? c.text : c.short || c.text) && <span className="small muted">{shown ? c.text : c.short || c.text}</span>}</span>
+            <span className="ap-call-when">{!c.when || c.when === "now" ? "Now" : timeOf(c.when)}</span>
+          </div>
+        );
+      })}
     </section>
   );
 }

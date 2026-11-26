@@ -79,7 +79,7 @@ export function callsOf(data, plan) {
   }));
   const watch = [...(plan.today?.watch || [])].sort((x, y) => (x.alarm === "now" ? "" : x.alarm || "~").localeCompare(y.alarm === "now" ? "" : y.alarm || "~"))
     .map((w) => ({
-      key: `${w.kind}-${w.sid}-${w.backup_sid || ""}`, kind: w.kind, when: w.alarm, title: watchTitle(w), text: w.text, sid: w.sid, sid2: w.backup_sid,
+      key: `${w.kind}-${w.sid}-${w.backup_sid || ""}`, kind: w.kind, when: w.alarm, title: watchTitle(w), short: w.short, text: w.text, sid: w.sid, sid2: w.backup_sid,
       tone: ["gtd", "out"].includes(w.kind) || w.decision === "SWAP" ? "bad" : "even",
     }));
   const r = plan.roster;

@@ -674,14 +674,23 @@ def team_plan(session, view: dict, roster_id: int | None = None, manual: dict[st
                     w["win_keep"], w["win_swap"] = round(both[0], 3), round(both[1], 3)
                     w["decision"] = "SWAP" if both[1] > both[0] else "KEEP"
                     w["text"] += f" Win chance: keep {both[0]:.0%} · swap {both[1]:.0%}."
+                    w["short"] = (f"Start {w['backup']} for {w['name']}: {both[1]:.0%} to win vs {both[0]:.0%} keeping."
+                                  if w["decision"] == "SWAP" else f"Keep {w['name']}: {both[0]:.0%} to win vs {both[1]:.0%} swapping.")
     reminders = []
     for q in players:
         if q.action == "LOCK" and q.locked is None:
             nxt = next((g for g in q.games if not g.started), None)
             if nxt and nxt.tip:
+                wait = q.slot_w if q.slot_w is not None else q.w
+                odds = q.win_lock is not None and q.win_wait is not None
                 reminders.append({"kind": "lock", "sid": q.sid, "name": q.name, "slot": q.seat, "by": nxt.tip,
                                   "alarm": _minus_minutes(nxt.tip, LOCK_REMINDER_MIN), "decision": "LOCK",
-                                  "text": f"Lock {q.name} ({q.x:.1f}) in the {q.seat} slot before his next tip: {q.why}."})
+                                  "short": f"Lock his {q.x:.1f} in {q.seat}: " + (f"{q.win_lock:.0%} to win vs {q.win_wait:.0%} waiting."
+                                                                                  if odds else f"beats the ~{wait:.1f} still to come."),
+                                  "text": (f"Locking {q.name}'s {q.x:.1f} in the {q.seat} slot gives you a {q.win_lock:.0%} chance to win "
+                                           f"the week. Keeping the slot open for the games still to come (worth about {wait:.1f}) "
+                                           f"gives {q.win_wait:.0%}. Lock before his next tip, when the chance to lock this game ends."
+                                           if odds else f"Lock {q.name} ({q.x:.1f}) in the {q.seat} slot before his next tip: {q.why}.")})
     timeline = week_timeline(players, counts, view, t.seats if t else None) if view["dates"] else None
     if opp:
         ot = plan_today(oplayers, counts, today, view.get("now")) if today in view["dates"] else None

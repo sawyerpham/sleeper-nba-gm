@@ -146,6 +146,7 @@ def test_six_pm_player_starts_over_a_645_one_and_the_live_game_decides_the_swap(
     assert t.seats == {"SG": ["early"]}
     w = next(x for x in t.watch if x["kind"] == "swap")
     assert w["decision"] == "PENDING" and w["backup"] == "late" and w["alarm"] == "2026-10-21T23:40Z"
+    assert len(w["short"].split()) < 25 < len(w["text"].split())  # the Do now line is short; a click opens the full text
 
     for fp_now, want in ((1.0, "SWAP"), (14.0, "KEEP")):
         early.games[0] = Game(today, 10, fp=fp_now, started=True, live=True, tip="2026-10-21T23:00Z", min=10, proj_min=30, period=2, clock=600)

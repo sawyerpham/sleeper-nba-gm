@@ -564,6 +564,7 @@ def today_watch(players: list[PlanPlayer], today: str, seat: dict[int, str | Non
             backup = max(fits, key=lambda b: _today(b, today).proj or 0, default=None)
             lines.append({"kind": "out", "sid": p.sid, "name": p.name, "slot": p.slot, "by": g.tip, "alarm": "now",
                           "backup": backup.name if backup else None, "backup_sid": backup.sid if backup else None,
+                          "short": f"Start {backup.name} at {p.slot} now." if backup else "No bench player who plays tonight fits his slot.",
                           "text": f"{p.name} is OUT tonight: bench him" + (f" and start {backup.name} at {p.slot} now." if backup else " (nobody on the bench who plays tonight fits).")})
     seated = [p for p in players if seat.get(id(p))]
 
@@ -589,6 +590,7 @@ def today_watch(players: list[PlanPlayer], today: str, seat: dict[int, str | Non
             backup = max(fits, key=lambda b: _today(b, today).proj or 0)
             lines.append({"kind": "gtd", "sid": s.sid, "name": s.name, "slot": slot, "by": gs.tip,
                           "alarm": _minus_minutes(gs.tip, 30), "backup": backup.name, "backup_sid": backup.sid, "backup_tip": _today(backup, today).tip,
+                          "short": f"Check before his tip; if he's out, start {backup.name} at {slot}.",
                           "text": f"{s.name} is questionable: check before his tip. If he's out, start {backup.name} at {slot}."})
         for b in (b for b in bench if can_replace(s, b)):
             if _minutes(_today(b, today).tip) - _minutes(gs.tip) <= CLOSE_TIPS_MIN:
@@ -606,23 +608,27 @@ def today_watch(players: list[PlanPlayer], today: str, seat: dict[int, str | Non
             or max(live, key=lambda o: o[2]["swap"] - o[2]["keep"], default=None)
         if best and best[2]["decision"] == "SWAP":
             s, slot, call = best
+            short = f"{s.name} is headed for ~{call['est']}; {b.name}'s game is worth ~{call['swap']}. Swap before his tip."
             text = (f"SWAP: {s.name} is headed for ~{call['est']} (keep is worth {call['keep']}). Bench him and start "
                     f"{b.name} at {slot} before {b.name}'s tip (worth ~{call['swap']}).")
             decision = "SWAP"
         elif live and len(live) == len(opts):
             s, slot, call = best
+            short = f"Every starter is headed above what {b.name}'s game is worth: keep everyone."
             text = f"KEEP everyone: no starter is headed below what {b.name}'s game is worth ({', '.join(f'{o[0].name} ~{o[2]['est']}' for o in live)})."
             decision = "KEEP"
         else:
             s, slot, call = max((o for o in opts if o[2]["decision"] == "PENDING"), key=lambda o: o[2]["gain"])
             lines_ = ", ".join(f"{o[0].name} {o[2]['keep_if']}+" for o in sorted(opts, key=lambda o: o[2]["keep_if"]))
-            text = (f"{ALARM_LEAD_MIN} min before {b.name}'s tip the site reads the games of the starters he could replace "
-                    f"and swaps him in for whoever is furthest below his keep line ({lines_}).")
+            short = f"Decided {ALARM_LEAD_MIN} min before {b.name}'s tip, from how the starters he could replace are playing."
+            text = (f"{b.name} plays later tonight and could replace one of these starters. {ALARM_LEAD_MIN} minutes before his tip, "
+                    f"the site checks how their games are going and swaps him in for whoever is furthest below the score worth "
+                    f"keeping ({lines_}). If everyone is above his line, nobody moves.")
             decision = "PENDING"
         if decision != "KEEP":
             claimed.add(s.sid)
         lines.append({"kind": "swap", "sid": s.sid, "name": s.name, "slot": slot, "backup": b.name, "backup_sid": b.sid,
-                      "by": tip, "alarm": _minus_minutes(tip, ALARM_LEAD_MIN), "text": text, **call, "decision": decision,
+                      "by": tip, "alarm": _minus_minutes(tip, ALARM_LEAD_MIN), "short": short, "text": text, **call, "decision": decision,
                       "options": [{"sid": o[0].sid, "name": o[0].name, "slot": o[1], **o[2]} for o in opts]})
     return lines
 
